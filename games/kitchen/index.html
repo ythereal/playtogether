@@ -114,6 +114,27 @@
     .btns button.down { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.4); filter: brightness(1.1); }
     @media (max-width: 420px) { .btns button { width: 70px; height: 70px; } #joy { width: 100px; height: 100px; } }
 
+
+    /* ---------- desktop: HUD in a left column, kitchen uses the full height ---------- */
+    @media (min-width: 900px) and (pointer: fine) {
+      .top { right: auto; bottom: 0; width: 236px; display: flex; flex-direction: column; padding-bottom: 96px; }
+      .hud { grid-template-columns: 1fr; gap: 14px; padding: 50px 12px 0; }
+      .hud > div { display: flex; flex-direction: column; }
+      .sign { width: 100%; box-sizing: border-box; }
+      .timer-board { justify-self: stretch; }
+      .timer { font-size: 2.4rem; }
+      .right { flex-direction: column; align-items: stretch; gap: 8px; }
+      .score-sign { align-items: flex-start; }
+      .hud-btns { justify-content: flex-end; }
+      #chefBtn { max-width: 170px; }
+      .orders { flex-direction: column; overflow-y: auto; overflow-x: hidden; padding: 14px 12px 8px; flex: 1; min-height: 0; align-items: stretch; }
+      .order { min-width: 0; }
+      .bottom { left: 0; right: auto; width: 236px; padding: 0 12px 12px; justify-items: stretch; gap: 6px; }
+      .plaque { font-size: .85rem; padding: 6px 10px; max-width: none; }
+      .hint-keys { font-size: .74rem; padding: 0; line-height: 1.7; }
+      .toasts { position: fixed; top: 14px; left: calc(236px + (100vw - 236px) / 2); transform: translateX(-50%); width: max-content; max-width: 60vw; z-index: 25; }
+    }
+
     /* ---------- panels: picker, legend, results ---------- */
     .panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: rgba(14, 10, 18, .62); backdrop-filter: blur(3px); }
     .sheet { width: min(560px, 100%); max-height: calc(100% - 40px); overflow: auto; padding: 22px 22px 20px; }

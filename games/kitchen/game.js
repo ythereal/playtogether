@@ -379,19 +379,21 @@
   const [buf, bctx] = KA.canvas(BW, BH);
   const [light, lctx] = KA.canvas(BW, BH);
   let S = 2, OX = 0, OYpx = 0;                          // S: art px -> device px
-  const topEl = $('top'), bottomEl = $('bottom');
+  const topEl = $('top'), bottomEl = $('bottom'), sideLayout = matchMedia('(min-width: 900px) and (pointer: fine)');
   let layoutKey = '';
   function resize() {
     const dpr = devicePixelRatio || 1, w = Math.max(1, Math.round(innerWidth * dpr)), h = Math.max(1, Math.round(innerHeight * dpr));
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    // the kitchen sits between the HUD band and the bottom plaque / touch controls
-    const top = (topEl.getBoundingClientRect().bottom + 4) * dpr, bottom = (bottomEl.getBoundingClientRect().top - 4) * dpr;
-    const key = w + ':' + h + ':' + Math.round(top) + ':' + Math.round(bottom);
+    // desktop: HUD column on the left, kitchen fills the rest. Phone: kitchen between the HUD band and the controls.
+    const side = sideLayout.matches;
+    const left = side ? (topEl.getBoundingClientRect().right + 10) * dpr : 8 * dpr, right = w - 8 * dpr;
+    const top = side ? 10 * dpr : (topEl.getBoundingClientRect().bottom + 4) * dpr, bottom = side ? h - 10 * dpr : (bottomEl.getBoundingClientRect().top - 4) * dpr;
+    const key = [w, h, Math.round(left), Math.round(top), Math.round(bottom)].join(':');
     if (key === layoutKey) return; layoutKey = key;
-    const availH = Math.max(BH, bottom - top), availW = w - 16 * dpr;
+    const availH = Math.max(BH, bottom - top), availW = Math.max(BW, right - left);
     S = Math.min(availW / BW, availH / BH);
     if (S >= 1.5) S = Math.floor(S * 4) / 4;
-    OX = Math.floor((w - BW * S) / 2); OYpx = Math.floor(top + (availH - BH * S) / 2);
+    OX = Math.floor(left + (availW - BW * S) / 2); OYpx = Math.floor(top + (availH - BH * S) / 2);
   }
   addEventListener('resize', resize); resize(); setTimeout(resize, 300);
   // backdrop: the dark wall-top texture continues across the whole window
