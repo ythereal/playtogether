@@ -2,6 +2,13 @@
 // To add a game: create games/<id>/index.html and add an entry below.
 window.PT_GAMES = [
   {
+    id: 'mystery',
+    name: 'Manor Mystery',
+    blurb: 'Lord Blackwood is dead. Search the manor, question six suspects, and beat your friend to the right accusation.',
+    icon: '🔍',
+    type: 'Race · Real-time',
+  },
+  {
     id: 'pong',
     name: 'Pong',
     blurb: 'The classic, face to face. Your paddle is always at the bottom. First to 7.',

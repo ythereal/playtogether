@@ -26,6 +26,8 @@ games/<id>/index.html   One folder per game, self-contained
 4. No build tools, bundlers or npm dependencies. Plain HTML/CSS/JS that works when served as static files.
    CDN scripts are fine but must use a pinned version.
 5. Every game must work on a phone (touch, ~375px wide) as well as a desktop.
+6. Fixed-size boards: use `grid-template-columns/rows: repeat(n, minmax(0, 1fr))` and `min-height: 0`
+   on cells. Plain `1fr` lets a cell's content (a big ✕) stretch its row when a piece is placed.
 
 ## Adding a game
 
@@ -45,6 +47,12 @@ games/<id>/index.html   One folder per game, self-contained
   pattern for anything with secret hands, fog of war, etc.
 - `games/pong`: **real-time** (host simulation, 30 Hz snapshots, guest interpolation, local
   prediction of your own paddle, guest view mirrored so you're always at the bottom).
+
+- `games/mystery`: **bigger game split into files** (`world.js` map + seeded case generator,
+  `art.js` all pixel art drawn in code, `game.js` loop/render/UI/net). Host-only `genCase(seed)`;
+  the guest never receives the seed or solution until the case is over. Players move locally and
+  send positions; the host validates proximity before revealing a clue. When editing the case
+  generator, run a quick Node check over thousands of seeds that every case stays solvable.
 
 ## Networking API (`window.PT`)
 

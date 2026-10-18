@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>harness</title>
+<style>body{margin:0;display:flex;gap:8px;background:#888}iframe{width:430px;height:780px;border:0;background:#fff}</style>
+<iframe name="host"></iframe><iframe name="guest"></iframe>
+<script>
+window.PT_PEERS = {};
+async function load(name) {
+  const html = (await (await fetch('index.html')).text())
+    .replace('src="../../shared/net.js"', 'src="_stubnet.js"')
+    .replace('<head>', '<head><base href="' + location.href.replace(/_harness.*$/, '') + '">');
+  const f = document.querySelector('iframe[name=' + name + ']');
+  delete window.PT_PEERS[name];
+  f.srcdoc = html;
+}
+window.reload = load;
+load('host'); load('guest');
+// helpers for the test driver
+window.doc = n => document.querySelector('iframe[name=' + n + ']').contentDocument;
+window.click = (n, sq) => { const d = doc(n); const flip = d.getElementById('board').dataset.flip === '1';
+  const i = flip ? (sq >> 3) * 8 + (7 - (sq & 7)) : (7 - (sq >> 3)) * 8 + (sq & 7); d.querySelectorAll('#board .sq')[i].click(); };
+window.sq = s => 'abcdefgh'.indexOf(s[0]) + (s[1] - 1) * 8;
+window.move = (n, a, b) => { click(n, sq(a)); click(n, sq(b)); };
+window.st = n => doc(n).getElementById('status').textContent;
+</script>

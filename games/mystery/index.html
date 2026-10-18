@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Manor Mystery · PlayTogether</title>
+  <link rel="stylesheet" href="../../shared/style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+  <style>
+    /* This game is always dark and moody regardless of the system theme. */
+    body { background: #0d0a12; color: #f1e9dc; overflow: hidden; overscroll-behavior: none; }
+    .mm { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr; }
+    .pix { font-family: 'Pixelify Sans', var(--font); }
+
+    .hud {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 48px 16px 10px; background: linear-gradient(#0d0a12, #0d0a12e0);
+      border-bottom: 1px solid #2a2233; z-index: 2;
+    }
+    .hud .case { font-weight: 700; font-size: 1.15rem; letter-spacing: .02em; color: #e8c46a; }
+    .hud .score { color: #b9aec8; font-size: .95rem; }
+    .hud .score b { color: #fff; }
+    .hud .status { flex: 1 1 100%; order: 3; color: #b9aec8; font-size: .9rem; margin: 0; }
+    .hud .nb { margin-left: auto; background: #2a2233; color: #f1e9dc; box-shadow: inset 0 0 0 1.5px #4a3d5a; }
+    @media (min-width: 760px) { .hud .status { flex: 1; order: 0; } }
+
+    #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; }
+    .stage { position: relative; min-height: 0; }
+
+    /* ---------- dialogue ---------- */
+    .dialog {
+      position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5;
+      width: min(640px, calc(100% - 32px)); display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
+      background: #1b1524f2; border: 2px solid #4a3d5a; border-radius: 6px; padding: 14px;
+      box-shadow: 0 0 0 4px #0d0a12, 0 18px 40px rgba(0,0,0,.6); cursor: pointer;
+      animation: rise .18s ease-out;
+    }
+    .dialog.clue { border-color: #e8c46a; }
+    @keyframes rise { from { transform: translate(-50%, 12px); opacity: 0; } }
+    .dialog canvas { width: 64px; height: 64px; image-rendering: pixelated; border: 2px solid #4a3d5a; border-radius: 4px; background: #2a2233; }
+    .dialog h3 { margin: 0 0 4px; font-size: 1.05rem; color: #e8c46a; }
+    .dialog p { margin: 0; line-height: 1.45; font-size: 1.02rem; min-height: 3em; }
+    .dialog .tag { font-size: .8rem; color: #8fd18f; margin-top: 6px; min-height: 1em; }
+    .dialog::after { content: '▼'; position: absolute; right: 12px; bottom: 8px; font-size: .7rem; color: #b9aec8; opacity: 0; }
+    .dialog.done::after { opacity: 1; animation: blink 1s steps(2) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ---------- panels ---------- */
+    .panel {
+      position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 16px;
+      background: rgba(8, 5, 14, .72); backdrop-filter: blur(3px);
+    }
+    .sheet {
+      width: min(720px, 100%); max-height: 100%; overflow: auto;
+      background: #efe6d2; color: #2a1e14; border-radius: 6px; padding: 20px;
+      box-shadow: 0 0 0 4px #4a3324, 0 24px 60px rgba(0,0,0,.6);
+      background-image: repeating-linear-gradient(#efe6d2 0 27px, #dfd2b8 27px 28px);
+    }
+    .sheet h2 { margin: 0; font-size: 1.6rem; }
+    .sheet h4 { margin: 18px 0 8px; font-size: .85rem; text-transform: uppercase; letter-spacing: .12em; color: #7a5a3a; }
+    .sheet .top { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+    .sheet .sub { color: #7a5a3a; margin: 4px 0 0; font-size: .9rem; }
+    .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+    .chip span { min-width: 0; overflow-wrap: anywhere; line-height: 1.15; }
+    .chip {
+      appearance: none; border: 2px solid #c9b896; background: #fbf6ea; color: #2a1e14; border-radius: 6px;
+      display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 5px; cursor: pointer; text-align: left;
+      font: inherit; font-size: .82rem; font-weight: 600; position: relative; min-height: 46px;
+    }
+    .chip canvas { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 3px; flex: none; }
+    .chip.x { opacity: .45; }
+    .chip.x::after { content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 3px; background: #b3243c; transform: rotate(-8deg); border-radius: 2px; }
+    .chip.sel { border-color: #b3243c; background: #fff; box-shadow: 0 0 0 2px #b3243c; }
+    .entries { display: grid; gap: 10px; }
+    .entry { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: start; background: #fbf6ea; border: 1px solid #d8c9a8; border-radius: 6px; padding: 8px; }
+    .entry canvas { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 3px; }
+    .entry b { display: block; font-size: .9rem; }
+    .entry p { margin: 2px 0 0; font-size: .88rem; line-height: 1.4; color: #4a3a2a; }
+    .empty { color: #8a7a62; font-style: italic; margin: 0; }
+    .sheet .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+    .btn-dark { background: #2a1e14; color: #efe6d2; }
+    .btn-red { background: #b3243c; color: #fff; }
+    .btn-red:disabled { opacity: .4; cursor: not-allowed; }
+    .warn { color: #b3243c; font-size: .9rem; margin: 10px 0 0; }
+    .summary { font-weight: 700; margin: 14px 0 0; }
+
+    .over-body { display: flex; gap: 14px; align-items: center; margin-top: 12px; }
+    .over-body canvas { width: 72px; height: 72px; image-rendering: pixelated; border-radius: 4px; border: 2px solid #c9b896; }
+    .over-body p { margin: 0; font-size: 1.05rem; line-height: 1.45; }
+
+    /* ---------- toasts ---------- */
+    .toasts { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4; display: grid; gap: 8px; justify-items: center; pointer-events: none; width: calc(100% - 32px); }
+    .toast { background: #1b1524f0; border: 1px solid #4a3d5a; color: #f1e9dc; padding: 8px 14px; border-radius: 999px; font-size: .92rem; animation: rise2 .2s ease-out; transition: opacity .5s, transform .5s; }
+    .toast.out { opacity: 0; transform: translateY(-6px); }
+    @keyframes rise2 { from { opacity: 0; transform: translateY(-8px); } }
+
+    /* ---------- touch controls ---------- */
+    .touch { display: none; }
+    @media (pointer: coarse) { .touch { display: block; } }
+    #joy {
+      position: absolute; left: 20px; bottom: calc(20px + env(safe-area-inset-bottom)); width: 120px; height: 120px; z-index: 3;
+      border-radius: 50%; background: rgba(255,255,255,.07); border: 2px solid rgba(255,255,255,.18); touch-action: none;
+    }
+    #knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: rgba(255,255,255,.28); border: 2px solid rgba(255,255,255,.4); }
+    #act {
+      position: absolute; right: 22px; bottom: calc(36px + env(safe-area-inset-bottom)); width: 84px; height: 84px; z-index: 3;
+      border-radius: 50%; border: 2px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff;
+      font: 600 1rem 'Pixelify Sans', sans-serif; touch-action: manipulation;
+    }
+    #act.ready { background: #e8c46a; color: #2a1e14; border-color: #fff3c4; box-shadow: 0 0 20px rgba(232,196,106,.5); }
+    .hint-keys { position: absolute; right: 16px; bottom: 12px; z-index: 2; color: #8a7f98; font-size: .8rem; }
+    @media (pointer: coarse) { .hint-keys { display: none; } }
+    .pt-lobby-link { color: #b9aec8; }
+  </style>
+</head>
+<body class="pix">
+  <div class="mm">
+    <header class="hud">
+      <span class="case" id="hudCase">Connecting…</span>
+      <span class="score" id="hudScore"></span>
+      <p class="status" id="hudStatus"></p>
+      <button class="pt-btn pt-btn-small nb" id="nbBtn">📓 Notebook</button>
+    </header>
+    <div class="stage">
+      <canvas id="view"></canvas>
+      <div class="toasts" id="toasts"></div>
+      <div class="hint-keys">WASD / arrows to move · E to search & talk · N notebook</div>
+
+      <div class="dialog" id="dialog" hidden>
+        <canvas id="dlgPic" width="48" height="48"></canvas>
+        <div><h3 id="dlgTitle"></h3><p id="dlgText"></p><div class="tag" id="dlgTag"></div></div>
+      </div>
+
+      <div class="panel" id="notebook" hidden>
+        <div class="sheet">
+          <div class="top"><div><h2>Notebook</h2><p class="sub" id="nbCount"></p></div><button class="pt-btn pt-btn-small btn-dark" id="nbClose">Close</button></div>
+          <h4>Suspects (tap to cross off)</h4><div class="chips" id="nbSus"></div>
+          <h4>Weapons</h4><div class="chips" id="nbWea"></div>
+          <h4>Rooms</h4><div class="chips" id="nbRoom"></div>
+          <h4>Evidence</h4><div class="entries" id="nbClues"></div>
+          <h4>Statements</h4><div class="entries" id="nbStmts"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="accuse" hidden>
+        <div class="sheet">
+          <h2>Make your accusation</h2>
+          <p class="warn">A wrong accusation takes you off the case.</p>
+          <h4>Who?</h4><div class="chips" id="acSus"></div>
+          <h4>With what?</h4><div class="chips" id="acWea"></div>
+          <h4>Where?</h4><div class="chips" id="acRoom"></div>
+          <p class="summary" id="acSum"></p>
+          <div class="row"><button class="pt-btn btn-dark" id="acCancel">Not yet</button><button class="pt-btn btn-red" id="acGo" disabled>Accuse</button></div>
+        </div>
+      </div>
+
+      <div class="panel" id="over" hidden>
+        <div class="sheet">
+          <h2 id="ovTitle"></h2>
+          <div class="over-body"><canvas id="ovPic" width="48" height="48"></canvas><canvas id="ovWea" width="48" height="48"></canvas><p id="ovText"></p></div>
+          <p class="sub" id="ovScore" style="margin-top:12px"></p>
+          <div class="row"><button class="pt-btn btn-dark" id="ovClose">Look around</button><button class="pt-btn btn-red" id="ovAgain">New case</button></div>
+        </div>
+      </div>
+
+      <div class="touch"><div id="joy"><div id="knob"></div></div><button id="act">•</button></div>
+    </div>
+  </div>
+
+  <script src="../../shared/net.js"></script>
+  <script src="world.js"></script>
+  <script src="art.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
