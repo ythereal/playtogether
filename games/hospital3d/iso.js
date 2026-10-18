@@ -217,7 +217,7 @@
       const t0 = i / n, t1 = (i + 1) / n;
       const p0 = [sx + (ex - sx) * t0, sy + (ey - sy) * t0], p1 = [sx + (ex - sx) * t1, sy + (ey - sy) * t1];
       const q0 = rw(p0[0], p0[1]), q1 = rw(p1[0], p1[1]);
-      items.push({ d: far ? Math.min(q0[0] + q0[1], q1[0] + q1[1]) - 0.5 : Math.max(q0[0] + q0[1], q1[0] + q1[1]) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
+      items.push({ d: Math.max(q0[0] + q0[1], q1[0] + q1[1]) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
     }
     return items;
   }
@@ -231,8 +231,10 @@
       wallItems(X + 64, Y, X + 64, Y + 64, -1, 0, 'E' + dk, col, style, null, null));
   }
   function lotWalls(X, Y, top) {
-    // bare lot: just the building's outer wall on its outside edge
-    return top ? wallItems(X, Y, X + 64, Y, 0, 1, 'Nlot', EXT, 'brick') : wallItems(X, Y + 64, X + 64, Y + 64, 0, -1, 'Slot', EXT, 'brick');
+    // bare lot: the building's outer wall, only where the lot really is on the outside (top of band 0, bottom of band 3)
+    if (top && Y === 0) return wallItems(X, Y, X + 64, Y, 0, 1, 'Nlot', EXT, 'brick');
+    if (!top && Y + 64 === H * T) return wallItems(X, Y + 64, X + 64, Y + 64, 0, -1, 'Slot', EXT, 'brick');
+    return [];
   }
   function buildingWalls() {
     // west exterior wall, with the entrance gap, and the east end wall
