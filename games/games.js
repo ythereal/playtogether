@@ -2,6 +2,13 @@
 // To add a game: create games/<id>/index.html and add an entry below.
 window.PT_GAMES = [
   {
+    id: 'hospital',
+    name: 'Rival Hospital',
+    blurb: 'Theme Hospital-style management duel. Build clinics, hire doctors, cure Balloon Head and Loose Tongue. The town\'s patients go wherever the reputation is higher.',
+    icon: '🏥',
+    type: 'Rivals · Real-time',
+  },
+  {
     id: 'kitchen',
     name: 'Kitchen Rush',
     blurb: 'Co-op cooking against the clock. Chop, fry, plate and serve orders together before they expire.',
