@@ -22,7 +22,7 @@
 
   const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
   const ID_PREFIX = 'playtogether-v1-';
-  const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const CODE_ALPHABET = 'ACDEFHJKMNPRTUVWXY3479'; // no look-alikes: 2/Z, 5/S, 0/O, 1/I/L, 8/B, 6/G, Q
   const CODE_LENGTH = 4;
   const PING_EVERY_MS = 2000;
   const DEAD_AFTER_MS = 7000;
