@@ -36,6 +36,16 @@ games/<id>/index.html   One folder per game, self-contained
 3. Bump `shared/version.json`.
 4. Commit and push to `main`. Pages redeploys in about 1 minute.
 
+### Reference games: copy the closest one
+
+- `games/tictactoe`: smallest turn-based example.
+- `games/connect4`: turn-based with animation and keyboard shortcuts.
+- `games/battleship`: **hidden information**. The host keeps the full state but sends each player
+  only `viewFor(state, player)`, so the guest never receives the host's ship positions. Use this
+  pattern for anything with secret hands, fog of war, etc.
+- `games/pong`: **real-time** (host simulation, 30 Hz snapshots, guest interpolation, local
+  prediction of your own paddle, guest view mirrored so you're always at the bottom).
+
 ## Networking API (`window.PT`)
 
 ```js
