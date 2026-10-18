@@ -266,9 +266,9 @@
   function buildLegend() {
     const rows = [
       [0, [['lettuce', 'knife'], ['tomato', 'knife']]],
-      [1, [['meat', 'knife', 'pan'], ['onion', 'knife']]],
+      [1, [['potato', 'knife', 'pan'], ['onion', 'knife']]],
       [2, [['tomato', 'knife'], ['onion', 'knife'], ['pot']]],
-      [3, [['bun'], ['meat', 'knife', 'pan'], ['lettuce', 'knife']]],
+      [3, [['bun'], ['potato', 'knife', 'pan'], ['lettuce', 'knife']]],
     ];
     const el = $('recipes'); el.replaceChildren();
     for (const [d, groups] of rows) {
@@ -280,7 +280,7 @@
       groups.forEach((g, gi) => {
         if (gi) { const plus = document.createElement('span'); plus.textContent = g[0] === 'pot' ? '→' : '+'; steps.append(plus); }
         const grp = document.createElement('span'); grp.className = 'grp';
-        g.forEach(tok => { const c = iconCanvas(tok, 24); c.title = tok === 'knife' ? 'chop' : tok === 'pan' ? 'fry' : tok === 'pot' ? 'boil' : tok; grp.append(c); });
+        g.forEach(tok => { const c = iconCanvas(tok, 24); c.title = tok === 'knife' ? (g[0] === 'potato' ? 'mash & shape' : 'chop') : tok === 'pan' ? 'fry' : tok === 'pot' ? 'boil' : tok; grp.append(c); });
         steps.append(grp);
       });
       body.append(steps); row.append(body); el.append(row);
@@ -392,11 +392,11 @@
       }
     } else if (ty === 'S') {
       const it = sl && sl.it;
-      if (it === 'meat+' || it === 'meat*') drawFlames(X + 1, Y + 9.5, t, it === 'meat*');
+      if (it === 'potato+' || it === 'potato*') drawFlames(X + 1, Y + 9.5, t, it === 'potato*');
       img(panSpr, X, Y);
       if (it) img(KA.item(it), X + 1, Y - 1);
-      if (it === 'meat+') drawBar(X, Y - 7, sl.p, '#ffb347', false, t);
-      else if (it === 'meat*') drawBar(X, Y - 7, sl.b, '#e5443a', sl.b > 0.6, t);
+      if (it === 'potato+') drawBar(X, Y - 7, sl.p, '#ffb347', false, t);
+      else if (it === 'potato*') drawBar(X, Y - 7, sl.b, '#e5443a', sl.b > 0.6, t);
     } else if (ty === 'P') {
       const it = sl && sl.it, tk = it ? KR.tokens(it) : [];
       const cooking = tk.length === 2 || tk[0] === 'soup';
@@ -454,7 +454,7 @@
     for (const L of LAMPS) hole(L.x, L.y, L.r);
     if (view) for (const i in view.slots) {
       const sl = view.slots[i], ty = MAP[Math.floor(i / W)][i % W];
-      const on = (ty === 'S' && (sl.it === 'meat+' || sl.it === 'meat*')) || (ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup'));
+      const on = (ty === 'S' && (sl.it === 'potato+' || sl.it === 'potato*')) || (ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup'));
       if (on) hole((i % W) * T + 8, Math.floor(i / W) * T + 8, 22 + Math.sin(t * 17 + i) * 2, 0.9);
     }
     bctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -465,7 +465,7 @@
     for (const L of LAMPS) glow(L.x, L.y, L.r * 0.7, L.warm ? 'rgba(255,170,80,.13)' : 'rgba(120,160,255,.08)');
     if (view) for (const i in view.slots) {
       const sl = view.slots[i], ty = MAP[Math.floor(i / W)][i % W];
-      const on = (ty === 'S' && (sl.it === 'meat+' || sl.it === 'meat*')) || (ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup'));
+      const on = (ty === 'S' && (sl.it === 'potato+' || sl.it === 'potato*')) || (ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup'));
       if (on) glow((i % W) * T + 8, Math.floor(i / W) * T + 10, 20 + Math.sin(t * 23 + i) * 2, 'rgba(255,120,30,.28)');
     }
     bctx.globalCompositeOperation = 'source-over';
@@ -506,7 +506,7 @@
     // steam from cooking stations
     if (view && Math.random() < 0.5) for (const i in view.slots) {
       const sl = view.slots[i], ty = MAP[Math.floor(i / W)][i % W];
-      if ((ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup')) || (ty === 'S' && (sl.it === 'meat+' || sl.it === 'meat*'))) {
+      if ((ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup')) || (ty === 'S' && (sl.it === 'potato+' || sl.it === 'potato*'))) {
         const p = slotPos(+i), burning = sl.b > 0.5;
         parts.push({ kind: burning ? 'smoke' : 'steam', x: p.x + (Math.random() - .5) * 8, y: p.y - 2, vx: (Math.random() - .5) * 6, vy: -8 - Math.random() * 8, life: burning ? 1.2 : 0.8, col: burning ? '#3a3a40' : 'rgba(255,255,255,.7)' });
       }

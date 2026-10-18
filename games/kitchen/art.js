@@ -168,7 +168,7 @@
     tomato: '#e23b2e', tomatoD: '#9c2118', tomatoL: '#ff8a78', pink: '#f28577', pinkL: '#f9b3a8', seed: '#ffe08a', stem: '#3f8f3a', stemD: '#2c6b2a', stemL: '#6fbf5a',
     lettuce: '#5fbd4a', lettuceD: '#3f9a34', lettuceD2: '#2f7a28', lettuceL: '#a0e07a', lettuceL2: '#d2f3b0',
     onion: '#a6509b', onionD: '#6e2f64', onionL: '#c98bbd', onionL2: '#efd6ea',
-    meat: '#d1505a', meatL: '#e3737c', meatD: '#9a2e3a', fat: '#f1cfd2', patty: '#c84a55', cooked: '#7b4a2b', cookedL: '#a56a3e', cookedD: '#4e2d18',
+    potato: '#c9a26a', potatoL: '#e4c48e', potatoD: '#8f6a3a', potatoD2: '#5e4322', eye: '#6b4a24', tikki: '#e9d79c', tikkiL: '#f7ecc0', tikkiD: '#c4ad6a', pea: '#5fae45', spice: '#b8402a', cooked: '#d4903a', cookedL: '#f0bf6a', cookedD: '#9a5f1e', cookedD2: '#6a3e10',
     bun: '#d9a055', bunL: '#efcf95', bunD: '#a8702e', sesame: '#f7e6c0', burnt: '#2b2b2e', burntL: '#55555a',
     plate: '#f6f6f4', plateRim: '#cfd3d8', plateIn: '#e8e9ec', plateBlue: '#7fa3c9', soup: '#e8702a', soupL: '#f3a660', cream: '#f8ddb4', bowl: '#eeeeeb', bowlD: '#c6c8cc',
   };
@@ -193,10 +193,10 @@
         blob(x, 12, 14, 9, 9, C.onion, { dark: C.onionD, light: C.onionL, spec: C.onionL2, dark2: '#4e1f46' });
         R(8, 8, 1, 10, '#8a3f80'); R(16, 8, 1, 10, '#8a3f80'); R(12, 6, 1, 14, '#8a3f80'); R(10, 7, 1, 2, C.onionL2);
         R(11, 2, 2, 4, '#c9a96a'); R(10, 1, 1, 2, '#e0c080'); R(13, 2, 1, 2, '#b09050'); R(9, 3, 1, 1, '#c9a96a'); break;
-      case 'meat':
-        bevel(x, 2, 6, 20, 13, C.meat, 0.18); R(3, 7, 18, 1, C.meatL); R(2, 18, 20, 1, C.meatD); R(20, 7, 2, 12, C.meatD);
-        R(5, 9, 2, 1, C.fat); R(12, 13, 4, 1, C.fat); R(14, 8, 1, 2, C.fat); R(7, 15, 2, 1, C.fat); R(17, 11, 2, 1, C.fat); R(9, 11, 1, 1, C.fat); R(6, 12, 3, 1, C.meatL);
-        x.clearRect(2, 6, 1, 1); x.clearRect(21, 6, 1, 1); x.clearRect(2, 18, 1, 1); x.clearRect(21, 18, 1, 1); break;
+      case 'potato':
+        blob(x, 12, 13, 10, 7.5, C.potato, { dark: C.potatoD, dark2: C.potatoD2, light: C.potatoL, spec: '#f3dcae' });
+        R(6, 9, 2, 1, C.eye); R(7, 10, 1, 1, C.potatoD2); R(15, 8, 1, 2, C.eye); R(9, 16, 2, 1, C.eye); R(17, 14, 2, 1, C.eye); R(18, 15, 1, 1, C.potatoD2); R(12, 12, 1, 1, C.potatoD); R(4, 14, 1, 1, C.potatoD);
+        R(3, 11, 1, 1, C.potatoL); R(20, 10, 1, 2, C.potatoD2); break;
       case 'bun':
         blob(x, 12, 12, 10, 7.5, C.bun, { dark: C.bunD, light: '#e9bd78', spec: C.bunL }); x.clearRect(0, 15, 24, 9);
         R(3, 15, 18, 2, C.bunL); R(3, 17, 18, 2, C.bunD); R(4, 19, 16, 1, '#8a5a24'); R(2, 15, 1, 2, C.bunL); R(21, 15, 1, 2, C.bunL);
@@ -208,11 +208,14 @@
         R(3, 12, 6, 1, C.lettuceL2); R(9, 8, 6, 1, C.lettuceL); R(14, 14, 6, 1, C.lettuceL2); R(16, 7, 5, 1, C.lettuceL); R(7, 19, 6, 1, C.lettuceD2); R(5, 9, 4, 1, C.lettuceD2); R(9, 11, 6, 1, C.lettuceD); R(14, 17, 6, 1, C.lettuceD); break;
       case 'onion+':
         onionRing(x, 10, 12, 7); onionRing(x, 10, 12, 3.4); onionRing(x, 17, 15, 5); R(14, 18, 1, 1, C.onionD); break;
-      case 'meat+':
-        blob(x, 12, 13, 10, 6, C.patty, { dark: C.meatD, light: C.meatL, spec: C.fat, dark2: '#7a1f2a' }); R(7, 11, 2, 1, C.meatD); R(14, 14, 2, 1, C.meatD); R(10, 15, 1, 1, C.fat); R(16, 10, 1, 1, C.fat); R(8, 14, 1, 1, C.meatD); break;
-      case 'meat*':
-        blob(x, 12, 13, 10, 6, C.cooked, { dark: C.cookedD, light: C.cookedL, spec: '#c48a52', dark2: '#36200f' });
-        R(5, 11, 4, 1, C.cookedD); R(11, 11, 4, 1, C.cookedD); R(17, 11, 2, 1, C.cookedD); R(6, 15, 4, 1, C.cookedD); R(12, 15, 5, 1, C.cookedD); R(9, 9, 2, 1, C.cookedL); R(15, 13, 1, 1, C.cookedL); break;
+      case 'potato+': // raw aloo tikki: mashed potato patty with peas and spice flecks
+        blob(x, 12, 13, 10, 6, C.tikki, { dark: C.tikkiD, light: C.tikkiL, spec: '#ffffff', dark2: '#a8905a' });
+        R(7, 11, 2, 2, C.pea); R(7, 11, 1, 1, '#8fd66a'); R(15, 14, 2, 2, C.pea); R(15, 14, 1, 1, '#8fd66a'); R(11, 15, 1, 1, C.pea);
+        R(10, 10, 1, 1, C.spice); R(17, 11, 1, 1, C.spice); R(5, 14, 1, 1, C.spice); R(13, 12, 1, 1, '#c9b070'); break;
+      case 'potato*': // fried: golden, crisp edges
+        blob(x, 12, 13, 10, 6, C.cooked, { dark: C.cookedD, light: C.cookedL, spec: '#fbe2a8', dark2: C.cookedD2 });
+        R(5, 11, 3, 1, C.cookedD); R(11, 10, 3, 1, C.cookedD); R(16, 12, 2, 1, C.cookedD2); R(7, 15, 3, 1, C.cookedD2); R(13, 16, 3, 1, C.cookedD); R(9, 13, 1, 1, C.cookedD2);
+        R(8, 11, 2, 2, '#4f8f3a'); R(15, 15, 1, 1, '#4f8f3a'); R(10, 9, 1, 1, C.cookedL); R(18, 14, 1, 1, '#fbe2a8'); break;
       case 'burnt':
         blob(x, 12, 13, 10, 6.5, C.burnt, { dark: '#111114', light: C.burntL, spec: '#6a6a70', dark2: '#050507' }); R(8, 11, 2, 1, C.burntL); R(14, 15, 2, 1, C.burntL); R(16, 10, 1, 1, '#c0392b'); R(7, 15, 1, 1, '#e8742b'); R(11, 13, 2, 1, '#3a3a3e'); break;
       case 'soup': drawBowl(x, true); break;
@@ -255,7 +258,7 @@
       case 'tomato+': tomatoSlice(x, cx, cy, 4.5); break;
       case 'lettuce+': R(cx - 5, cy - 2, 4, 3, C.lettuceL); R(cx - 2, cy - 4, 5, 3, C.lettuce); R(cx + 2, cy - 1, 4, 3, C.lettuceL); R(cx - 4, cy + 1, 5, 2, C.lettuceD); R(cx + 1, cy + 2, 3, 1, C.lettuceD2); R(cx - 2, cy - 4, 5, 1, C.lettuceL2); R(cx - 5, cy - 2, 4, 1, C.lettuceL2); break;
       case 'onion+': onionRing(x, cx, cy, 4.5); onionRing(x, cx + 3, cy + 2, 2.6); break;
-      case 'meat*': blob(x, cx, cy, 6.5, 3.6, C.cooked, { dark: C.cookedD, light: C.cookedL, spec: '#c48a52' }); R(cx - 4, cy - 1, 3, 1, C.cookedD); R(cx + 1, cy - 1, 3, 1, C.cookedD); R(cx - 3, cy + 1, 3, 1, C.cookedD); break;
+      case 'potato*': blob(x, cx, cy, 6.5, 3.6, C.cooked, { dark: C.cookedD, light: C.cookedL, spec: '#fbe2a8', dark2: C.cookedD2 }); R(cx - 4, cy - 1, 2, 1, C.cookedD2); R(cx + 1, cy, 2, 1, C.cookedD2); R(cx - 1, cy + 1, 1, 1, '#4f8f3a'); R(cx - 2, cy - 2, 1, 1, '#4f8f3a'); break;
       case 'bun': blob(x, cx, cy, 6, 4, C.bun, { dark: C.bunD, light: '#e9bd78' }); R(cx - 2, cy - 2, 1, 1, C.sesame); R(cx + 1, cy - 1, 1, 1, C.sesame); R(cx - 1, cy + 1, 1, 1, C.sesame); break;
     }
   }
@@ -266,7 +269,7 @@
       drawPlate(x, 17);
       let y = 17;
       R(5, y - 2, 14, 3, C.bunL); R(4, y - 1, 1, 2, C.bunL); R(19, y - 1, 1, 2, C.bunL); R(5, y, 14, 1, C.bunD); R(6, y + 1, 12, 1, '#8a5a24'); y -= 3;
-      if (toks.includes('meat*')) { R(3, y - 2, 18, 3, C.cooked); R(3, y, 18, 1, C.cookedD); R(4, y - 2, 4, 1, C.cookedL); R(10, y - 2, 3, 1, C.cookedL); R(3, y - 1, 1, 2, C.cookedD); y -= 3; }
+      if (toks.includes('potato*')) { R(3, y - 2, 18, 3, C.cooked); R(3, y, 18, 1, C.cookedD2); R(4, y - 2, 4, 1, C.cookedL); R(10, y - 2, 3, 1, C.cookedL); R(3, y - 1, 1, 2, C.cookedD); R(8, y - 1, 1, 1, '#4f8f3a'); R(16, y - 1, 1, 1, C.cookedD2); y -= 3; }
       if (toks.includes('lettuce+')) { R(2, y - 1, 20, 2, C.lettuce); R(3, y - 2, 3, 1, C.lettuceL); R(9, y - 2, 4, 1, C.lettuceL); R(16, y - 2, 3, 1, C.lettuceL); R(5, y, 2, 1, C.lettuceD); R(13, y, 2, 1, C.lettuceD); R(19, y, 2, 1, C.lettuceD2); y -= 2; }
       blob(x, 12, y - 3, 9.5, 5, C.bun, { dark: C.bunD, light: '#e9bd78', spec: C.bunL }); x.clearRect(0, y, 24, 1); R(3, y - 1, 18, 1, C.bun); R(3, y, 18, 1, C.bunD);
       R(7, y - 5, 2, 1, C.sesame); R(12, y - 6, 2, 1, C.sesame); R(16, y - 4, 2, 1, C.sesame); R(9, y - 3, 2, 1, C.sesame); R(14, y - 3, 1, 1, C.sesame); R(5, y - 3, 1, 1, C.sesame);
@@ -357,7 +360,7 @@
         R(6, 4, 20, 4, '#5f6770'); R(6, 4, 20, 1, '#8b949e'); R(7, 5, 18, 1, '#747c86'); R(14, 2, 4, 2, '#8b949e'); R(10, 7, 4, 2, '#f1e4c6'); R(10, 7, 4, 1, '#ffffff'); R(20, 7, 2, 1, '#3f8f3a');
         R(6, 28, 6, 2, '#3a3f46'); R(12, 29, 4, 1, '#5f6770'); break;
       default: { // crates
-        const kind = { t: 'tomato', l: 'lettuce', o: 'onion', m: 'meat', b: 'bun' }[ch];
+        const kind = { t: 'tomato', l: 'lettuce', o: 'onion', p: 'potato', b: 'bun' }[ch];
         R(0, 0, 32, 22, '#7d5428'); R(0, 0, 32, 2, '#c99a5b'); R(0, 0, 2, 22, '#b3843f'); R(30, 0, 2, 22, '#9a6b35'); R(0, 20, 32, 2, '#5e3e1c'); R(2, 2, 28, 1, '#5e3e1c'); R(2, 2, 1, 18, '#5e3e1c');
         R(0, 22, 32, 10, '#9a6b35'); R(0, 22, 32, 1, '#b98849'); R(0, 25, 32, 1, '#6b4820'); R(0, 28, 32, 1, '#6b4820'); R(0, 31, 32, 1, '#4a2f12'); R(0, 24, 32, 1, '#a9793f'); R(0, 27, 32, 1, '#a9793f');
         for (const nx of [2, 28]) for (const ny of [23, 29]) { R(nx, ny, 2, 2, '#d9b070'); R(nx, ny, 1, 1, '#f0d090'); }

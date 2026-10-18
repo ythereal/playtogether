@@ -4,7 +4,7 @@
   'use strict';
   const T = 16, W = 13, H = 9;
   // C counter · V serving window · S stove+pan · P stove+pot · B cutting board · L plate stack · X trash
-  // t/l/o/m/b crates: tomato, lettuce, onion, meat, bun · '.' floor
+  // t/l/o/p/b crates: tomato, lettuce, onion, potato, bun · '.' floor
   // D decor counter (solid, nothing to interact with)
   const MAP = [
     'DCVVCCSCPCCCD',
@@ -12,24 +12,24 @@
     'l...........B',
     'o...........C',
     'D...CCCCC...X',
-    'm...........C',
+    'p...........C',
     'b...........C',
     'D...........D',
     'DCCCLLCCCCCCD',
   ];
-  const ROUND = 180, CHOP_TIME = 1.5, COOK = { meat: 5, soup: 7 }, BURN = { meat: 7, soup: 8 };
+  const ROUND = 180, CHOP_TIME = 1.5, COOK = { tikki: 5, soup: 7 }, BURN = { tikki: 7, soup: 8 };
   const SPEED = 66, MAX_ORDERS = 4;
-  const RAW = ['tomato', 'lettuce', 'onion', 'meat', 'bun'];
-  const CRATE = { t: 'tomato', l: 'lettuce', o: 'onion', m: 'meat', b: 'bun' };
+  const RAW = ['tomato', 'lettuce', 'onion', 'potato', 'bun'];
+  const CRATE = { t: 'tomato', l: 'lettuce', o: 'onion', p: 'potato', b: 'bun' };
   const SOUP = ['onion+', 'tomato+'];
   const DISHES = [
     { id: 'salad',  name: 'Garden Salad',   tokens: ['lettuce+', 'tomato+'],       base: 20, time: 60 },
-    { id: 'steak',  name: 'Steak & Onions', tokens: ['meat*', 'onion+'],           base: 30, time: 75 },
+    { id: 'tikki',  name: 'Aloo Tikki',     tokens: ['potato*', 'onion+'],         base: 30, time: 75 },
     { id: 'soup',   name: 'Tomato Soup',    tokens: ['soup'],                      base: 35, time: 85 },
-    { id: 'burger', name: 'Burger',         tokens: ['bun', 'lettuce+', 'meat*'],  base: 40, time: 95 },
+    { id: 'burger', name: 'Tikki Burger',   tokens: ['bun', 'lettuce+', 'potato*'], base: 40, time: 95 },
   ];
-  const NAMES = { tomato: 'tomato', lettuce: 'lettuce', onion: 'onion', meat: 'meat', bun: 'bun', 'tomato+': 'chopped tomato',
-    'lettuce+': 'chopped lettuce', 'onion+': 'chopped onion', 'meat+': 'patty', 'meat*': 'cooked patty', burnt: 'burnt mess', soup: 'soup' };
+  const NAMES = { tomato: 'tomato', lettuce: 'lettuce', onion: 'onion', potato: 'potato', bun: 'bun', 'tomato+': 'chopped tomato',
+    'lettuce+': 'chopped lettuce', 'onion+': 'chopped onion', 'potato+': 'tikki (raw)', 'potato*': 'fried tikki', burnt: 'burnt mess', soup: 'soup' };
   const SPAWN = [{ x: 2.5 * T, y: 2.5 * T, d: 3 }, { x: 10.5 * T, y: 6.5 * T, d: 2 }];
   const DV = [[0, 1], [0, -1], [-1, 0], [1, 0]];
   const HW = 5, HH = 4; // chef footprint half-size
@@ -39,8 +39,8 @@
   const isFloor = ch => ch === '.';
 
   // ---------- items are strings ----------
-  // raw: 'tomato' · chopped: 'tomato+' · cooked: 'meat*' · 'burnt' · 'soup' (only on plates/in pot)
-  // plate: 'plate' or 'plate:bun,lettuce+,meat*' (sorted tokens) · pot: 'pot' or 'pot:onion+,tomato+'
+  // raw: 'tomato' · chopped: 'tomato+' · cooked: 'potato*' · 'burnt' · 'soup' (only on plates/in pot)
+  // plate: 'plate' or 'plate:bun,lettuce+,potato*' (sorted tokens) · pot: 'pot' or 'pot:onion+,tomato+'
   const isPlate = it => !!it && it.startsWith('plate');
   const isPot = it => !!it && it.startsWith('pot');
   const tokens = it => (isPlate(it) ? it.slice(6) : isPot(it) ? it.slice(4) : '').split(',').filter(Boolean);
@@ -112,7 +112,7 @@
   function spawnOrder(s) {
     const counts = [0, 0, 0, 0]; s.orders.forEach(o => counts[o.d]++);
     let pool;
-    if (s.nextId <= 2) pool = [0, 1];                 // ease in: salad and steak first
+    if (s.nextId <= 2) pool = [0, 1];                 // ease in: salad and tikki first
     else pool = [0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 3];
     pool = pool.filter(d => counts[d] < 2);
     const d = pool[Math.floor(Math.random() * pool.length)];
@@ -177,19 +177,19 @@
       }
       if (isPlate(sl.it) && !isPlate(h) && canAdd(tokens(sl.it), h)) { sl.it = plate(tokens(sl.it).concat(h)); ch.it = null; s.ev.push({ k: 'put', p, i: tg.i }); return; }
       if (isPlate(h) && !isPlate(sl.it) && canAdd(tokens(h), sl.it)) { ch.it = plate(tokens(h).concat(sl.it)); sl.it = null; sl.p = 0; clean(s, tg.i); s.ev.push({ k: 'take', p }); return; }
-      if (isPlate(h) || isPlate(sl.it)) hint(s, p, h === 'burnt' || sl.it === 'burnt' ? 'Bin that' : choppable(h) || choppable(sl.it) ? 'Chop it first' : h === 'meat+' || sl.it === 'meat+' ? 'Cook it first' : 'That doesn\'t go together');
+      if (isPlate(h) || isPlate(sl.it)) hint(s, p, h === 'burnt' || sl.it === 'burnt' ? 'Bin that' : choppable(h) || choppable(sl.it) ? 'Chop it first' : h === 'potato+' || sl.it === 'potato+' ? 'Fry it first' : 'That doesn\'t go together');
       else hint(s, p, 'No room');
       return;
     }
     if (ty === 'S') {
       const sl = slotOf(s, tg.i);
       if (!sl.it) {
-        if (h === 'meat+') { sl.it = h; sl.p = 0; sl.b = 0; ch.it = null; s.ev.push({ k: 'put', p, i: tg.i }); }
-        else { hint(s, p, h === 'meat' ? 'Chop the meat first' : 'Only patties go in the pan'); clean(s, tg.i); }
+        if (h === 'potato+') { sl.it = h; sl.p = 0; sl.b = 0; ch.it = null; s.ev.push({ k: 'put', p, i: tg.i }); }
+        else { hint(s, p, h === 'potato' ? 'Shape the tikki on a board first' : 'Only tikkis go in the pan'); clean(s, tg.i); }
         return;
       }
       if (isPlate(h) && canAdd(tokens(h), sl.it)) { ch.it = plate(tokens(h).concat(sl.it)); sl.it = null; sl.p = sl.b = 0; clean(s, tg.i); s.ev.push({ k: 'take', p }); return; }
-      hint(s, p, sl.it === 'burnt' ? 'Burnt! Bin it' : sl.it === 'meat*' ? 'Grab it or use a plate' : 'Pan is busy');
+      hint(s, p, sl.it === 'burnt' ? 'Burnt! Bin it' : sl.it === 'potato*' ? 'Grab it or use a plate' : 'Pan is busy');
       return;
     }
     if (ty === 'P') {
@@ -226,8 +226,8 @@
     for (const i in s.slots) {
       const sl = s.slots[i], ty = MAP[Math.floor(i / W)][i % W];
       if (ty === 'S') {
-        if (sl.it === 'meat+') { sl.p += dt / COOK.meat; if (sl.p >= 1) { sl.it = 'meat*'; sl.p = 1; sl.b = 0; s.ev.push({ k: 'cooked', i: +i }); } }
-        else if (sl.it === 'meat*') { sl.b += dt / BURN.meat; if (sl.b >= 1) { sl.it = 'burnt'; sl.b = 1; s.ev.push({ k: 'burnt', i: +i }); } }
+        if (sl.it === 'potato+') { sl.p += dt / COOK.tikki; if (sl.p >= 1) { sl.it = 'potato*'; sl.p = 1; sl.b = 0; s.ev.push({ k: 'cooked', i: +i }); } }
+        else if (sl.it === 'potato*') { sl.b += dt / BURN.tikki; if (sl.b >= 1) { sl.it = 'burnt'; sl.b = 1; s.ev.push({ k: 'burnt', i: +i }); } }
       } else if (ty === 'P' && sl.it) {
         const tk = tokens(sl.it);
         if (same(tk, SOUP)) { sl.p += dt / COOK.soup; if (sl.p >= 1) { sl.it = 'pot:soup'; sl.p = 1; sl.b = 0; s.ev.push({ k: 'cooked', i: +i }); } }
