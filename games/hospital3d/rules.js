@@ -8,8 +8,8 @@
 (function (root) {
   'use strict';
   const T = 16, W = 25, H = 22, LANES = [88, 264], LANE = LANES[0], CX = 56, SLOTS = 20, BAND_Y0 = [0, 7, 11, 18];
-  const MONTH = 30;                 // real seconds per in-game month (a year is 6 minutes)
-  const MONTHS = 36;                // three years, then the better hospital wins
+  const MONTH = 60;                 // real seconds per in-game month (a year is 12 minutes)
+  const MONTHS = 24;                // two years, then the better hospital wins
   const EXIT = [-16, LANE], RECEP = [38, 98];
   const PSPEED = 30, SSPEED = 40, BUILD_TIME = 4;
   const START_CASH = 30000, START_REP = 500;
@@ -127,7 +127,7 @@
   // ---------- state ----------
   const newCand = (k, id) => {
     const sk = r2(0.3 + rnd() * 0.7);
-    return { id, k, nm: (k === 'd' ? 'Dr ' : k === 'n' ? 'Nurse ' : '') + pick(LAST) + (k === 'h' ? ' (handyman)' : ''), sk, sal: Math.round((k === 'd' ? 250 + 350 * sk : k === 'n' ? 150 + 200 * sk : 120 + 150 * sk) / 10) * 10 };
+    return { id, k, nm: (k === 'd' ? 'Dr ' : k === 'n' ? 'Nurse ' : '') + pick(LAST) + (k === 'h' ? ' (handyman)' : ''), sk, sal: Math.round((k === 'd' ? 500 + 700 * sk : k === 'n' ? 300 + 400 * sk : 240 + 300 * sk) / 10) * 10 };
   };
   function newPool(s) { return { d: [0, 1, 2].map(() => newCand('d', s.nextId++)), n: [0, 1].map(() => newCand('n', s.nextId++)), h: [0, 1].map(() => newCand('h', s.nextId++)) }; }
   function newHospital(s) {
@@ -361,7 +361,7 @@
   }
 
   // ---------- time ----------
-  const arrivals = m => 9 + 0.55 * m;      // patients per month for the whole town
+  const arrivals = m => 18 + 1.1 * m;      // patients per month for the whole town
   function monthTick(s) {
     s.month++;
     for (let p = 0; p < 2; p++) {

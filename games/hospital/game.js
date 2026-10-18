@@ -199,7 +199,7 @@
     $('tabMine').replaceChildren(document.createTextNode(`${nameOf(ME)}'s`), Object.assign(el('span', 'alt'), { textContent: ' hospital' }));
     $('tabRival').replaceChildren(document.createTextNode(`${nameOf(FRIEND)}'s `), Object.assign(el('small'), { textContent: `· ${money(r.cash)} · ${r.rep} rep` }));
     const tg = RH.TARGETS, ok = (v, t) => (v >= t ? 'ok' : '');
-    $('foot').innerHTML = `<span>Targets:</span><span class="${ok(h.cured, tg.cured)}"><b>${h.cured}</b>/${tg.cured} cured</span><span class="${ok(h.rep, tg.rep)}"><b>${h.rep}</b>/${tg.rep} rep</span><span class="${ok(h.cash, tg.cash)}"><b>${money(h.cash)}</b>/${money(tg.cash)}</span><span class="alt">· or best value after 3 years</span>`;
+    $('foot').innerHTML = `<span>Targets:</span><span class="${ok(h.cured, tg.cured)}"><b>${h.cured}</b>/${tg.cured} cured</span><span class="${ok(h.rep, tg.rep)}"><b>${h.rep}</b>/${tg.rep} rep</span><span class="${ok(h.cash, tg.cash)}"><b>${money(h.cash)}</b>/${money(tg.cash)}</span><span class="alt">· or best value after ${RH.MONTHS / 12} years</span>`;
   }
   let statusKey = '', barH = 0;
   function placeStatus() { const hgt = $('status').parentElement.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); } }
@@ -339,9 +339,9 @@
   function showOver() {
     if (!view || view.ph !== 'over') return;
     const a = view.h[ME], b = view.h[FRIEND], w = view.winner;
-    $('ovTitle').textContent = 'Year 3 is over';
+    $('ovTitle').textContent = `Year ${RH.MONTHS / 12} is over`;
     $('ovVerdict').textContent = w === ME ? `${nameOf(ME)}'s hospital wins!` : w === FRIEND ? `${nameOf(FRIEND)}'s hospital wins` : 'Dead heat!';
-    $('ovWhy').textContent = view.why === 'targets' ? 'All three targets were met first.' : 'Three years are up: the higher hospital value wins.';
+    $('ovWhy').textContent = view.why === 'targets' ? 'All three targets were met first.' : `${RH.MONTHS / 12 === 2 ? 'Two' : RH.MONTHS / 12} years are up: the higher hospital value wins.`;
     const rows = [['Value', RH.score(a).toLocaleString('en-US'), RH.score(b).toLocaleString('en-US')], ['Cash', money(a.cash), money(b.cash)], ['Reputation', a.rep, b.rep], ['Cured', a.cured, b.cured], ['Deaths', a.died, b.died], ['Walked out', a.angry, b.angry], ['Sent home', a.home, b.home], ['Rooms', Object.keys(a.rooms).length, Object.keys(b.rooms).length]];
     const c = $('ovCmp'); c.replaceChildren(el('span', 'a hd', nameOf(ME)), el('span', 'k', ''), el('span', 'b hd', nameOf(FRIEND)));
     for (const [k, x, y] of rows) c.append(el('span', 'a', String(x)), el('span', 'k', k), el('span', 'b', String(y)));
@@ -350,7 +350,7 @@
   // legend
   (function buildLegend() {
     const tg = RH.TARGETS;
-    $('legendWin').textContent = `Be the first to reach all three targets: ${tg.cured} patients cured, ${tg.rep} reputation and ${money(tg.cash)} in the bank. If nobody gets there in three years (${RH.MONTHS} months of ${RH.MONTH} seconds), the higher hospital value wins: cash + $250 per cure + a reputation bonus.`;
+    $('legendWin').textContent = `Be the first to reach all three targets: ${tg.cured} patients cured, ${tg.rep} reputation and ${money(tg.cash)} in the bank. If nobody gets there in ${RH.MONTHS / 12 === 2 ? 'two' : RH.MONTHS / 12} years (${RH.MONTHS} months of ${RH.MONTH} seconds each), the higher hospital value wins: cash + $250 per cure + a reputation bonus.`;
     const tb = $('disTable'); tb.replaceChildren();
     for (const d of RH.DISEASES) {
       const tr = el('tr'), c0 = el('td'), c1 = el('td'), c2 = el('td');
