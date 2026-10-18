@@ -62,18 +62,22 @@
   function speckle(x, X, Y, w, h, col, n, seed) { for (let i = 0; i < n; i++) { const a = hash(seed * 31 + i, seed + i * 7), b = hash(seed + i * 13, seed * 17 + i); rect(x, X + Math.floor(a * w), Y + Math.floor(b * h), 1, 1, col); } }
 
   // ======================= CHEFS (32x48) =======================
-  const LOOKS = [
-    { skin: '#f2c9a3', hair: '#4a2e1e', apron: '#e0503c', scarf: '#c43c2c', mustache: '#5a3a22', brow: '#5a3a22' },
-    { skin: '#c98b5e', hair: '#1f1a17', apron: '#1f8f87', scarf: '#2bb5a8', tuft: true, brow: '#2a211c' },
-  ];
-  function drawChef(L, dir, f, hold) {
+  // Two characters; the apron/neckerchief colour comes from the player's role (host red, guest teal).
+  const LOOKS = {
+    arjun: { name: 'Arjun', skin: '#b97f56', hair: '#1a1512', brow: '#1a1512', beard: '#2a211c', beardL: '#3d322a' },
+    priya: { name: 'Priya', skin: '#c48a5e', hair: '#17110f', brow: '#2a1a14', female: true, lips: '#b8404f', bindi: '#d4262c', gold: '#e8b23a' },
+  };
+  const LOOK_IDS = ['arjun', 'priya'];
+  const ROLE = [{ apron: '#e0503c', scarf: '#c43c2c' }, { apron: '#1f8f87', scarf: '#2bb5a8' }];
+  function drawChef(L, RC, dir, f, hold) {
     const [c, x] = canvas(32, 48);
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     const WH = '#f6f5f1', WD = '#d3d1cb', WD2 = '#b9b6ae', WL = '#ffffff';
-    const AP = L.apron, APD = shade(L.apron, -0.3), APD2 = shade(L.apron, -0.5), APL = shade(L.apron, 0.2);
+    const AP = RC.apron, APD = shade(RC.apron, -0.3), APD2 = shade(RC.apron, -0.5), APL = shade(RC.apron, 0.2), SC = RC.scarf;
     const SK = L.skin, SKD = shade(L.skin, -0.18), SKD2 = shade(L.skin, -0.35), SKL = shade(L.skin, 0.25);
+    const HR = L.hair, HRL = shade(L.hair, 0.3), HRD = shade(L.hair, -0.35);
     const PANTS = '#2e3140', PD = '#1f2130', PL = '#3d4154', SHOE = '#15161c', SHOEL = '#34363f';
-    const side = dir === 'left', back = dir === 'up';
+    const side = dir === 'left', back = dir === 'up', fem = !!L.female;
     const lUp = f === 1 ? 2 : 0, rUp = f === 2 ? 2 : 0;
 
     // ---- legs & shoes ----
@@ -90,74 +94,99 @@
     // ---- torso (jacket) ----
     const bx = side ? 10 : 8, bw = side ? 12 : 16;
     R(bx, 22, bw, 16, WH); R(bx, 22, 2, 16, WL); R(bx + bw - 2, 22, 2, 16, WD); R(bx + bw - 1, 22, 1, 16, WD2); R(bx, 36, bw, 2, WD); R(bx, 37, bw, 1, WD2);
+    if (fem && !side) { R(8, 29, 1, 3, WD); R(23, 29, 1, 3, WD); } // slightly tapered waist
     if (back) {
-      R(11, 22, 2, 8, AP); R(19, 22, 2, 8, AP); R(12, 30, 8, 2, AP); R(14, 32, 4, 2, APD); R(12, 32, 2, 3, APD); R(18, 32, 2, 3, APD); // straps + bow
-      R(9, 22, 14, 2, L.scarf); R(10, 24, 12, 1, shade(L.scarf, -0.3));
+      R(11, 22, 2, 8, AP); R(19, 22, 2, 8, AP); R(12, 30, 8, 2, AP); R(14, 32, 4, 2, APD); R(12, 32, 2, 3, APD); R(18, 32, 2, 3, APD);
+      R(9, 22, 14, 2, SC); R(10, 24, 12, 1, shade(SC, -0.3));
     } else if (!side) {
-      // apron bib + skirt
       R(10, 27, 12, 11, AP); R(10, 27, 1, 11, APL); R(21, 27, 1, 11, APD); R(10, 37, 12, 1, APD2); R(11, 28, 10, 1, APL);
-      R(13, 32, 6, 4, APD); R(13, 32, 6, 1, APD2); // pocket
-      R(9, 26, 14, 1, APD2); // waist string
-      // double-breasted buttons on the jacket lapels
+      R(13, 32, 6, 4, APD); R(13, 32, 6, 1, APD2);
+      R(9, 26, 14, 1, APD2);
       R(9, 25, 1, 1, '#8a8f98'); R(22, 25, 1, 1, '#8a8f98'); R(9, 24, 1, 1, '#c8ccd3'); R(22, 24, 1, 1, '#c8ccd3');
-      // neckerchief
-      R(11, 22, 10, 2, L.scarf); R(13, 24, 6, 1, L.scarf); R(15, 25, 2, 2, L.scarf); R(15, 25, 2, 1, shade(L.scarf, -0.3)); R(11, 22, 10, 1, shade(L.scarf, 0.2));
+      R(11, 22, 10, 2, SC); R(13, 24, 6, 1, SC); R(15, 25, 2, 2, SC); R(15, 25, 2, 1, shade(SC, -0.3)); R(11, 22, 10, 1, shade(SC, 0.2));
     } else {
       R(10, 27, 8, 11, AP); R(10, 27, 1, 11, APL); R(17, 27, 1, 11, APD); R(10, 37, 8, 1, APD2); R(12, 32, 4, 3, APD);
-      R(10, 22, 8, 2, L.scarf); R(10, 24, 2, 2, L.scarf);
+      R(10, 22, 8, 2, SC); R(10, 24, 2, 2, SC);
     }
 
     // ---- arms ----
+    const bangle = (X, Y) => { if (fem) { R(X, Y, 2, 1, L.gold); } };
     if (!side) {
       if (hold && !back) {
         R(6, 22, 2, 7, WH); R(24, 22, 2, 7, WH); R(6, 29, 4, 2, WH); R(22, 29, 4, 2, WH); R(6, 28, 2, 1, WD); R(24, 28, 2, 1, WD);
         R(8, 30, 3, 3, SK); R(21, 30, 3, 3, SK); R(10, 31, 2, 2, SK); R(20, 31, 2, 2, SK); R(8, 32, 3, 1, SKD); R(21, 32, 3, 1, SKD);
+        bangle(8, 30); bangle(22, 30);
       } else {
         const la = f === 1 ? -2 : f === 2 ? 1 : 0, ra = f === 2 ? -2 : f === 1 ? 1 : 0;
         R(6, 22, 2, 11 + la, WH); R(24, 22, 2, 11 + ra, WH); R(7, 22, 1, 11 + la, WD); R(25, 22, 1, 11 + ra, WD);
-        R(6, 31 + la, 2, 1, WD2); R(24, 31 + ra, 2, 1, WD2); // cuff
+        R(6, 31 + la, 2, 1, WD2); R(24, 31 + ra, 2, 1, WD2);
         R(6, 32 + la, 2, 3, SK); R(24, 32 + ra, 2, 3, SK); R(6, 34 + la, 2, 1, SKD); R(24, 34 + ra, 2, 1, SKD);
+        bangle(6, 32 + la); bangle(24, 32 + ra);
       }
-    } else if (hold) { R(13, 22, 4, 6, WH); R(16, 22, 1, 6, WD); R(6, 27, 9, 2, WH); R(6, 28, 9, 1, WD); R(4, 26, 3, 3, SK); R(5, 28, 2, 1, SKD); }
-    else { const hx = f === 1 ? 9 : f === 2 ? 17 : 13; R(13, 22, 4, 9, WH); R(16, 22, 1, 9, WD); R(hx, 30, 4, 2, WH); R(hx, 32, 3, 3, SK); R(hx, 34, 3, 1, SKD); }
+    } else if (hold) { R(13, 22, 4, 6, WH); R(16, 22, 1, 6, WD); R(6, 27, 9, 2, WH); R(6, 28, 9, 1, WD); R(4, 26, 3, 3, SK); R(5, 28, 2, 1, SKD); bangle(6, 27); }
+    else { const hx = f === 1 ? 9 : f === 2 ? 17 : 13; R(13, 22, 4, 9, WH); R(16, 22, 1, 9, WD); R(hx, 30, 4, 2, WH); R(hx, 32, 3, 3, SK); R(hx, 34, 3, 1, SKD); bangle(hx, 32); }
+
+    // ---- long hair behind the head (Priya) ----
+    if (fem) {
+      if (back) { R(8, 10, 16, 8, HR); for (let j = 16; j < 36; j += 3) { R(14, j, 4, 3, j % 2 ? HR : HRD); R(14 + (j % 2 ? 0 : 2), j, 2, 2, HRL); } R(13, 36, 6, 2, L.bindi); R(14, 38, 4, 2, HRD); }
+      else if (side) { R(17, 10, 7, 16, HR); R(18, 12, 2, 10, HRL); R(20, 24, 4, 3, HRD); }
+      else { R(6, 10, 2, 14, HR); R(24, 10, 2, 14, HR); R(6, 22, 2, 2, HRD); R(24, 22, 2, 2, HRD); R(6, 12, 1, 6, HRL); R(25, 12, 1, 6, HRL); }
+    }
 
     // ---- head ----
-    R(8, 10, 16, 12, SK); R(22, 10, 2, 12, SKD); R(8, 10, 16, 1, SKD); R(9, 21, 14, 1, SKD); R(8, 21, 1, 1, SKD); x.clearRect(8, 10, 1, 1); x.clearRect(23, 10, 1, 1); x.clearRect(8, 21, 1, 1); x.clearRect(23, 21, 1, 1);
+    R(8, 10, 16, 12, SK); R(22, 10, 2, 12, SKD); R(8, 10, 16, 1, SKD); R(9, 21, 14, 1, SKD); x.clearRect(8, 10, 1, 1); x.clearRect(23, 10, 1, 1); x.clearRect(8, 21, 1, 1); x.clearRect(23, 21, 1, 1);
+    if (fem) { x.clearRect(8, 20, 1, 1); x.clearRect(23, 20, 1, 1); R(9, 20, 1, 1, SKD); R(22, 20, 1, 1, SKD); }
     R(9, 11, 1, 10, SKL);
-    R(11, 22, 10, 1, SKD2); // neck shadow
+    R(11, 22, 10, 1, SKD2);
     if (back) {
-      R(8, 10, 16, 6, L.hair); R(8, 15, 16, 1, shade(L.hair, -0.3)); R(10, 11, 3, 2, shade(L.hair, 0.2)); if (L.tuft) R(9, 16, 4, 2, L.hair);
+      R(8, 10, 16, 6, HR); R(8, 15, 16, 1, HRD); R(10, 11, 3, 2, HRL);
+      if (fem) R(8, 16, 16, 2, HR);
     } else if (side) {
-      R(17, 10, 7, 6, L.hair); R(17, 15, 7, 1, shade(L.hair, -0.3)); R(18, 11, 2, 1, shade(L.hair, 0.25)); if (L.tuft) { R(14, 10, 4, 2, L.hair); }
-      R(11, 14, 2, 2, '#241c2a'); R(11, 14, 1, 1, '#ffffff'); R(11, 13, 3, 1, L.brow);
-      R(6, 14, 2, 4, SK); R(6, 17, 2, 1, SKD); R(8, 16, 1, 1, SKD); // nose
-      if (L.mustache) { R(6, 18, 6, 2, L.mustache); R(6, 18, 6, 1, shade(L.mustache, 0.2)); } else R(8, 18, 2, 1, '#b4604a');
+      R(17, 10, 7, 6, HR); R(17, 15, 7, 1, HRD); R(18, 11, 2, 1, HRL); R(13, 10, 5, 2, HR);
+      if (fem) { R(19, 16, 5, 9, HR); R(20, 17, 1, 6, HRL); R(8, 11, 4, 1, HR); R(8, 12, 2, 1, HR); }
+      R(11, 14, 2, 2, '#241c2a'); R(11, 14, 1, 1, '#ffffff'); R(10, 13, 4, 1, L.brow); if (fem) R(10, 14, 1, 1, '#241c2a');
+      R(6, 14, 2, 4, SK); R(6, 17, 2, 1, SKD); R(8, 16, 1, 1, SKD);
+      if (L.beard) { R(7, 18, 5, 2, L.beard); R(8, 20, 10, 2, L.beard); R(17, 14, 3, 7, L.beard); R(7, 18, 5, 1, L.beardL); R(8, 18, 2, 1, '#b4604a'); }
+      else { R(8, 18, 2, 1, L.lips || '#b4604a'); }
       R(8, 17, 1, 1, '#f0a090');
+      if (fem) { R(14, 12, 1, 1, L.bindi); R(17, 16, 1, 3, L.gold); R(16, 18, 1, 1, L.gold); }
     } else {
-      R(8, 10, 2, 4, L.hair); R(22, 10, 2, 4, L.hair); R(10, 10, 12, 1, L.hair);
-      if (L.tuft) { R(10, 11, 5, 1, L.hair); R(12, 12, 2, 1, L.hair); R(18, 11, 3, 1, L.hair); }
-      R(11, 13, 3, 1, L.brow); R(18, 13, 3, 1, L.brow);
+      // hair under the hat
+      R(8, 10, 2, 4, HR); R(22, 10, 2, 4, HR); R(10, 10, 12, 1, HR);
+      if (fem) { R(10, 11, 5, 1, HR); R(17, 11, 5, 1, HR); R(10, 12, 2, 1, HR); R(20, 12, 2, 1, HR); R(8, 13, 1, 3, HR); R(23, 13, 1, 3, HR); R(12, 10, 1, 1, HRL); R(19, 10, 1, 1, HRL); }
+      else { R(10, 11, 7, 1, HR); R(10, 12, 3, 1, HR); R(19, 11, 3, 1, HR); R(8, 14, 2, 4, L.beard); R(22, 14, 2, 4, L.beard); R(13, 11, 2, 1, HRL); }
+      // brows, eyes
+      if (fem) { R(11, 13, 3, 1, L.brow); R(18, 13, 3, 1, L.brow); R(10, 13, 1, 1, '#241c2a'); R(21, 13, 1, 1, '#241c2a'); }
+      else { R(10, 13, 4, 1, L.brow); R(18, 13, 4, 1, L.brow); R(10, 12, 1, 1, L.brow); R(21, 12, 1, 1, L.brow); }
       R(11, 14, 2, 2, '#241c2a'); R(19, 14, 2, 2, '#241c2a'); R(11, 14, 1, 1, '#ffffff'); R(19, 14, 1, 1, '#ffffff');
-      R(15, 15, 2, 2, SKD); R(15, 17, 1, 1, SKD2); // nose
-      R(9, 17, 2, 1, '#f0a090'); R(21, 17, 2, 1, '#f0a090'); // cheeks
-      if (L.mustache) { R(11, 18, 10, 2, L.mustache); R(11, 18, 10, 1, shade(L.mustache, 0.2)); R(15, 18, 2, 1, shade(L.mustache, -0.3)); R(10, 19, 1, 1, L.mustache); R(21, 19, 1, 1, L.mustache); }
-      else { R(14, 18, 4, 1, '#b4604a'); R(15, 19, 2, 1, '#8e3f33'); }
+      R(15, 15, 2, 2, SKD); R(15, 17, 1, 1, SKD2);
+      R(9, 17, 2, 1, '#f0a090'); R(21, 17, 2, 1, '#f0a090');
+      if (fem) {
+        R(15, 12, 2, 1, L.bindi);                                     // bindi
+        R(13, 18, 6, 1, L.lips); R(14, 19, 4, 1, shade(L.lips, -0.3)); R(14, 18, 1, 1, shade(L.lips, 0.35)); // lips
+        R(7, 16, 1, 3, L.gold); R(24, 16, 1, 3, L.gold); R(7, 15, 1, 1, shade(L.gold, 0.4)); R(24, 15, 1, 1, shade(L.gold, 0.4)); // earrings
+      } else {
+        R(11, 17, 4, 1, L.beard); R(17, 17, 4, 1, L.beard); R(13, 18, 6, 1, '#b4604a'); R(14, 19, 4, 1, '#f8efe4'); // moustache + smile
+        R(8, 18, 2, 3, L.beard); R(22, 18, 2, 3, L.beard); R(10, 20, 12, 2, L.beard); R(10, 20, 12, 1, L.beardL); R(9, 21, 1, 1, L.beard); R(22, 21, 1, 1, L.beard); // trimmed beard
+      }
     }
     // ---- toque ----
     const HAT = '#ffffff', HATD = '#dcdde3', HATD2 = '#bfc1ca';
     R(8, 0, 16, 2, HAT); R(6, 2, 20, 4, HAT); R(7, 6, 18, 4, HAT);
     R(22, 2, 4, 4, HATD); R(21, 0, 3, 2, HATD); R(23, 6, 2, 4, HATD); R(25, 2, 1, 4, HATD2);
-    R(12, 0, 1, 6, HATD); R(17, 0, 1, 6, HATD); R(13, 0, 1, 1, HATD); R(18, 1, 1, 1, HATD);  // pleats
+    R(12, 0, 1, 6, HATD); R(17, 0, 1, 6, HATD); R(13, 0, 1, 1, HATD); R(18, 1, 1, 1, HATD);
     R(7, 8, 18, 1, HATD); R(7, 9, 18, 1, HATD2); R(7, 6, 1, 3, HATD);
     if (side) { R(19, 6, 6, 3, HATD); R(6, 2, 1, 4, HAT); }
+    if (fem && !back) { R(7, 9, 18, 1, L.bindi); R(9, 9, 2, 1, shade(L.bindi, 0.4)); } // ribbon on the hat band
     return outline(c);
   }
   const chefCache = {};
-  function chefSheet(p, hold) {
-    const k = p + ':' + (hold ? 1 : 0);
+  function chefSheet(look, p, hold) {
+    look = LOOKS[look] ? look : LOOK_IDS[p] || 'arjun';
+    const k = look + ':' + p + ':' + (hold ? 1 : 0);
     if (chefCache[k]) return chefCache[k];
-    const L = LOOKS[p], sh = {};
-    for (const d of ['down', 'up', 'left']) sh[d] = [0, 1, 2].map(f => drawChef(L, d, f, hold));
+    const L = LOOKS[look], RC = ROLE[p] || ROLE[0], sh = {};
+    for (const d of ['down', 'up', 'left']) sh[d] = [0, 1, 2].map(f => drawChef(L, RC, d, f, hold));
     sh.right = sh.left.map(flipH);
     return (chefCache[k] = sh);
   }
@@ -461,5 +490,5 @@
     return cv;
   }
 
-  window.KA = { A, T, TA, OY, MX, MB, canvas, shade, outline, flipH, hash, rect, blob, ring, bevel, chefSheet, item, tile, mapCanvas, drawPan, drawPot, LOOKS };
+  window.KA = { A, T, TA, OY, MX, MB, canvas, shade, outline, flipH, hash, rect, blob, ring, bevel, chefSheet, item, tile, mapCanvas, drawPan, drawPot, LOOKS, LOOK_IDS, ROLE };
 })();

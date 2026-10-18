@@ -25,6 +25,7 @@
   if (host) {
     state = room.saved || KR.newState();
     state.in = [{ x: 0, y: 0, c: 0 }, { x: 0, y: 0, c: 0 }]; state.ev = [];
+    if (!state.pl) state.pl = [{ n: '', l: '' }, { n: '', l: '' }];
     view = state;
   }
 
@@ -33,9 +34,9 @@
   const keys = new Set();
   const joy = { x: 0, y: 0 };
   let touchChop = 0;
-  const panelOpen = () => !$('legend').hidden || !$('over').hidden;
+  const panelOpen = () => !$('legend').hidden || !$('over').hidden || !$('picker').hidden;
   addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' && e.key === ' ') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' && e.key === ' ') return;
     const k = e.key.toLowerCase();
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
     if (k === 'escape') { $('legend').hidden = true; setStatus(); return; }
@@ -105,7 +106,8 @@
     const sl = {}; for (const i in s.slots) { const x = s.slots[i]; if (x.it) sl[i] = [x.it, r2(x.p), r2(x.b)]; }
     return { t: 's', ph: s.ph, tm: r1(s.tm), cd: r1(s.cd), sc: s.sc, cb: s.cb, rd: s.round,
       ch: s.ch.map(c => [r1(c.x), r1(c.y), c.d, c.mv, c.it, c.ca > 0 ? 1 : 0]), sl,
-      or: s.orders.map(o => [o.id, o.d, r1(o.t), o.lim]), st: [s.served, s.lost, s.tips, s.best].concat(s.stats), ev: pendingEv.splice(0) };
+      or: s.orders.map(o => [o.id, o.d, r1(o.t), o.lim]), st: [s.served, s.lost, s.tips, s.best].concat(s.stats), ev: pendingEv.splice(0),
+      pl: s.pl.map(q => [q.n, q.l]) };
   }
   let pendingEv = [];
   function drainEvents() {
@@ -116,7 +118,7 @@
     if (evs.some(e => ['served', 'lost', 'over', 'go'].includes(e.k))) room.save(state);
   }
   room.on('connected', () => {
-    if (host) { pendingEv = []; room.send(snapshot()); }
+    if (host) { pendingEv = []; room.send(snapshot()); } else sendMe();
     setStatus();
   });
   room.on('disconnected', () => { if (host) state.in[1] = { x: 0, y: 0, c: 0 }; snaps.length = 0; setStatus(); });
@@ -125,6 +127,7 @@
       if (m.t === 'i') state.in[1] = { x: clamp(+m.x || 0, -1, 1), y: clamp(+m.y || 0, -1, 1), c: m.c ? 1 : 0 };
       else if (m.t === 'a') { KR.action(state, 1, m.k === 'chop' ? 'chop' : 'grab', { x: +m.x, y: +m.y, d: [0, 1, 2, 3].includes(m.d) ? m.d : state.ch[1].d }); drainEvents(); }
       else if (m.t === 'start') hostStart();
+      else if (m.t === 'me') { KR.setPlayer(state, 1, m.n, m.l); setStatus(); room.save(state); }
     } else if (m.t === 's') {
       snaps.push([performance.now(), m]); while (snaps.length > 40) snaps.shift();
       applySnap(m);
@@ -140,6 +143,7 @@
     view = { ph: m.ph, tm: m.tm, cd: m.cd, sc: m.sc, cb: m.cb, round: m.rd, slots, at: performance.now(),
       orders: m.or.map(o => ({ id: o[0], d: o[1], t: o[2], lim: o[3] })),
       served: m.st[0], lost: m.st[1], tips: m.st[2], best: m.st[3], stats: m.st.slice(4),
+      pl: (m.pl || [['', ''], ['', '']]).map(q => ({ n: q[0], l: q[1] })),
       ch: m.ch.map(c => ({ x: c[0], y: c[1], d: c[2], mv: c[3], it: c[4], ca: c[5] })) };
     const mine = view.ch[ME];
     // reconcile my predicted chef with the host: only snap on big divergence (teleport at round start, blocked moves)
@@ -249,18 +253,69 @@
     const canStart = host && view && (view.ph === 'ready' || view.ph === 'over');
     $('startBtn').hidden = !canStart; $('startBtn').disabled = !room.connected;
     $('startBtn2').hidden = !(canStart && $('legend').hidden && $('over').hidden); $('startBtn2').disabled = !room.connected;
-    $('legendNote').textContent = !view || view.ph !== 'ready' ? '' : !room.connected ? 'Waiting for your friend to join…' : host ? 'Your friend is here. Start when you\'re both ready.' : 'The host starts the round.';
+    const fn = nameOf(FRIEND) || 'Your friend';
+    $('legendNote').textContent = !view || view.ph !== 'ready' ? '' : !room.connected ? 'Waiting for your friend to join…' : host ? fn + ' is here. Start when you\'re both ready.' : 'The host starts the round.';
+    $('chefBtn').textContent = myChef.l ? '👩‍🍳 ' + (myChef.n || KA.LOOKS[myChef.l].name) : 'Choose chef';
   }
   function onPhase() {
     if (!view) return;
     setStatus();
     if (view.ph !== lastPhase) {
       if (view.ph === 'countdown') { roundStartedAt = performance.now(); $('over').hidden = true; $('legend').hidden = true; cards.forEach(c => c.el.remove()); cards.clear(); floaters.length = 0; parts.length = 0; }
-      if (view.ph === 'ready' && lastPhase === null) $('legend').hidden = false;
+      if (view.ph === 'ready' && lastPhase === null) { if (myChef.l) $('legend').hidden = false; else openPicker(); }
+      if (view.ph !== 'ready' && lastPhase === null && !myChef.l) openPicker();
       if (view.ph === 'over' && lastPhase === null) showOver();
       lastPhase = view.ph;
     }
   }
+
+  // ============================ chef picker ============================
+  const myChef = { n: '', l: '' };
+  try { Object.assign(myChef, JSON.parse(localStorage.getItem('kr-chef') || '{}')); } catch (e) {}
+  if (!KR.LOOKS.includes(myChef.l)) myChef.l = '';
+  function sendMe() { if (!host && room.connected && myChef.l) room.send({ t: 'me', n: myChef.n, l: myChef.l }); }
+  function applyMe() {
+    myChef.n = KR.cleanName(myChef.n) || KA.LOOKS[myChef.l].name;
+    try { localStorage.setItem('kr-chef', JSON.stringify(myChef)); } catch (e) {}
+    if (host) { KR.setPlayer(state, 0, myChef.n, myChef.l); room.save(state); } else sendMe();
+    setStatus();
+  }
+  const lookOf = p => (view && view.pl && view.pl[p] && view.pl[p].l) || (p === ME && myChef.l) || KA.LOOK_IDS[p];
+  const nameOf = p => (view && view.pl && view.pl[p] && view.pl[p].n) || (p === ME && myChef.n) || '';
+  const previews = {};
+  function buildPicker() {
+    const wrap = $('chefs'); wrap.replaceChildren();
+    for (const id of KA.LOOK_IDS) {
+      const L = KA.LOOKS[id], b = document.createElement('button'); b.type = 'button'; b.className = 'chef-card'; b.dataset.look = id;
+      const c = document.createElement('canvas'); c.width = 32; c.height = 48; c.className = 'chef-pic';
+      const nm = document.createElement('b'); nm.textContent = L.name;
+      const sub = document.createElement('span'); sub.textContent = id === 'arjun' ? 'Head chef' : 'Sous chef'; sub.className = 'chef-sub';
+      b.append(c, nm, sub); wrap.append(b); previews[id] = c;
+      b.addEventListener('click', () => {
+        const other = KA.LOOK_IDS.find(x => x !== id);
+        if (!$('chefName').value.trim() || $('chefName').value.trim() === KA.LOOKS[other].name) $('chefName').value = L.name;
+        myChef.l = id; renderPicker();
+      });
+    }
+    $('chefName').addEventListener('input', () => { myChef.n = $('chefName').value; });
+    $('chefName').addEventListener('keydown', e => { if (e.key === 'Enter') $('chefGo').click(); });
+    $('chefGo').addEventListener('click', () => { if (!myChef.l) return; myChef.n = $('chefName').value; applyMe(); $('picker').hidden = true; if (firstPick) { firstPick = false; if (view && view.ph === 'ready') $('legend').hidden = false; } setStatus(); });
+    $('chefBtn').addEventListener('click', () => openPicker());
+    $('helpChef').addEventListener('click', () => openPicker());
+  }
+  let firstPick = true, pickFrame = 0;
+  function renderPicker() {
+    for (const b of document.querySelectorAll('.chef-card')) b.classList.toggle('sel', b.dataset.look === myChef.l);
+    $('chefGo').disabled = !myChef.l;
+  }
+  function openPicker() { $('legend').hidden = true; $('over').hidden = true; $('chefName').value = myChef.n; renderPicker(); $('picker').hidden = false; }
+  setInterval(() => { // animated previews
+    if ($('picker').hidden) return; pickFrame++;
+    for (const id of KA.LOOK_IDS) { const c = previews[id], x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.clearRect(0, 0, 32, 48); const sh = KA.chefSheet(id, ME, false); x.drawImage(sh.down[[1, 0, 2, 0][pickFrame % 4]], 0, 0); }
+  }, 180);
+  buildPicker();
+  if (host && !myChef.l && state.pl[0] && state.pl[0].l) { myChef.n = state.pl[0].n; myChef.l = state.pl[0].l; } // host reload: keep the chef from the saved game
+  if (myChef.l) { firstPick = false; applyMe(); }
 
   // legend / tutorial panel
   function buildLegend() {
@@ -309,6 +364,8 @@
     const dishes = $('ovDishes'); dishes.replaceChildren();
     KR.DISHES.forEach((D, i) => { const n = (view.stats || [])[i] || 0; if (!n) return; const s = document.createElement('span'); s.className = 'lg'; s.append(iconCanvas('plate:' + D.tokens.join(','), 36), ' ×' + n); dishes.append(s); });
     if (!dishes.children.length) dishes.textContent = 'No dishes served';
+    const team = [nameOf(0), nameOf(1)].filter(Boolean).join(' & ');
+    $('ovTeam').textContent = team ? 'Chefs ' + team : '';
     $('ovStat').innerHTML = `<span><b>${view.served}</b> served</span><span><b>${view.lost}</b> lost</span><span><b>${view.tips}</b> in tips</span><span>best combo <b>×${Math.min(view.best || 0, 4)}</b></span>`;
     $('over').hidden = false;
   }
@@ -408,9 +465,8 @@
       else if (tk.length === 1) drawBar(X, Y - 7, 0.5, '#9aa3ad', false, t);
     }
   }
-  const sheets = [KA.chefSheet(0, false), KA.chefSheet(1, false)], sheetsHold = [KA.chefSheet(0, true), KA.chefSheet(1, true)];
   function drawChef(p, ch, t) {
-    const hold = !!ch.it, sh = (hold ? sheetsHold : sheets)[p][DIRS[ch.d] || 'down'];
+    const hold = !!ch.it, sh = KA.chefSheet(lookOf(p), p, hold)[DIRS[ch.d] || 'down'];
     const frame = ch.mv ? [1, 0, 2, 0][Math.floor(ch.anim * 9) % 4] : 0;
     const bob = ch.ca ? (Math.floor(t * 14) % 2) * 0.5 : (!ch.mv && Math.floor(t * 2 + p) % 2 ? 0.5 : 0);
     const x = h2(ch.x), y = h2(ch.y);
@@ -535,6 +591,13 @@
       ctx.globalAlpha = clamp(f.life * 2, 0, 1); ctx.font = font(f.big ? 9 : 5.5);
       ctx.lineWidth = Math.max(2, SW * 0.8); ctx.strokeStyle = '#1b1720'; ctx.strokeText(f.txt, toX(f.x), toY(f.y - rise)); ctx.fillStyle = f.col; ctx.fillText(f.txt, toX(f.x), toY(f.y - rise));
       ctx.globalAlpha = 1;
+    }
+    if (chefs && view.ph !== 'over') for (let p = 0; p < 2; p++) { // name tags
+      const nm = nameOf(p); if (!nm) continue;
+      const ch = chefs[p]; ctx.font = font(4, 700);
+      const x = toX(ch.x), y = toY(ch.y - 24.5);
+      ctx.lineWidth = Math.max(2, SW * 0.7); ctx.strokeStyle = 'rgba(27,23,32,.9)'; ctx.strokeText(nm, x, y);
+      ctx.fillStyle = p === 0 ? '#ff8a78' : '#5fe0d4'; ctx.fillText(nm, x, y);
     }
     if (chefs) for (let p = 0; p < 2; p++) {
       const h = hints[p]; if (!h.t) continue; h.t -= dt; if (h.t <= 0) { h.t = 0; continue; }

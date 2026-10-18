@@ -62,13 +62,17 @@
       ch: SPAWN.map(s => ({ x: s.x, y: s.y, d: s.d, it: null, mv: 0, ca: 0 })),
       in: [{ x: 0, y: 0, c: 0 }, { x: 0, y: 0, c: 0 }],
       slots: {}, orders: [], nextId: 1, since: 99, ev: [], stats: [0, 0, 0, 0],
+      pl: [{ n: '', l: '' }, { n: '', l: '' }],   // player name + character, kept across rounds
     };
   }
   function start(s) {
     if (s.ph !== 'ready' && s.ph !== 'over') return;
     const r = s.ph === 'over' ? s.round + 1 : s.round;
-    Object.assign(s, newState(), { round: r }); s.ph = 'countdown'; s.cd = 3.2;
+    Object.assign(s, newState(), { round: r, pl: s.pl }); s.ph = 'countdown'; s.cd = 3.2;
   }
+  const LOOKS = ['arjun', 'priya'];
+  function cleanName(n) { return String(n || '').replace(/[^\p{L}\p{N} .'\-]/gu, '').trim().slice(0, 12); }
+  function setPlayer(s, p, n, l) { if (!s.pl) s.pl = [{ n: '', l: '' }, { n: '', l: '' }]; s.pl[p] = { n: cleanName(n), l: LOOKS.includes(l) ? l : '' }; }
 
   // ---------- movement ----------
   function free(x, y) {
@@ -246,6 +250,6 @@
   const stars = sc => (sc >= 450 ? 3 : sc >= 300 ? 2 : sc >= 150 ? 1 : 0);
 
   const api = { T, W, H, MAP, ROUND, SPEED, RAW, CRATE, DISHES, NAMES, SOUP, SPAWN, DV, HW, HH, CHOP_TIME, COOK, BURN,
-    tileAt, idx, isFloor, isPlate, isPot, tokens, plate, choppable, dishOf, canAdd, newState, start, moveChef, targetOf, action, step, stars, free };
+    tileAt, idx, isFloor, isPlate, isPot, tokens, plate, choppable, dishOf, canAdd, newState, start, setPlayer, cleanName, LOOKS, moveChef, targetOf, action, step, stars, free };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KR = api;
 })(typeof window !== 'undefined' ? window : globalThis);

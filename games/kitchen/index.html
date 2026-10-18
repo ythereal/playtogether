@@ -27,6 +27,9 @@
     .hud .score small { font-size: .8rem; color: var(--muted); font-weight: 400; }
     .hud .combo { color: var(--good); font-size: .85rem; font-weight: 600; min-height: 1em; }
     .help { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-weight: 700; }
+    .hud-btns { display: inline-flex; gap: 6px; align-items: center; }
+    #chefBtn { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 520px) { #chefBtn { display: none; } }
 
     /* ---------- orders ---------- */
     .orders { display: flex; gap: 8px; padding: 2px 12px 8px; overflow-x: auto; min-height: 58px; scrollbar-width: none; }
@@ -98,6 +101,23 @@
     .stat { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); margin-top: 10px; font-size: .95rem; }
     .stat b { color: var(--ink); }
     .dishes { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; }
+    .team { color: var(--muted); margin: 6px 0 0; font-weight: 600; }
+
+    /* ---------- chef picker ---------- */
+    .chefs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+    .chef-card {
+      appearance: none; font: inherit; cursor: pointer; border: 2px solid var(--line); background: var(--surface-2); color: var(--ink);
+      border-radius: 16px; padding: 14px 10px 12px; display: grid; justify-items: center; gap: 4px; transition: transform .1s, border-color .15s, box-shadow .15s;
+    }
+    .chef-card:hover { transform: translateY(-2px); }
+    .chef-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); background: var(--surface); }
+    .chef-card .chef-pic { width: 96px; height: 144px; image-rendering: pixelated; }
+    .chef-card b { font-size: 1.15rem; }
+    .chef-sub { color: var(--muted); font-size: .85rem; }
+    .name-row { display: grid; gap: 6px; margin-top: 14px; }
+    .name-row label { font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; }
+    .name-input { font: inherit; font-size: 1.1rem; font-weight: 600; padding: .6rem .9rem; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); width: 100%; }
+    .name-input:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 1px; }
   </style>
 </head>
 <body class="pix">
@@ -106,7 +126,7 @@
       <div class="left"><span class="title">Kitchen Rush</span><span class="round" id="hudRound">Round 1</span></div>
       <div class="timer" id="hudTimer">3:00</div>
       <div class="right"><span class="score"><b id="hudScore">0</b> <small>pts</small></span><span class="combo" id="hudCombo"></span></div>
-      <button class="pt-btn pt-btn-small pt-btn-ghost help" id="helpBtn" title="How to play (H)">?</button>
+      <span class="hud-btns"><button class="pt-btn pt-btn-small pt-btn-ghost" id="chefBtn" title="Change chef or name">Choose chef</button><button class="pt-btn pt-btn-small pt-btn-ghost help" id="helpBtn" title="How to play (H)">?</button></span>
     </header>
     <div class="orders" id="orders"></div>
     <div class="stage">
@@ -116,6 +136,16 @@
     </div>
     <div class="touch"><div id="joy"><div id="knob"></div></div><div class="btns"><button id="btnChop">CHOP</button><button id="btnGrab">GRAB</button></div></div>
     <div class="hint-keys"><kbd>WASD</kbd>/<kbd>←↑↓→</kbd> move · <kbd>Space</kbd> grab / drop · <kbd>E</kbd> or <kbd>Shift</kbd> chop (hold) · <kbd>H</kbd> help</div>
+  </div>
+
+  <div class="panel" id="picker" hidden>
+    <div class="sheet" style="width:min(440px,100%)">
+      <h2>Choose your chef</h2>
+      <p class="sub">Your partner sees your chef and name in the kitchen.</p>
+      <div class="chefs" id="chefs"></div>
+      <div class="name-row"><label for="chefName">Your name</label><input class="name-input" id="chefName" maxlength="12" autocomplete="nickname" placeholder="Chef name"></div>
+      <div class="row"><button class="pt-btn" id="chefGo" disabled>Into the kitchen</button></div>
+    </div>
   </div>
 
   <div class="panel" id="legend" hidden>
@@ -136,6 +166,7 @@
       </ul>
       <div class="row">
         <span class="note" id="legendNote"></span>
+        <button class="pt-btn pt-btn-small pt-btn-ghost" id="helpChef">Change chef</button>
         <button class="pt-btn pt-btn-ghost" id="legendClose">Close</button>
         <button class="pt-btn" id="startBtn" hidden>Start round</button>
       </div>
@@ -146,6 +177,7 @@
     <div class="sheet">
       <h2 id="ovTitle"></h2>
       <div class="stars" id="ovStars"></div>
+      <p class="team" id="ovTeam"></p>
       <div class="big"><span id="ovScore">0</span> <small style="font-size:1rem;color:var(--muted)">pts</small></div>
       <div class="dishes" id="ovDishes"></div>
       <div class="stat" id="ovStat"></div>
