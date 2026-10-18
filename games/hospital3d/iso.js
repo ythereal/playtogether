@@ -37,7 +37,8 @@
   // a top-down image whose top-left is at world (x, y)
   function floorAt(ctx, img, x, y) {
     const [a, b] = rw(x, y);
-    const m = [[KX, KY, -KX, KY], [KX, KY, KX, -KY], [-KX, -KY, KX, -KY], [-KX, -KY, -KX, KY]][rot];
+    // world +x and +y map to these screen vectors for each quarter turn
+    const m = [[KX, KY, -KX, KY], [-KX, KY, -KX, -KY], [-KX, -KY, KX, -KY], [KX, -KY, KX, KY]][rot];
     // the image's u axis is world +x and v axis is world +y; both rotate with the view
     ctx.setTransform(m[0], m[1], m[2], m[3], OX + (a - b) * KX, OY + (a + b) * KY);
     ctx.drawImage(img, 0, 0); reset(ctx);
