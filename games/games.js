@@ -2,6 +2,13 @@
 // To add a game: create games/<id>/index.html and add an entry below.
 window.PT_GAMES = [
   {
+    id: 'hospital3d',
+    name: 'Rival Hospital 3D',
+    blurb: 'The hospital duel in isometric 3D, closer to the original: decorate the corridors, cope with patients being sick on the floor, and hire handymen to mop up.',
+    icon: '🏥',
+    type: 'Rivals · Real-time',
+  },
+  {
     id: 'hospital',
     name: 'Rival Hospital',
     blurb: 'Theme Hospital-style management duel. Build clinics, hire doctors, cure Balloon Head and Loose Tongue. The town\'s patients go wherever the reputation is higher.',
