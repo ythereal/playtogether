@@ -7,6 +7,8 @@
   const { T } = HA;
   const DIRS = ['down', 'up', 'left', 'right'];
   const TICK = 1 / 60, SNAP_HZ = 10;
+  const PROTO = 2;   // snapshot format: bump whenever host and guest stop understanding each other
+  let mismatch = false;
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const money = v => (v < 0 ? '−$' : '$') + Math.abs(Math.round(v)).toLocaleString('en-US');
@@ -43,7 +45,7 @@
   function applyProfile() {
     if (!profile) return;
     if (host) { RH.setProfile(state, 0, profile.nm, profile.av); drainEvents(); hudKey = ''; }
-    else if (room.connected) room.send({ t: 'profile', nm: profile.nm, av: profile.av });
+    else if (room.connected) room.send({ t: 'profile', nm: profile.nm, av: profile.av, pv: PROTO });
     renderProfBtn();
   }
   function renderProfBtn() {
@@ -104,11 +106,13 @@
     if (ps.n) { ps.pat = r2(ps.pat / ps.n); ps.th = r2(ps.th / ps.n); ps.hp = r2(ps.hp / ps.n); }
     return ps;
   }
-  const snapshot = () => ({ t: 's', ph: state.ph, tm: r1(state.t), m: state.month, w: state.winner, why: state.why, pr: state.prof, pool: state.pool, qk: state.quake ? 1 : 0,
+  const snapshot = () => ({ t: 's', pv: PROTO, ph: state.ph, tm: r1(state.t), m: state.month, w: state.winner, why: state.why, pr: state.prof, pool: state.pool, qk: state.quake ? 1 : 0,
     h: [packH(state.h[0], false, guestTab === 0), packH(state.h[1], true, true)], ev: pendingEv.splice(0) });
   // guest interpolation: previous snapshot positions by entity id
   let prevPos = new Map(), curPos = new Map(), prevAt = 0, curAt = 0;
   function applySnap(m) {
+    if (m.pv !== PROTO) { versionMismatch(); return; }
+    if (mismatch) { mismatch = false; statusKey = ''; }
     prevPos = curPos; prevAt = curAt; curPos = new Map(); curAt = performance.now();
     const old = view;
     view = { ph: m.ph, t: m.tm, month: m.m, winner: m.w, why: m.why, prof: m.pr, pool: m.pool || [], quake: m.qk, h: m.h };
@@ -119,6 +123,11 @@
     onPhase(); refreshSheets();
   }
   const SAVE_EV = new Set(['month', 'over', 'built', 'hired', 'fired', 'razed', 'start', 'profile', 'decor', 'undecor', 'desk', 'extra', 'research', 'boom', 'replaced', 'raise', 'resigned', 'open']);
+  function versionMismatch() {
+    if (mismatch) return;
+    mismatch = true; statusKey = ''; setStatus();
+    toast('You and your friend are running different versions of the game. Both of you reload the page.', 'bad');
+  }
   function drainEvents() {
     if (!state.ev.length) return;
     const evs = state.ev.splice(0);
@@ -163,19 +172,20 @@
     if (host) { const err = doAct(0, m); if (err) fail(err); drainEvents(); refreshSheets(); }
     else if (room.connected) room.send(m);
   }
-  room.on('connected', () => { if (host) { pendingEv = []; room.send(snapshot()); } else { applyProfile(); room.send({ t: 'tab', p: tab }); } setStatus(); });
+  room.on('connected', () => { if (host) { pendingEv = []; room.send(snapshot()); } else { applyProfile(); room.send({ t: 'tab', p: tab, pv: PROTO }); } setStatus(); });
   room.on('disconnected', () => { setStatus(); });
   room.on('message', m => {
     if (host) {
       if (!m || typeof m.t !== 'string') return;
       if (m.t === 'start') { hostStart(); return; }
+      if (m.t === 'tab' || m.t === 'profile') { if (m.pv !== PROTO) { versionMismatch(); return; } mismatch = false; }
       if (m.t === 'tab') { guestTab = m.p === 0 ? 0 : 1; return; }
       if (m.t === 'profile') { RH.setProfile(state, 1, m.nm, m.av); drainEvents(); hudKey = ''; room.save(state); return; }
       if (state.ph !== 'play') return;
       const err = doAct(1, m);
       if (err && err !== 'Unknown') room.send({ t: 'err', m: err });
       drainEvents(); refreshSheets();
-    } else if (m.t === 's') applySnap(m);
+    } else if (m.t === 's') { try { applySnap(m); } catch (err) { console.error(err); versionMismatch(); } }
     else if (m.t === 'err') fail(String(m.m));
   });
   function hostStart() { if (!room.connected || !state) return; if (state.ph === 'play') return; RH.start(state); drainEvents(); onPhase(); room.save(state); }
@@ -315,6 +325,7 @@
   function placeStatus() { const hgt = document.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); } }
   const needWord = k => ({ doc: 'doctor', psy: 'psychiatrist', surg: 'surgeon', res: 'researcher', con: 'consultant to teach', nurse: 'nurse' })[RH.ROOMS[k].staff];
   function advice() {
+    if (mismatch) return ['You and your friend are on different versions of the game. Both of you reload the page (hold Shift while reloading if it keeps happening).', 'warn'];
     if (!room.connected) return ['Waiting for your friend to join…' + (view && view.ph === 'play' ? ' (paused)' : '')];
     if (!view) return ['Syncing…'];
     if (view.ph === 'ready') return [host ? 'Press “Start the match” when you\'re both ready.' : 'Waiting for the host to start the match…'];

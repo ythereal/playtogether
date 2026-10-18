@@ -345,9 +345,16 @@
   </div>
 
   <script src="../../shared/net.js"></script>
-  <script src="rules.js"></script>
-  <script src="art.js"></script>
-  <script src="iso.js"></script>
-  <script src="game.js"></script>
+  <script>
+    // Load the game files tagged with the deployed version, so a browser never runs a stale cached game.js
+    // against a friend who has the new one (the two can't understand each other's snapshots).
+    (async () => {
+      let v = '';
+      try { v = String((await (await fetch('../../shared/version.json', { cache: 'no-store' })).json()).version); } catch (e) {}
+      for (const f of ['rules.js', 'art.js', 'iso.js', 'game.js']) {
+        await new Promise(done => { const s = document.createElement('script'); s.src = f + (v ? '?v=' + encodeURIComponent(v) : ''); s.onload = s.onerror = done; document.body.appendChild(s); });
+      }
+    })();
+  </script>
 </body>
 </html>
