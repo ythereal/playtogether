@@ -503,7 +503,7 @@
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(buf, 0, 0, BW * S, BH * S);
     // ---- crisp overlays ----
-    const font = (px, w) => `${w || 700} ${Math.max(9, Math.round(px * S))}px 'Pixelify Sans', sans-serif`;
+    const font = (px, w) => `${w || 700} ${Math.max(10, Math.round(px * S * 0.95))}px 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const l of labels) {
       ctx.font = font(l.size || 5, l.dim ? 600 : 700);
