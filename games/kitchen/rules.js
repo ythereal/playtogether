@@ -5,16 +5,17 @@
   const T = 16, W = 13, H = 9;
   // C counter · V serving window · S stove+pan · P stove+pot · B cutting board · L plate stack · X trash
   // t/l/o/m/b crates: tomato, lettuce, onion, meat, bun · '.' floor
+  // D decor counter (solid, nothing to interact with)
   const MAP = [
-    'CCVVCCSCPCCCC',
+    'DCVVCCSCPCCCD',
     't...........B',
     'l...........B',
     'o...........C',
-    'C...CCCCC...X',
+    'D...CCCCC...X',
     'm...........C',
     'b...........C',
-    'C...........C',
-    'CCCCLLCCCCCCC',
+    'D...........D',
+    'DCCCLLCCCCCCD',
   ];
   const ROUND = 180, CHOP_TIME = 1.5, COOK = { meat: 5, soup: 7 }, BURN = { meat: 7, soup: 8 };
   const SPEED = 66, MAX_ORDERS = 4;
