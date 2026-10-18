@@ -210,14 +210,13 @@
     // orient the image so its left edge sits at the end that is drawn first in view space
     const flip = alongX ? a1 > b1 : a2 > b2;
     const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
-    if (far) return [{ d: Math.min(a1 + a2, b1 + b2) - 0.5, draw: c => wallSeg(c, img, sx, sy, ex, ey, h) }];
-    // near walls are split so the depth sort can slide people in front of the right part
+    // every wall is split into 16px pieces so the depth sort puts people and trees on the right side of each part
     const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 16)), items = [];
     for (let i = 0; i < n; i++) {
       const t0 = i / n, t1 = (i + 1) / n;
       const p0 = [sx + (ex - sx) * t0, sy + (ey - sy) * t0], p1 = [sx + (ex - sx) * t1, sy + (ey - sy) * t1];
       const q0 = rw(p0[0], p0[1]), q1 = rw(p1[0], p1[1]);
-      items.push({ d: Math.max(q0[0] + q0[1], q1[0] + q1[1]) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
+      items.push({ d: far ? Math.min(q0[0] + q0[1], q1[0] + q1[1]) - 0.5 : Math.max(q0[0] + q0[1], q1[0] + q1[1]) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
     }
     return items;
   }
@@ -250,7 +249,7 @@
     const items = [];
     const bx = (x, y, w, d, h, col, faces) => ({ d: depth(x + w, y + d), draw: c => box(c, x, y, w, d, h, col, faces) });
     items.push(bx(2, 28, 26, 12, 13, '#f4f4f0', { south: (ctx, w, h) => { R(ctx, 0, 6, w, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 10, 1, 6, 4, '#9fd8ff'); R(ctx, 19, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 2, 2, 1, '#e8533f'); R(ctx, 11, 3, 4, 1, '#e8533f'); }, east: (ctx, d, h) => { R(ctx, 0, 6, d, 3, '#e8533f'); R(ctx, 2, 1, 8, 4, '#9fd8ff'); }, top: ctx => { R(ctx, 4, 2, 4, 3, '#3c7bd6'); R(ctx, 14, 2, 4, 3, '#e8533f'); } }));
-    for (const [tx, ty] of [[16, 150], [16, 230], [16, 320]]) items.push({ d: depth(tx, ty), draw: c => { shadow(c, tx, ty, 8); bill(c, A.furniture('tree'), tx, ty); } });
+    for (const [tx, ty] of [[13, 150], [13, 230], [13, 320]]) items.push({ d: depth(tx, ty), draw: c => { shadow(c, tx, ty, 8); bill(c, A.furniture('tree'), tx, ty); } });
     for (const [bxp, byp] of [[10, 12], [20, 180], [8, 280]]) items.push({ d: depth(bxp, byp), draw: c => bill(c, A.furniture('bush'), bxp, byp) });
     items.push({ d: depth(14, 56), draw: c => bill(c, A.furniture('sign'), 14, 56) });
     items.push(bx(30, 62, 3, 3, 24, '#8a8f99'));
