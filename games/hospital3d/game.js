@@ -711,5 +711,5 @@
   requestAnimationFrame(frame);
 
   // test hook (read-only)
-  window.__rh = { get view() { return view; }, role: room.role, _state: host ? () => state : undefined, act, setTab };
+  window.__rh = { get view() { return view; }, role: room.role, _state: host ? () => state : undefined, act, setTab, cam, fitView };
 })();

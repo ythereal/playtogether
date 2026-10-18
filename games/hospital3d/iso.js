@@ -10,7 +10,7 @@
   const OX = Math.ceil(L * KX) + 8, OY = 54;
   const OXF = 8, OYF = 60;                          // flat (aerial) view origin
   const BW = Math.max(OX * 2, L + 16), BH = Math.max(Math.ceil(L * K) + OY + 30, L + OYF + 40);
-  const WALL_H = 34, LOW_H = 9;
+  const WALL_H = 34, LOW_H = 3;      // walls facing the viewer are cut down to a baseboard so nothing is sliced
   let rot = 0;                                      // 0..3, quarter turns clockwise
   let flat = false;                                 // aerial view: plain top-down instead of isometric
   const setRot = r => { rot = ((r % 4) + 4) % 4; };
@@ -102,7 +102,7 @@
     sink: (x, y) => ({ x, y, w: 10, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 10, 10, 11, '#c0c4cc', { top: ctx => { R(ctx, 2, 2, 6, 6, '#9fd8ff'); R(ctx, 4, 1, 2, 1, '#6a7078'); } }); } }),
     bed: (x, y) => ({ x, y, w: 14, d: 26, draw: (c, X, Y) => { box(c, X + x, Y + y, 14, 2, 14, '#5a3a22'); box(c, X + x, Y + y + 2, 14, 24, 8, '#f4f4f8', { top: sheet }); } }),
     bedside: (x, y) => ({ x, y, w: 8, d: 8, draw: (c, X, Y) => box(c, X + x, Y + y, 8, 8, 10, '#8b5a2b', { top: ctx => { R(ctx, 2, 2, 4, 4, '#ff6b9a'); R(ctx, 3, 1, 2, 1, '#39a85a'); } }) }),
-    curtain: (x, y) => ({ x, y, w: 2, d: 22, draw: (c, X, Y) => box(c, X + x, Y + y, 2, 22, 22, '#bfe3df', { east: (ctx, d, h) => { for (let v = 2; v < h; v += 4) R(ctx, 0, v, d, 1, '#aed7d2'); } }) }),
+    curtain: (x, y) => ({ x, y, w: 2, d: 14, draw: (c, X, Y) => box(c, X + x, Y + y, 2, 14, 14, '#bfe3df', { east: (ctx, d, h) => { for (let v = 2; v < h; v += 4) R(ctx, 0, v, d, 1, '#aed7d2'); } }) }),
     couch: (x, y) => ({ x, y, w: 32, d: 12, draw: (c, X, Y) => { box(c, X + x, Y + y, 32, 3, 13, '#6b2d3a'); box(c, X + x, Y + y + 3, 32, 9, 7, '#8a3a4a', { top: ctx => { R(ctx, 2, 1, 28, 6, '#a04a5a'); R(ctx, 4, 2, 6, 4, '#f2d9a4'); } }); } }),
     bookshelf: (x, y) => ({ x, y, w: 22, d: 6, draw: (c, X, Y) => box(c, X + x, Y + y, 22, 6, 24, '#5a3a22', { south: (ctx, w, h) => { for (let v = 3; v < h - 2; v += 7) { R(ctx, 1, v, w - 2, 6, '#2b1b10'); for (let u = 2; u < w - 2; u += 3) R(ctx, u, v + 1 + ((u * 7 + v) % 3), 2, 5 - ((u * 7 + v) % 3), ['#8b2a2a', '#2f5e3a', '#2a4a7a', '#8a6a2a', '#5a2a6a'][(u + v) % 5]); } } }) }),
     inflator: (x, y) => ({ x, y, w: 18, d: 14, draw: (c, X, Y) => { box(c, X + x, Y + y, 18, 14, 26, '#8aa0b8', { south: (ctx, w, h) => { screen(ctx, 2, 3, 14, 8); buttons(ctx, 3, 14); R(ctx, 2, h - 6, 14, 3, '#5c6f85'); } }); box(c, X + x + 20, Y + y + 2, 8, 8, 16, '#ffd23f', { south: (ctx, w, h) => R(ctx, 1, 2, w - 2, 4, '#e8b800') }); box(c, X + x + 18, Y + y + 5, 2, 2, 12, '#5c6f85'); } }),
@@ -196,7 +196,7 @@
     else if (style === 'brick') { for (let j = 0; j < h; j += 4) { R(x, 0, j, w, 1, shade(col, -0.2)); for (let i = (j / 4) % 2 ? 4 : 0; i < w; i += 8) R(x, i, j, 1, 4, shade(col, -0.2)); } }
     R(x, 0, 0, w, 2, '#3fae5a'); R(x, 0, 0, w, 1, '#7ad88f');
     if (h > 12) { R(x, 0, h - 3, w, 3, shade(col, -0.35)); R(x, 0, h - 3, w, 1, shade(col, -0.15)); }
-    else { R(x, 0, h - 2, w, 2, shade(col, -0.35)); R(x, 0, 1, w, 1, shade(col, 0.2)); }
+    else { R(x, 0, h - 1, w, 1, shade(col, -0.35)); }
     if (decal && h > 12) decal(x, w, h);
     if (gap) { x.clearRect(gap[0], 0, gap[1] - gap[0], h); R(x, gap[0] - 2, 0, 2, h, '#5a4634'); R(x, gap[1], 0, 2, h, '#5a4634'); R(x, gap[0] - 2, 0, gap[1] - gap[0] + 4, 2, '#5a4634'); }
     return (wallCache[key] = c);
