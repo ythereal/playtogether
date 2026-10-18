@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tic-Tac-Toe · PlayTogether</title>
+  <link rel="stylesheet" href="../../shared/style.css">
+  <style>
+    .board {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      width: min(360px, 88vw); aspect-ratio: 1;
+    }
+    .cell {
+      appearance: none; border: 0; cursor: pointer;
+      background: var(--surface); border-radius: 18px;
+      box-shadow: inset 0 0 0 1.5px var(--line);
+      font-size: clamp(2.6rem, 14vw, 4.2rem); font-weight: 800; line-height: 1;
+      display: grid; place-items: center; color: var(--ink);
+      transition: background .12s ease, transform .08s ease;
+    }
+    .cell:not(:disabled):hover { background: var(--surface-2); }
+    .cell:not(:disabled):active { transform: scale(.96); }
+    .cell:disabled { cursor: default; }
+    .cell.x { color: var(--accent); }
+    .cell.o { color: var(--accent-2); }
+    .cell.win { background: color-mix(in srgb, currentColor 16%, var(--surface)); box-shadow: inset 0 0 0 2.5px currentColor; }
+    .cell.pop { animation: pop .18s ease-out; }
+    @keyframes pop { from { transform: scale(.6); opacity: .3; } to { transform: scale(1); opacity: 1; } }
+
+    .score { display: flex; gap: 10px; width: 100%; justify-content: center; }
+    .score div {
+      flex: 1; max-width: 140px; text-align: center; background: var(--surface);
+      border: 1px solid var(--line); border-radius: 14px; padding: 8px 6px;
+    }
+    .score b { display: block; font-size: 1.6rem; }
+    .score small { color: var(--muted); font-weight: 600; }
+    .score .me { box-shadow: inset 0 0 0 2px var(--line); }
+    .score .x b { color: var(--accent); }
+    .score .o b { color: var(--accent-2); }
+    .turn-x { color: var(--accent); }
+    .turn-o { color: var(--accent-2); }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <div class="game-inner">
+      <div class="score">
+        <div class="x" id="scoreX"><b>0</b><small>X</small></div>
+        <div id="scoreD"><b>0</b><small>Draws</small></div>
+        <div class="o" id="scoreO"><b>0</b><small>O</small></div>
+      </div>
+      <div class="game-status" id="status">Waiting for a friend…</div>
+      <div class="board" id="board"></div>
+      <button class="pt-btn" id="again" hidden>Play again</button>
+    </div>
+  </main>
+
+  <script src="../../shared/net.js"></script>
+  <script>
+  (async () => {
+    // ---- rules (pure functions, host runs them) ----
+    const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    function newState(prev) {
+      const starter = prev ? (prev.starter === 'X' ? 'O' : 'X') : 'X';
+      return {
+        board: Array(9).fill(null),
+        turn: starter, starter,
+        winner: null, line: null,
+        score: prev ? prev.score : { X: 0, O: 0, D: 0 },
+      };
+    }
+    function applyMove(s, mark, i) {
+      if (s.winner || s.turn !== mark || s.board[i] !== null) return false;
+      s.board[i] = mark;
+      const line = LINES.find(([a,b,c]) => s.board[a] && s.board[a] === s.board[b] && s.board[a] === s.board[c]);
+      if (line) { s.winner = mark; s.line = line; s.score[mark]++; }
+      else if (s.board.every(Boolean)) { s.winner = 'D'; s.score.D++; }
+      else s.turn = mark === 'X' ? 'O' : 'X';
+      return true;
+    }
+
+    // ---- network ----
+    const room = await PT.room({ game: 'tictactoe', title: 'Tic-Tac-Toe' });
+    const me = room.role === 'host' ? 'X' : 'O';
+    let state = room.role === 'host' ? (room.saved || newState()) : null;
+    let lastPlaced = -1;
+
+    function broadcast() { room.save(state); room.send({ type: 'state', state }); }
+
+    room.on('connected', () => { if (room.role === 'host') broadcast(); render(); });
+    room.on('disconnected', render);
+    room.on('message', msg => {
+      if (room.role === 'host') {
+        if (msg.type === 'move' && applyMove(state, 'O', msg.i)) { lastPlaced = msg.i; broadcast(); render(); }
+        if (msg.type === 'rematch' && state.winner) { state = newState(state); broadcast(); render(); }
+      } else if (msg.type === 'state') {
+        const prev = state;
+        state = msg.state;
+        lastPlaced = prev ? state.board.findIndex((v, i) => v && !prev.board[i]) : -1;
+        render();
+      }
+    });
+
+    function play(i) {
+      if (!room.connected || !state) return;
+      if (room.role === 'host') { if (applyMove(state, 'X', i)) { lastPlaced = i; broadcast(); render(); } }
+      else if (state.turn === me && !state.winner && !state.board[i]) room.send({ type: 'move', i });
+    }
+    function rematch() {
+      if (room.role === 'host') { state = newState(state); broadcast(); render(); }
+      else room.send({ type: 'rematch' });
+    }
+
+    // ---- view ----
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const againBtn = document.getElementById('again');
+    const cells = [...Array(9)].map((_, i) => {
+      const b = document.createElement('button');
+      b.className = 'cell';
+      b.setAttribute('aria-label', 'Square ' + (i + 1));
+      b.addEventListener('click', () => play(i));
+      boardEl.appendChild(b);
+      return b;
+    });
+    againBtn.addEventListener('click', rematch);
+    document.getElementById(me === 'X' ? 'scoreX' : 'scoreO').classList.add('me');
+    document.querySelector('#scoreX small').textContent = me === 'X' ? 'You (X)' : 'Friend (X)';
+    document.querySelector('#scoreO small').textContent = me === 'O' ? 'You (O)' : 'Friend (O)';
+
+    function render() {
+      if (!state) { statusEl.textContent = 'Connecting…'; return; }
+      const myTurn = room.connected && !state.winner && state.turn === me;
+      cells.forEach((c, i) => {
+        const v = state.board[i];
+        c.textContent = v === 'X' ? '✕' : v === 'O' ? '○' : '';
+        c.className = 'cell' + (v ? ' ' + v.toLowerCase() : '') +
+          (state.line && state.line.includes(i) ? ' win' : '') + (i === lastPlaced ? ' pop' : '');
+        c.disabled = !myTurn || !!v;
+      });
+      lastPlaced = -1;
+      document.querySelector('#scoreX b').textContent = state.score.X;
+      document.querySelector('#scoreO b').textContent = state.score.O;
+      document.querySelector('#scoreD b').textContent = state.score.D;
+
+      let text, cls = '';
+      if (!room.connected) text = 'Waiting for your friend…';
+      else if (state.winner === 'D') text = "It's a draw.";
+      else if (state.winner) text = state.winner === me ? 'You win! 🎉' : 'Your friend wins.';
+      else if (myTurn) { text = 'Your turn'; cls = 'turn-' + me.toLowerCase(); }
+      else { text = "Friend's turn"; cls = 'turn-' + state.turn.toLowerCase(); }
+      statusEl.textContent = text;
+      statusEl.className = 'game-status ' + cls;
+      againBtn.hidden = !state.winner || !room.connected;
+    }
+    render();
+  })();
+  </script>
+</body>
+</html>

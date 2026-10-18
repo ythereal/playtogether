@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlayTogether</title>
+  <link rel="stylesheet" href="shared/style.css">
+  <style>
+    .lobby { width: min(760px, 100%); margin: 0 auto; padding: 56px 16px 48px; }
+    .lobby h1 { font-size: clamp(2.6rem, 9vw, 4.4rem); font-weight: 800; letter-spacing: -.04em; line-height: .95; margin: 0 0 .6rem; }
+    .lobby h1 span { color: var(--accent); }
+    .lobby .sub { color: var(--muted); font-size: 1.15rem; margin: 0 0 2.5rem; max-width: 34ch; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .tile {
+      display: grid; gap: 6px; text-decoration: none; color: var(--ink);
+      background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+      padding: 20px; transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+    .tile .icon {
+      width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center;
+      background: var(--surface-2); font-size: 1.5rem; font-weight: 800; margin-bottom: 8px;
+    }
+    .tile h2 { margin: 0; font-size: 1.3rem; }
+    .tile p { margin: 0; color: var(--muted); }
+    .tag { justify-self: start; font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-2); margin-top: 6px; }
+    .how { margin-top: 3rem; color: var(--muted); font-size: .95rem; border-top: 1px solid var(--line); padding-top: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main class="lobby">
+    <h1>Play<span>Together</span></h1>
+    <p class="sub">Two browsers, two homes, one game. Pick something and send your friend the link.</p>
+    <div class="grid" id="games"></div>
+    <p class="how">Hosting gives you a 4-letter code and an invite link. Your friend opens the link and you're connected. If either of you reloads, you reconnect to the same room automatically.</p>
+  </main>
+  <script src="games/games.js"></script>
+  <script>
+    const grid = document.getElementById('games');
+    for (const g of window.PT_GAMES || []) {
+      const a = document.createElement('a');
+      a.className = 'tile';
+      a.href = 'games/' + g.id + '/';
+      a.innerHTML = '<div class="icon"></div><h2></h2><p></p><span class="tag"></span>';
+      a.querySelector('.icon').textContent = g.icon || '🎮';
+      a.querySelector('h2').textContent = g.name;
+      a.querySelector('p').textContent = g.blurb || '';
+      a.querySelector('.tag').textContent = g.type || '';
+      grid.appendChild(a);
+    }
+  </script>
+</body>
+</html>
