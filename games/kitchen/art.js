@@ -64,10 +64,10 @@
   // ======================= CHEFS (32x48) =======================
   // Two characters; the apron/neckerchief colour comes from the player's role (host red, guest teal).
   const LOOKS = {
-    arjun: { name: 'Arjun', skin: '#b97f56', hair: '#1a1512', brow: '#1a1512', beard: '#2a211c', beardL: '#3d322a' },
-    priya: { name: 'Priya', skin: '#c48a5e', hair: '#17110f', brow: '#2a1a14', female: true, lips: '#b8404f', bindi: '#d4262c', gold: '#e8b23a' },
+    max: { name: 'Max', skin: '#d9a97c', hair: '#4a3222', brow: '#3a2619', beard: '#4a3222', beardL: '#5c4130' },
+    mia: { name: 'Mia', skin: '#e2b48e', hair: '#5a3a26', brow: '#4a2f1e', female: true, lips: '#c4505e', gold: '#e8b23a', tie: '#3a7bd5' },
   };
-  const LOOK_IDS = ['arjun', 'priya'];
+  const LOOK_IDS = ['max', 'mia'];
   const ROLE = [{ apron: '#e0503c', scarf: '#c43c2c' }, { apron: '#1f8f87', scarf: '#2bb5a8' }];
   function drawChef(L, RC, dir, f, hold) {
     const [c, x] = canvas(32, 48);
@@ -110,7 +110,7 @@
     }
 
     // ---- arms ----
-    const bangle = (X, Y) => { if (fem) { R(X, Y, 2, 1, L.gold); } };
+    const bangle = () => {};
     if (!side) {
       if (hold && !back) {
         R(6, 22, 2, 7, WH); R(24, 22, 2, 7, WH); R(6, 29, 4, 2, WH); R(22, 29, 4, 2, WH); R(6, 28, 2, 1, WD); R(24, 28, 2, 1, WD);
@@ -126,11 +126,11 @@
     } else if (hold) { R(13, 22, 4, 6, WH); R(16, 22, 1, 6, WD); R(6, 27, 9, 2, WH); R(6, 28, 9, 1, WD); R(4, 26, 3, 3, SK); R(5, 28, 2, 1, SKD); bangle(6, 27); }
     else { const hx = f === 1 ? 9 : f === 2 ? 17 : 13; R(13, 22, 4, 9, WH); R(16, 22, 1, 9, WD); R(hx, 30, 4, 2, WH); R(hx, 32, 3, 3, SK); R(hx, 34, 3, 1, SKD); bangle(hx, 32); }
 
-    // ---- long hair behind the head (Priya) ----
+    // ---- long hair behind the head (Mia) ----
     if (fem) {
-      if (back) { R(8, 10, 16, 8, HR); for (let j = 16; j < 36; j += 3) { R(14, j, 4, 3, j % 2 ? HR : HRD); R(14 + (j % 2 ? 0 : 2), j, 2, 2, HRL); } R(13, 36, 6, 2, L.bindi); R(14, 38, 4, 2, HRD); }
-      else if (side) { R(17, 10, 7, 16, HR); R(18, 12, 2, 10, HRL); R(20, 24, 4, 3, HRD); }
-      else { R(6, 10, 2, 14, HR); R(24, 10, 2, 14, HR); R(6, 22, 2, 2, HRD); R(24, 22, 2, 2, HRD); R(6, 12, 1, 6, HRL); R(25, 12, 1, 6, HRL); }
+      if (back) { R(8, 10, 16, 8, HR); R(13, 17, 6, 2, L.tie); R(12, 19, 8, 6, HR); R(13, 25, 6, 5, HR); R(14, 30, 4, 3, HRD); R(13, 20, 1, 8, HRL); R(18, 21, 1, 6, HRD); }
+      else if (side) { R(17, 10, 7, 8, HR); R(21, 17, 3, 2, L.tie); R(20, 19, 5, 7, HR); R(21, 26, 3, 3, HRD); R(21, 20, 1, 5, HRL); }
+      else { R(6, 10, 2, 8, HR); R(24, 10, 2, 8, HR); R(6, 17, 2, 1, HRD); R(24, 17, 2, 1, HRD); R(6, 12, 1, 4, HRL); R(25, 12, 1, 4, HRL); }
     }
 
     // ---- head ----
@@ -143,13 +143,13 @@
       if (fem) R(8, 16, 16, 2, HR);
     } else if (side) {
       R(17, 10, 7, 6, HR); R(17, 15, 7, 1, HRD); R(18, 11, 2, 1, HRL); R(13, 10, 5, 2, HR);
-      if (fem) { R(19, 16, 5, 9, HR); R(20, 17, 1, 6, HRL); R(8, 11, 4, 1, HR); R(8, 12, 2, 1, HR); }
+      if (fem) { R(8, 11, 4, 1, HR); R(8, 12, 2, 1, HR); }
       R(11, 14, 2, 2, '#241c2a'); R(11, 14, 1, 1, '#ffffff'); R(10, 13, 4, 1, L.brow); if (fem) R(10, 14, 1, 1, '#241c2a');
       R(6, 14, 2, 4, SK); R(6, 17, 2, 1, SKD); R(8, 16, 1, 1, SKD);
       if (L.beard) { R(7, 18, 5, 2, L.beard); R(8, 20, 10, 2, L.beard); R(17, 14, 3, 7, L.beard); R(7, 18, 5, 1, L.beardL); R(8, 18, 2, 1, '#b4604a'); }
       else { R(8, 18, 2, 1, L.lips || '#b4604a'); }
       R(8, 17, 1, 1, '#f0a090');
-      if (fem) { R(14, 12, 1, 1, L.bindi); R(17, 16, 1, 3, L.gold); R(16, 18, 1, 1, L.gold); }
+      if (fem) { R(17, 17, 1, 1, L.gold); }
     } else {
       // hair under the hat
       R(8, 10, 2, 4, HR); R(22, 10, 2, 4, HR); R(10, 10, 12, 1, HR);
@@ -162,9 +162,8 @@
       R(15, 15, 2, 2, SKD); R(15, 17, 1, 1, SKD2);
       R(9, 17, 2, 1, '#f0a090'); R(21, 17, 2, 1, '#f0a090');
       if (fem) {
-        R(15, 12, 2, 1, L.bindi);                                     // bindi
         R(13, 18, 6, 1, L.lips); R(14, 19, 4, 1, shade(L.lips, -0.3)); R(14, 18, 1, 1, shade(L.lips, 0.35)); // lips
-        R(7, 16, 1, 3, L.gold); R(24, 16, 1, 3, L.gold); R(7, 15, 1, 1, shade(L.gold, 0.4)); R(24, 15, 1, 1, shade(L.gold, 0.4)); // earrings
+        R(7, 17, 1, 1, L.gold); R(24, 17, 1, 1, L.gold); // stud earrings
       } else {
         R(11, 17, 4, 1, L.beard); R(17, 17, 4, 1, L.beard); R(13, 18, 6, 1, '#b4604a'); R(14, 19, 4, 1, '#f8efe4'); // moustache + smile
         R(8, 18, 2, 3, L.beard); R(22, 18, 2, 3, L.beard); R(10, 20, 12, 2, L.beard); R(10, 20, 12, 1, L.beardL); R(9, 21, 1, 1, L.beard); R(22, 21, 1, 1, L.beard); // trimmed beard
@@ -177,12 +176,11 @@
     R(12, 0, 1, 6, HATD); R(17, 0, 1, 6, HATD); R(13, 0, 1, 1, HATD); R(18, 1, 1, 1, HATD);
     R(7, 8, 18, 1, HATD); R(7, 9, 18, 1, HATD2); R(7, 6, 1, 3, HATD);
     if (side) { R(19, 6, 6, 3, HATD); R(6, 2, 1, 4, HAT); }
-    if (fem && !back) { R(7, 9, 18, 1, L.bindi); R(9, 9, 2, 1, shade(L.bindi, 0.4)); } // ribbon on the hat band
     return outline(c);
   }
   const chefCache = {};
   function chefSheet(look, p, hold) {
-    look = LOOKS[look] ? look : LOOK_IDS[p] || 'arjun';
+    look = LOOKS[look] ? look : LOOK_IDS[p] || 'max';
     const k = look + ':' + p + ':' + (hold ? 1 : 0);
     if (chefCache[k]) return chefCache[k];
     const L = LOOKS[look], RC = ROLE[p] || ROLE[0], sh = {};

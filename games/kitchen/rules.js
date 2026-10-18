@@ -70,7 +70,7 @@
     const r = s.ph === 'over' ? s.round + 1 : s.round;
     Object.assign(s, newState(), { round: r, pl: s.pl }); s.ph = 'countdown'; s.cd = 3.2;
   }
-  const LOOKS = ['arjun', 'priya'];
+  const LOOKS = ['max', 'mia'];
   function cleanName(n) { return String(n || '').replace(/[^\p{L}\p{N} .'\-]/gu, '').trim().slice(0, 12); }
   function setPlayer(s, p, n, l) { if (!s.pl) s.pl = [{ n: '', l: '' }, { n: '', l: '' }]; s.pl[p] = { n: cleanName(n), l: LOOKS.includes(l) ? l : '' }; }
 

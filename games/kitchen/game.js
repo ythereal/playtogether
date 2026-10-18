@@ -289,8 +289,7 @@
       const L = KA.LOOKS[id], b = document.createElement('button'); b.type = 'button'; b.className = 'chef-card'; b.dataset.look = id;
       const c = document.createElement('canvas'); c.width = 32; c.height = 48; c.className = 'chef-pic';
       const nm = document.createElement('b'); nm.textContent = L.name;
-      const sub = document.createElement('span'); sub.textContent = id === 'arjun' ? 'Head chef' : 'Sous chef'; sub.className = 'chef-sub';
-      b.append(c, nm, sub); wrap.append(b); previews[id] = c;
+      b.append(c, nm); wrap.append(b); previews[id] = c;
       b.addEventListener('click', () => {
         const other = KA.LOOK_IDS.find(x => x !== id);
         if (!$('chefName').value.trim() || $('chefName').value.trim() === KA.LOOKS[other].name) $('chefName').value = L.name;
