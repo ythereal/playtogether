@@ -23,6 +23,13 @@ window.PT_GAMES = [
     type: 'Turn-based',
   },
   {
+    id: 'vanish',
+    name: 'Disappearing Tic-Tac-Toe',
+    blurb: 'Only 3 marks each. Your oldest vanishes when you place a 4th. No draws.',
+    icon: '✕◌',
+    type: 'Turn-based',
+  },
+  {
     id: 'tictactoe',
     name: 'Tic-Tac-Toe',
     blurb: 'Three in a row. Loser picks the next game.',
