@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pong · PlayTogether</title>
+  <link rel="stylesheet" href="../../shared/style.css">
+  <style>
+    .court { width: min(400px, 92vw, calc((100vh - 200px) * 2 / 3)); min-width: 240px; aspect-ratio: 2 / 3; position: relative; }
+    canvas { width: 100%; height: 100%; display: block; border-radius: 18px; touch-action: none; box-shadow: var(--shadow); cursor: none; }
+    .hint { color: var(--muted); font-size: .9rem; text-align: center; margin: 0; }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <div class="game-inner">
+      <div class="game-status" id="status">Waiting for a friend…</div>
+      <div class="court"><canvas id="c"></canvas></div>
+      <p class="hint">Drag on the court, or use ← → (A / D). First to 7.</p>
+      <button class="pt-btn" id="again" hidden>Play again</button>
+    </div>
+  </main>
+
+  <script src="../../shared/net.js"></script>
+  <script>
+  (async () => {
+    // World units, in the host's orientation: host (A) paddle at the bottom, guest (B) at the top.
+    const W = 300, H = 450, PW = 64, PH = 10, PY = 22, R = 6;
+    const PADDLE_SPEED = 700, START_SPEED = 260, MAX_SPEED = 720, WIN = 7;
+    const SNAP_HZ = 30, INTERP_MS = 80;
+
+    const room = await PT.room({ game: 'pong', title: 'Pong' });
+    const host = room.role === 'host';
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    // ---------------- host simulation ----------------
+    const saved = host ? room.saved : null;
+    const sim = {
+      ball: { x: W / 2, y: H / 2, vx: 0, vy: 0 },
+      pad: { A: W / 2, B: W / 2 }, target: { A: W / 2, B: W / 2 },
+      score: saved ? saved.score : { A: 0, B: 0 },
+      phase: saved && saved.winner ? 'over' : 'wait', serveAt: 0, serveTo: 'B', winner: saved ? saved.winner : null,
+    };
+    function serve(toward) {
+      sim.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0 };
+      sim.serveTo = toward; sim.phase = 'serve'; sim.serveAt = performance.now() + 1200;
+    }
+    function stepPaddle(p, dt) {
+      const d = sim.target[p] - sim.pad[p], max = PADDLE_SPEED * dt;
+      sim.pad[p] = clamp(sim.pad[p] + clamp(d, -max, max), PW / 2, W - PW / 2);
+    }
+    function point(scorer) {
+      sim.score[scorer]++;
+      if (sim.score[scorer] >= WIN) { sim.phase = 'over'; sim.winner = scorer; sim.ball.vx = sim.ball.vy = 0; }
+      else serve(scorer === 'A' ? 'B' : 'A'); // serve toward whoever lost the point
+      room.save({ score: sim.score, winner: sim.winner });
+    }
+    function bounce(p, padY, dir) {
+      const b = sim.ball, off = clamp((b.x - sim.pad[p]) / (PW / 2), -1, 1);
+      const speed = Math.min(Math.hypot(b.vx, b.vy) * 1.06, MAX_SPEED);
+      const ang = off * 1.05; // up to ~60°
+      b.vx = Math.sin(ang) * speed; b.vy = Math.cos(ang) * speed * dir;
+      b.y = padY + dir * (PH / 2 + R + 0.5);
+    }
+    function simStep(dt) {
+      stepPaddle('A', dt); stepPaddle('B', dt);
+      if (sim.phase === 'serve' && performance.now() >= sim.serveAt) {
+        const dir = sim.serveTo === 'A' ? 1 : -1, ang = (Math.random() - .5) * 0.9;
+        sim.ball.vx = Math.sin(ang) * START_SPEED; sim.ball.vy = Math.cos(ang) * START_SPEED * dir;
+        sim.phase = 'play';
+      }
+      if (sim.phase !== 'play') return;
+      const b = sim.ball;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx); }
+      if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx); }
+      const aY = H - PY, bY = PY;
+      if (b.vy > 0 && b.y + R >= aY - PH / 2 && b.y - R <= aY + PH / 2 && Math.abs(b.x - sim.pad.A) <= PW / 2 + R) bounce('A', aY, -1);
+      if (b.vy < 0 && b.y - R <= bY + PH / 2 && b.y + R >= bY - PH / 2 && Math.abs(b.x - sim.pad.B) <= PW / 2 + R) bounce('B', bY, 1);
+      if (b.y > H + R * 2) point('B');
+      else if (b.y < -R * 2) point('A');
+    }
+    function snapshot() {
+      const s = sim;
+      return { type: 's', b: [Math.round(s.ball.x * 10) / 10, Math.round(s.ball.y * 10) / 10], p: [Math.round(s.pad.A), Math.round(s.pad.B)],
+               sc: [s.score.A, s.score.B], ph: s.phase, w: s.winner, sv: s.phase === 'serve' ? Math.max(0, s.serveAt - performance.now()) : 0 };
+    }
+
+    // ---------------- guest view state ----------------
+    const snaps = []; // [recvTime, snap]
+    let myPad = W / 2; // guest-side predicted own paddle (in host coords)
+
+    // ---------------- input (in *my* screen coords, converted to host coords) ----------------
+    let myTarget = W / 2; // host coords
+    const keys = { l: false, r: false };
+    const toHost = x => (host ? x : W - x);
+    const canvas = document.getElementById('c');
+    function pointerX(e) { const r = canvas.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width * W, 0, W); }
+    canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); myTarget = toHost(pointerX(e)); });
+    canvas.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' || e.buttons) myTarget = toHost(pointerX(e)); });
+    addEventListener('keydown', e => {
+      if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.l = true;
+      if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.r = true;
+      if (e.key.startsWith('Arrow')) e.preventDefault();
+    });
+    addEventListener('keyup', e => {
+      if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.l = false;
+      if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.r = false;
+    });
+    function applyKeys(dt, cur) {
+      const dir = (keys.r ? 1 : 0) - (keys.l ? 1 : 0);
+      if (!dir) return;
+      // left/right on *my* screen; the guest's screen is mirrored
+      myTarget = clamp(cur + dir * (host ? 1 : -1) * PADDLE_SPEED * dt * 1.5, PW / 2, W - PW / 2);
+    }
+
+    // ---------------- networking ----------------
+    let lastSentTarget = null;
+    room.on('connected', () => {
+      if (host && sim.phase === 'wait') serve(Math.random() < .5 ? 'A' : 'B');
+      render();
+    });
+    room.on('disconnected', () => {
+      if (host && sim.phase !== 'over') { sim.phase = 'wait'; sim.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0 }; }
+      snaps.length = 0; render();
+    });
+    room.on('message', m => {
+      if (host) {
+        if (m.type === 'in' && Number.isFinite(m.x)) sim.target.B = clamp(m.x, PW / 2, W - PW / 2);
+        if (m.type === 'again' && sim.phase === 'over') again();
+      } else if (m.type === 's') {
+        snaps.push([performance.now(), m]);
+        while (snaps.length > 30) snaps.shift();
+      }
+    });
+    function again() {
+      if (!host) return room.send({ type: 'again' });
+      sim.score = { A: 0, B: 0 }; sim.winner = null; room.save({ score: sim.score, winner: null });
+      serve(Math.random() < .5 ? 'A' : 'B');
+    }
+    document.getElementById('again').onclick = again;
+
+    // Host simulation + snapshot loop (setInterval keeps running if the tab isn't focused, though browsers slow it down).
+    let lastTick = performance.now(), lastSnap = 0, lastInput = 0;
+    setInterval(() => {
+      const now = performance.now(), dt = Math.min((now - lastTick) / 1000, 0.05);
+      lastTick = now;
+      if (host) {
+        applyKeys(dt, sim.target.A);
+        sim.target.A = clamp(myTarget, PW / 2, W - PW / 2);
+        // substeps keep fast balls from tunnelling through paddles
+        const n = Math.ceil(dt / (1 / 240));
+        for (let i = 0; i < n; i++) simStep(dt / n);
+        if (room.connected && now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; room.send(snapshot()); }
+      } else {
+        applyKeys(dt, myPad);
+        const d = myTarget - myPad, max = PADDLE_SPEED * dt;
+        myPad = clamp(myPad + clamp(d, -max, max), PW / 2, W - PW / 2);
+        if (room.connected && myTarget !== lastSentTarget && now - lastInput >= 1000 / SNAP_HZ) {
+          lastInput = now; lastSentTarget = myTarget; room.send({ type: 'in', x: Math.round(myTarget * 10) / 10 });
+        }
+      }
+    }, 1000 / 120);
+
+    // ---------------- rendering ----------------
+    const ctx = canvas.getContext('2d');
+    const css = () => { const s = getComputedStyle(document.documentElement); const g = n => s.getPropertyValue(n).trim(); return { bg: g('--surface'), line: g('--line'), ink: g('--ink'), muted: g('--muted'), me: g('--accent'), them: g('--accent-2') }; };
+    let colors = css();
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => (colors = css()));
+    function resize() {
+      const r = canvas.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+      canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    }
+    addEventListener('resize', resize); resize();
+
+    function currentFrame() {
+      if (host) {
+        const s = snapshot();
+        return { ball: s.b, padA: sim.pad.A, padB: sim.pad.B, sc: s.sc, ph: s.ph, w: s.w, sv: s.sv };
+      }
+      if (!snaps.length) return null;
+      const t = performance.now() - INTERP_MS;
+      let a = snaps[0], b = snaps[snaps.length - 1];
+      for (let i = snaps.length - 1; i > 0; i--) if (snaps[i - 1][0] <= t) { a = snaps[i - 1]; b = snaps[i]; break; }
+      const span = b[0] - a[0], k = span > 0 ? clamp((t - a[0]) / span, 0, 1) : 1;
+      const A = a[1], B = b[1];
+      const jump = Math.abs(A.b[1] - B.b[1]) > H / 3; // ball reset after a point: don't slide across
+      const lerp = (x, y) => (jump ? y : x + (y - x) * k);
+      return { ball: [lerp(A.b[0], B.b[0]), lerp(A.b[1], B.b[1])], padA: lerp(A.p[0], B.p[0]), padB: myPad,
+               sc: B.sc, ph: B.ph, w: B.w, sv: Math.max(0, B.sv - (performance.now() - b[0])) };
+    }
+
+    const statusEl = document.getElementById('status'), againBtn = document.getElementById('again');
+    let lastStatus = '';
+    function setStatus(t) { if (t !== lastStatus) { statusEl.textContent = lastStatus = t; } }
+
+    function render() {
+      const f = room.connected ? currentFrame() : null;
+      const cw = canvas.width, ch = canvas.height, sx = cw / W, sy = ch / H;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = colors.bg; ctx.fillRect(0, 0, cw, ch);
+      // mirror for the guest so *your* paddle is always at the bottom
+      if (host) ctx.setTransform(sx, 0, 0, sy, 0, 0);
+      else ctx.setTransform(-sx, 0, 0, -sy, cw, ch);
+
+      ctx.strokeStyle = colors.line; ctx.lineWidth = 2; ctx.setLineDash([8, 8]);
+      ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke(); ctx.setLineDash([]);
+
+      const meKey = host ? 'A' : 'B';
+      if (f) {
+        // scores (drawn upright in screen space)
+        const myScore = host ? f.sc[0] : f.sc[1], theirScore = host ? f.sc[1] : f.sc[0];
+        ctx.save(); ctx.setTransform(sx, 0, 0, sy, 0, 0);
+        ctx.fillStyle = colors.line; ctx.font = '800 64px ' + getComputedStyle(document.body).fontFamily;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(theirScore, W / 2, H * 0.27); ctx.fillText(myScore, W / 2, H * 0.73);
+        if (f.ph === 'serve' && f.sv > 0) {
+          ctx.fillStyle = colors.muted; ctx.font = '600 22px ' + getComputedStyle(document.body).fontFamily;
+          ctx.fillText(Math.ceil(f.sv / 400), W / 2, H / 2 - 22);
+        }
+        ctx.restore();
+
+        const pad = (x, y, color) => { ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x - PW / 2, y - PH / 2, PW, PH, PH / 2); ctx.fill(); };
+        pad(f.padA, H - PY, meKey === 'A' ? colors.me : colors.them);
+        pad(f.padB, PY, meKey === 'B' ? colors.me : colors.them);
+        if (f.ph === 'play' || f.ph === 'serve') { ctx.fillStyle = colors.ink; ctx.beginPath(); ctx.arc(f.ball[0], f.ball[1], R, 0, Math.PI * 2); ctx.fill(); }
+
+        if (f.ph === 'over') setStatus(f.w === meKey ? 'You win! 🎉' : 'Your friend wins this one.');
+        else setStatus((host ? f.sc[0] : f.sc[1]) + ' – ' + (host ? f.sc[1] : f.sc[0]) + ' · first to ' + WIN);
+        againBtn.hidden = f.ph !== 'over';
+      } else {
+        setStatus(room.connected ? 'Syncing…' : 'Waiting for your friend…');
+        againBtn.hidden = true;
+      }
+    }
+    (function loop() { render(); requestAnimationFrame(loop); })();
+  })();
+  </script>
+</body>
+</html>

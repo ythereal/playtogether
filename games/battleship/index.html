@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Battleship · PlayTogether</title>
+  <link rel="stylesheet" href="../../shared/style.css">
+  <style>
+    .boards { display: grid; gap: 18px; width: 100%; justify-items: center; }
+    .label { font-weight: 600; color: var(--muted); font-size: .9rem; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .label span:last-child { text-transform: none; letter-spacing: 0; }
+    .panel { width: min(400px, 92vw); }
+    .panel.small { width: min(260px, 64vw); }
+    .grid {
+      display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px;
+      background: var(--line); border: 2px solid var(--line); border-radius: 12px; overflow: hidden;
+    }
+    .sq {
+      appearance: none; border: 0; padding: 0; aspect-ratio: 1; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--accent-2) 10%, var(--surface)); color: var(--ink);
+      font-size: clamp(.7rem, 3vw, 1.1rem); font-weight: 800; line-height: 1;
+    }
+    button.sq { cursor: crosshair; }
+    button.sq:disabled { cursor: default; }
+    button.sq:not(:disabled):hover { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); }
+    .sq.ship { background: color-mix(in srgb, var(--ink) 38%, var(--surface)); }
+    .sq.ship.rot { cursor: pointer; }
+    .sq.miss::after { content: ''; width: 26%; height: 26%; border-radius: 50%; background: var(--muted); opacity: .6; }
+    .sq.hit { background: var(--accent); color: #fff; }
+    .sq.hit::after { content: '✕'; }
+    .sq.sunk { background: color-mix(in srgb, var(--accent) 55%, var(--ink)); color: #fff; }
+    .sq.reveal { background: color-mix(in srgb, var(--ink) 25%, var(--surface)); }
+    .sq.fresh { animation: flash .5s ease-out; }
+    @keyframes flash { from { transform: scale(1.35); filter: brightness(1.4); } }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .hint { color: var(--muted); font-size: .9rem; text-align: center; margin: 0; }
+    .score { color: var(--muted); font-weight: 600; }
+    .score b { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <div class="game-inner">
+      <div class="score" id="score"></div>
+      <div class="game-status" id="status">Waiting for a friend…</div>
+      <div class="boards">
+        <div class="panel" id="enemyPanel">
+          <div class="label"><span>Enemy waters</span><span id="enemyLeft"></span></div>
+          <div class="grid" id="enemy"></div>
+        </div>
+        <div class="panel" id="minePanel">
+          <div class="label"><span>Your fleet</span><span id="myLeft"></span></div>
+          <div class="grid" id="mine"></div>
+        </div>
+      </div>
+      <p class="hint" id="hint"></p>
+      <div class="controls">
+        <button class="pt-btn pt-btn-ghost" id="shuffle" hidden>Shuffle</button>
+        <button class="pt-btn" id="ready" hidden>Ready</button>
+        <button class="pt-btn" id="again" hidden>Play again</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../../shared/net.js"></script>
+  <script>
+  (async () => {
+    const N = 10, SIZES = [5, 4, 3, 3, 2];
+    const other = p => (p === 'A' ? 'B' : 'A');
+
+    // ---- fleet helpers ----
+    function shipCells(r, c, len, vertical) {
+      const out = [];
+      for (let k = 0; k < len; k++) {
+        const rr = r + (vertical ? k : 0), cc = c + (vertical ? 0 : k);
+        if (rr >= N || cc >= N) return null;
+        out.push(rr * N + cc);
+      }
+      return out;
+    }
+    function randomFleet() {
+      for (;;) {
+        const used = new Set(), fleet = [];
+        let ok = true;
+        for (const len of SIZES) {
+          let placed = false;
+          for (let t = 0; t < 200 && !placed; t++) {
+            const v = Math.random() < .5, cells = shipCells(Math.floor(Math.random() * N), Math.floor(Math.random() * N), len, v);
+            if (cells && cells.every(i => !used.has(i))) { cells.forEach(i => used.add(i)); fleet.push(cells); placed = true; }
+          }
+          if (!placed) { ok = false; break; }
+        }
+        if (ok) return fleet;
+      }
+    }
+    function validFleet(f) {
+      if (!Array.isArray(f) || f.length !== SIZES.length) return false;
+      const lens = f.map(s => (Array.isArray(s) ? s.length : 0)).sort((a, b) => b - a);
+      if (lens.join() !== [...SIZES].sort((a, b) => b - a).join()) return false;
+      const used = new Set();
+      for (const s of f) {
+        const sorted = [...s].sort((a, b) => a - b);
+        const step = sorted.length > 1 ? sorted[1] - sorted[0] : 1;
+        if (step !== 1 && step !== N) return false;
+        for (let k = 0; k < sorted.length; k++) {
+          const i = sorted[k];
+          if (!Number.isInteger(i) || i < 0 || i >= N * N || used.has(i)) return false;
+          if (k && sorted[k] - sorted[k - 1] !== step) return false;
+          if (step === 1 && k && Math.floor(i / N) !== Math.floor(sorted[0] / N)) return false;
+          used.add(i);
+        }
+      }
+      return true;
+    }
+    const hits = (fleet, shots) => (fleet ? shots.filter(i => fleet.some(s => s.includes(i))) : []);
+    const sunk = (fleet, shots) => (fleet ? fleet.filter(s => s.every(i => shots.includes(i))) : []);
+
+    // ---- rules (host only) ----
+    function newState(prev) {
+      const starter = prev ? other(prev.starter) : 'A';
+      return { phase: 'placing', fleets: { A: null, B: null }, shots: { A: [], B: [] },
+               turn: starter, starter, winner: null, last: null, score: prev ? prev.score : { A: 0, B: 0 } };
+    }
+    function setFleet(s, p, fleet) {
+      if (s.phase !== 'placing' || s.fleets[p] || !validFleet(fleet)) return false;
+      s.fleets[p] = fleet;
+      if (s.fleets.A && s.fleets.B) s.phase = 'battle';
+      return true;
+    }
+    function fire(s, p, i) {
+      if (s.phase !== 'battle' || s.turn !== p || !Number.isInteger(i) || i < 0 || i >= N * N || s.shots[p].includes(i)) return false;
+      s.shots[p].push(i);
+      s.last = { by: p, i };
+      const opp = other(p);
+      if (sunk(s.fleets[opp], s.shots[p]).length === SIZES.length) { s.phase = 'over'; s.winner = p; s.score[p]++; }
+      else s.turn = opp;
+      return true;
+    }
+    // What player p is allowed to know.
+    function viewFor(s, p) {
+      const o = other(p);
+      return {
+        phase: s.phase, turn: s.turn, winner: s.winner, score: s.score, me: p, last: s.last,
+        myFleet: s.fleets[p], oppReady: !!s.fleets[o],
+        myShots: s.shots[p], myHits: hits(s.fleets[o], s.shots[p]), enemySunk: sunk(s.fleets[o], s.shots[p]),
+        incoming: s.shots[o], incomingHits: hits(s.fleets[p], s.shots[o]), mySunk: sunk(s.fleets[p], s.shots[o]),
+        enemyReveal: s.phase === 'over' ? s.fleets[o] : null,
+      };
+    }
+
+    // ---- network ----
+    const room = await PT.room({ game: 'battleship', title: 'Battleship' });
+    const ME = room.role === 'host' ? 'A' : 'B';
+    let state = room.role === 'host' ? (room.saved || newState()) : null;
+    let view = state ? viewFor(state, 'A') : null;
+    let draft = randomFleet();
+
+    function sync() {
+      room.save(state);
+      view = viewFor(state, 'A');
+      room.send({ type: 'view', view: viewFor(state, 'B') });
+      render();
+    }
+    room.on('connected', () => { if (room.role === 'host') sync(); else render(); });
+    room.on('disconnected', render);
+    room.on('message', msg => {
+      if (room.role === 'host') {
+        if (msg.type === 'ready' && setFleet(state, 'B', msg.fleet)) sync();
+        if (msg.type === 'fire' && fire(state, 'B', msg.i)) sync();
+        if (msg.type === 'rematch' && state.phase === 'over') { state = newState(state); draft = randomFleet(); sync(); }
+      } else if (msg.type === 'view') {
+        if (view && view.phase === 'over' && msg.view.phase === 'placing') draft = randomFleet();
+        view = msg.view; render();
+      }
+    });
+    function act(type, payload) {
+      if (!room.connected) return;
+      if (room.role === 'host') {
+        let changed = false;
+        if (type === 'ready') changed = setFleet(state, 'A', payload.fleet);
+        if (type === 'fire') changed = fire(state, 'A', payload.i);
+        if (type === 'rematch' && state.phase === 'over') { state = newState(state); draft = randomFleet(); changed = true; }
+        if (changed) sync();
+      } else room.send(Object.assign({ type }, payload));
+    }
+
+    // ---- view ----
+    const $ = id => document.getElementById(id);
+    const enemyCells = [], mineCells = [];
+    for (let i = 0; i < N * N; i++) {
+      const b = document.createElement('button');
+      b.className = 'sq'; b.setAttribute('aria-label', 'Fire at ' + 'ABCDEFGHIJ'[i % N] + (Math.floor(i / N) + 1));
+      b.addEventListener('click', () => act('fire', { i }));
+      $('enemy').appendChild(b); enemyCells.push(b);
+      const d = document.createElement('div');
+      d.className = 'sq';
+      d.addEventListener('click', () => rotateAt(i));
+      $('mine').appendChild(d); mineCells.push(d);
+    }
+    $('shuffle').onclick = () => { draft = randomFleet(); render(); };
+    $('ready').onclick = () => act('ready', { fleet: draft });
+    $('again').onclick = () => act('rematch', {});
+
+    function rotateAt(i) {
+      if (!view || view.phase !== 'placing' || view.myFleet) return;
+      const k = draft.findIndex(s => s.includes(i));
+      if (k < 0) return;
+      const ship = [...draft[k]].sort((a, b) => a - b);
+      const vertical = ship.length > 1 && ship[1] - ship[0] === N;
+      const r = Math.floor(ship[0] / N), c = ship[0] % N;
+      const cells = shipCells(r, c, ship.length, !vertical);
+      const others = new Set(draft.filter((_, j) => j !== k).flat());
+      if (cells && cells.every(x => !others.has(x))) { draft[k] = cells; render(); }
+    }
+
+    let lastSeen = null;
+    function render() {
+      const v = view;
+      if (!v) { $('status').textContent = 'Connecting…'; return; }
+      const placing = v.phase === 'placing';
+      const myTurn = room.connected && v.phase === 'battle' && v.turn === ME;
+      const fresh = v.last && JSON.stringify(v.last) !== JSON.stringify(lastSeen) ? v.last : null;
+      lastSeen = v.last;
+
+      // enemy grid
+      $('enemyPanel').hidden = placing;
+      const enemySunk = new Set(v.enemySunk.flat()), reveal = new Set((v.enemyReveal || []).flat());
+      enemyCells.forEach((b, i) => {
+        const shot = v.myShots.includes(i), hit = v.myHits.includes(i);
+        b.className = 'sq' + (enemySunk.has(i) ? ' sunk' : hit ? ' hit' : shot ? ' miss' : reveal.has(i) ? ' reveal' : '') +
+          (fresh && fresh.by === ME && fresh.i === i ? ' fresh' : '');
+        if (enemySunk.has(i)) b.classList.add('hit');
+        b.disabled = !myTurn || shot;
+      });
+      $('enemyLeft').textContent = placing ? '' : (SIZES.length - v.enemySunk.length) + ' ships left';
+
+      // my grid
+      $('minePanel').className = 'panel' + (placing ? '' : ' small');
+      const fleet = v.myFleet || (placing ? draft : []);
+      const shipSet = new Set(fleet.flat()), mySunk = new Set(v.mySunk.flat());
+      mineCells.forEach((d, i) => {
+        const shot = v.incoming.includes(i), hit = v.incomingHits.includes(i);
+        d.className = 'sq' + (shipSet.has(i) ? ' ship' : '') + (placing && !v.myFleet && shipSet.has(i) ? ' rot' : '') +
+          (mySunk.has(i) ? ' sunk hit' : hit ? ' hit' : shot ? ' miss' : '') +
+          (fresh && fresh.by !== ME && fresh.i === i ? ' fresh' : '');
+      });
+      $('myLeft').textContent = placing ? '' : (SIZES.length - v.mySunk.length) + ' ships left';
+
+      // controls + status
+      $('shuffle').hidden = !(placing && !v.myFleet);
+      $('ready').hidden = !(placing && !v.myFleet);
+      $('ready').disabled = !room.connected;
+      $('again').hidden = !(v.phase === 'over' && room.connected);
+      $('hint').textContent = placing && !v.myFleet ? 'Tap a ship to rotate it, or shuffle. Hit Ready when your fleet is set.' : '';
+      $('score').innerHTML = 'You <b>' + v.score[ME] + '</b> · <b>' + v.score[other(ME)] + '</b> Friend';
+
+      let text;
+      if (!room.connected) text = 'Waiting for your friend…';
+      else if (placing) text = v.myFleet ? 'Waiting for your friend to place ships…' : v.oppReady ? 'Your friend is ready. Place your fleet.' : 'Place your fleet';
+      else if (v.phase === 'over') text = v.winner === ME ? 'Fleet destroyed. You win! 🎉' : 'Your fleet is sunk. Friend wins.';
+      else if (myTurn) text = fresh && fresh.by !== ME ? (v.incomingHits.includes(fresh.i) ? 'You were hit! Your turn.' : 'They missed. Your turn.') : 'Your turn: fire!';
+      else text = fresh && fresh.by === ME ? (v.myHits.includes(fresh.i) ? (v.enemySunk.some(s => s.includes(fresh.i)) ? 'Sunk! ' : 'Hit! ') : 'Miss. ') + "Friend's turn…" : "Friend's turn…";
+      $('status').textContent = text;
+    }
+    render();
+  })();
+  </script>
+</body>
+</html>
