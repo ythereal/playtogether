@@ -7,7 +7,7 @@
 (function (root) {
   'use strict';
   const T = 16, W = 22, H = 11, LANE = 88, SLOTS = 10;
-  const MONTH = 15;                 // real seconds per in-game month
+  const MONTH = 30;                 // real seconds per in-game month (a year is 6 minutes)
   const MONTHS = 36;                // three years, then the better hospital wins
   const EXIT = [-16, LANE], RECEP = [34, 98];
   const PSPEED = 30, SSPEED = 40, BUILD_TIME = 4;

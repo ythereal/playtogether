@@ -236,6 +236,8 @@
   const panelOpen = () => sheets.some(id => !$(id).hidden);
   function closeSheets() { for (const id of sheets) if (id !== 'legend' && id !== 'over') $(id).hidden = true; openSlot = null; }
   let openSlot = null, razeArmed = false;
+  let fireArmed = null;        // { id, at }: a Fire button waiting for its confirming second tap
+  const FIRE_ARM_MS = 2500;
   function spriteCanvas(sheet, px) { const c = document.createElement('canvas'); c.width = Math.round(16 * px / 24); c.height = px; c.style.width = c.width + 'px'; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(sheet.down[0], 0, 0, c.width, c.height); return c; }
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 
@@ -285,31 +287,49 @@
     $('roomNote').textContent = canRaze ? 'Demolishing refunds half the cost.' : '';
   }
   $('roomRaze').addEventListener('click', () => { if (!razeArmed) { razeArmed = true; refreshRoom(); return; } act('raze', { slot: openSlot }); $('roomSheet').hidden = true; });
-  function openStaff() { $('staffSheet').hidden = false; $('staffErr').textContent = ''; refreshStaff(); }
+  function openStaff() { $('staffSheet').hidden = false; $('staffErr').textContent = ''; fireArmed = null; refreshStaff(); }
+  // The guest refreshes the sheets on every snapshot (30 Hz). Both lists are only rebuilt when what they show
+  // changes, so a button never disappears from under a finger and the armed "Sure?" state survives.
   function refreshStaff() {
     if ($('staffSheet').hidden || !view) return;
     const h = view.h[ME], pool = h.pool || { d: [], n: [] };
-    const hl = $('hireList'); hl.replaceChildren();
-    for (const c of pool.d.concat(pool.n)) {
-      const b = el('button', 'item'); b.disabled = view.ph !== 'play' || h.cash < c.sal;
-      b.append(spriteCanvas(HA.staffSheet(c.id % 8, c.k), 33));
-      const body = el('div'); body.append(el('b', null, c.nm), el('small', null, `${c.k === 'd' ? 'Doctor' : 'Nurse'} · skill `), el('span', 'skill', stars(c.sk)));
-      b.append(body, el('span', 'price', money(c.sal) + '/mo'));
-      b.addEventListener('click', () => act('hire', { type: c.k, id: c.id }));
-      hl.append(b);
+    const hl = $('hireList'), cands = pool.d.concat(pool.n);
+    const hireKey = [view.ph].concat(cands.map(c => `${c.k}${c.id}:${h.cash < c.sal ? 0 : 1}`)).join('|');
+    if (hl.dataset.key !== hireKey) {
+      hl.dataset.key = hireKey; hl.replaceChildren();
+      for (const c of cands) {
+        const b = el('button', 'item'); b.disabled = view.ph !== 'play' || h.cash < c.sal;
+        b.append(spriteCanvas(HA.staffSheet(c.id % 8, c.k), 33));
+        const body = el('div'); body.append(el('b', null, c.nm), el('small', null, `${c.k === 'd' ? 'Doctor' : 'Nurse'} · skill `), el('span', 'skill', stars(c.sk)));
+        b.append(body, el('span', 'price', money(c.sal) + '/mo'));
+        b.addEventListener('click', () => act('hire', { type: c.k, id: c.id }));
+        hl.append(b);
+      }
+      if (!hl.children.length) hl.append(el('small', null, 'Nobody is looking for work right now. New candidates arrive next month.'));
     }
-    if (!hl.children.length) hl.append(el('small', null, 'Nobody is looking for work right now. New candidates arrive next month.'));
-    const sl = $('staffList'); sl.replaceChildren();
-    let bill = 0;
-    for (const s of h.staff) {
-      if (s.gone) continue; bill += s.sal;
-      const it = el('div', 'item'); it.append(spriteCanvas(HA.staffSheet(s.look, s.k), 33));
-      const body = el('div'); body.append(el('b', null, s.nm), el('small', null, (s.slot != null && h.rooms[s.slot] ? RH.ROOMS[h.rooms[s.slot].k].name : 'No room yet: hanging about the entrance') + ' · ' + money(s.sal) + '/mo '), el('span', 'skill', stars(s.sk)));
-      const fb = el('button', 'pt-btn pt-btn-small pt-btn-ghost', 'Fire'); fb.disabled = view.ph !== 'play';
-      fb.addEventListener('click', () => { if (fb.dataset.armed) act('fire', { id: s.id }); else { fb.dataset.armed = '1'; fb.textContent = 'Sure?'; setTimeout(() => { fb.textContent = 'Fire'; delete fb.dataset.armed; }, 2000); } });
-      it.append(body, fb); sl.append(it);
+    if (fireArmed && performance.now() - fireArmed.at > FIRE_ARM_MS) fireArmed = null;
+    const sl = $('staffList'), live = h.staff.filter(s => !s.gone);
+    let bill = 0; for (const s of live) bill += s.sal;
+    const staffKey = [view.ph, fireArmed ? fireArmed.id : ''].concat(live.map(s => `${s.id}:${s.slot}:${s.sal}:${s.look}`)).join('|');
+    if (sl.dataset.key !== staffKey) {
+      sl.dataset.key = staffKey; sl.replaceChildren();
+      for (const s of live) {
+        const it = el('div', 'item'); it.append(spriteCanvas(HA.staffSheet(s.look, s.k), 33));
+        const body = el('div'); body.append(el('b', null, s.nm), el('small', null, (s.slot != null && h.rooms[s.slot] ? RH.ROOMS[h.rooms[s.slot].k].name : 'No room yet: hanging about the entrance') + ' · ' + money(s.sal) + '/mo '), el('span', 'skill', stars(s.sk)));
+        const armed = !!fireArmed && fireArmed.id === s.id;
+        const fb = el('button', 'pt-btn pt-btn-small' + (armed ? '' : ' pt-btn-ghost'), armed ? 'Sure?' : 'Fire'); fb.disabled = view.ph !== 'play';
+        fb.addEventListener('click', () => {
+          if (fireArmed && fireArmed.id === s.id) { fireArmed = null; act('fire', { id: s.id }); }
+          else {
+            fireArmed = { id: s.id, at: performance.now() };
+            setTimeout(() => { if (fireArmed && fireArmed.id === s.id) { fireArmed = null; refreshStaff(); } }, FIRE_ARM_MS + 50);
+          }
+          refreshStaff();
+        });
+        it.append(body, fb); sl.append(it);
+      }
+      if (!sl.children.length) sl.append(el('small', null, 'No staff yet.'));
     }
-    if (!sl.children.length) sl.append(el('small', null, 'No staff yet.'));
     $('payroll').textContent = bill ? `· ${money(bill)} a month` : '';
     $('staffErr').textContent = lastErr && performance.now() - lastErr.at < 4000 ? lastErr.m : '';
   }
