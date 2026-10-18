@@ -48,6 +48,10 @@ games/<id>/index.html   One folder per game, self-contained
 - `games/pong`: **real-time** (host simulation, 30 Hz snapshots, guest interpolation, local
   prediction of your own paddle, guest view mirrored so you're always at the bottom).
 
+- `games/chess`: **rules in their own file**. `rules.js` is pure (no DOM, no networking) and also
+  loads in Node, so move generation can be checked with perft counts after any change. The page only
+  calls `play`, `legalMoves` and `inCheck`.
+
 - `games/mystery`: **bigger game split into files** (`world.js` map + seeded case generator,
   `art.js` all pixel art drawn in code, `game.js` loop/render/UI/net). Host-only `genCase(seed)`;
   the guest never receives the seed or solution until the case is over. Players move locally and

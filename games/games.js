@@ -9,6 +9,13 @@ window.PT_GAMES = [
     type: 'Race · Real-time',
   },
   {
+    id: 'chess',
+    name: 'Chess',
+    blurb: 'The real thing: castling, en passant, promotion. Colours swap each game.',
+    icon: '♞♙',
+    type: 'Turn-based',
+  },
+  {
     id: 'pong',
     name: 'Pong',
     blurb: 'The classic, face to face. Your paddle is always at the bottom. First to 7.',

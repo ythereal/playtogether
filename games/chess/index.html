@@ -308,8 +308,11 @@
       if (!room.connected) text = 'Waiting for your friend…';
       else if (r) {
         if (r.winner === 'd') text = REASON[r.reason] + '.';
-        else { text = (r.winner === me ? 'You win ' : 'Your friend wins ') + REASON[r.reason] + '.'; cls = r.winner === me ? 'me' : ''; }
-        if (r.reason === 'checkmate') text = 'Checkmate! ' + text;
+        else {
+          const who = r.winner === me ? 'You win' : 'Your friend wins';
+          text = r.reason === 'checkmate' ? 'Checkmate! ' + who + '.' : who + ' ' + REASON[r.reason] + '.';
+          cls = r.winner === me ? 'me' : '';
+        }
       }
       else if (state.drawOffer && state.drawOffer !== me) { text = 'Your friend offers a draw.'; }
       else if (state.drawOffer === me) { text = 'Draw offered. ' + (myTurn ? 'Your turn.' : "Friend's turn."); }
