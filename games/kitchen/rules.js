@@ -63,7 +63,7 @@
     return {
       ph: 'ready', tm: ROUND, cd: 0, sc: 0, cb: 0, best: 0, served: 0, lost: 0, tips: 0, round: prev ? prev.round + 1 : 1,
       ch: SPAWN.map(s => ({ x: s.x, y: s.y, d: s.d, it: null, mv: 0, ca: 0 })),
-      in: [{ x: 0, y: 0, c: 0 }, { x: 0, y: 0, c: 0 }],
+      in: [{ x: 0, y: 0, c: 0, f: -1 }, { x: 0, y: 0, c: 0, f: -1 }],
       slots: {}, orders: [], nextId: 1, since: 99, ev: [], stats: DISHES.map(() => 0),
       pl: [{ n: '', l: '' }, { n: '', l: '' }],   // player name + character, kept across rounds
     };
@@ -97,9 +97,9 @@
     }
     ch.x = nx; ch.y = ny;
   }
-  function moveChef(ch, ix, iy, dt, others) {
+  function moveChef(ch, ix, iy, dt, others, face) {
     const mag = Math.hypot(ix, iy);
-    if (mag < 0.15) { ch.mv = 0; return; }
+    if (mag < 0.15) { ch.mv = 0; if (face >= 0 && face <= 3) ch.d = face; return; } // standing still: may turn in place
     const k = Math.min(1, mag) / mag;
     ch.d = Math.abs(ix) > Math.abs(iy) * 1.2 ? (ix < 0 ? 2 : 3) : (Math.abs(iy) > Math.abs(ix) * 1.2 ? (iy < 0 ? 1 : 0) : ch.d);
     ch.mv = 1;
@@ -214,7 +214,7 @@
   // ---------- simulation step ----------
   function step(s, dt) {
     if (s.ph === 'countdown') { s.cd -= dt; if (s.cd <= 0) { s.ph = 'play'; s.cd = 0; s.ev.push({ k: 'go' }); } }
-    if (s.ph !== 'over') for (let p = 0; p < 2; p++) moveChef(s.ch[p], s.in[p].x, s.in[p].y, dt, [s.ch[1 - p]]);
+    if (s.ph !== 'over') for (let p = 0; p < 2; p++) moveChef(s.ch[p], s.in[p].x, s.in[p].y, dt, [s.ch[1 - p]], s.in[p].f);
     if (s.ph !== 'play') return;
     s.tm -= dt;
     for (let p = 0; p < 2; p++) { const ch = s.ch[p]; ch.ca = Math.max(0, ch.ca - dt); if (s.in[p].c && !ch.mv) chopAt(s, p, dt / CHOP_TIME); }

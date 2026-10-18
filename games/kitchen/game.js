@@ -24,13 +24,13 @@
 
   if (host) {
     state = room.saved || KR.newState();
-    state.in = [{ x: 0, y: 0, c: 0 }, { x: 0, y: 0, c: 0 }]; state.ev = [];
+    state.in = [{ x: 0, y: 0, c: 0, f: -1 }, { x: 0, y: 0, c: 0, f: -1 }]; state.ev = [];
     if (!state.pl) state.pl = [{ n: '', l: '' }, { n: '', l: '' }];
     view = state;
   }
 
   // ============================ input ============================
-  const inp = { x: 0, y: 0, c: 0 };
+  const inp = { x: 0, y: 0, c: 0, f: -1 };
   const keys = new Set();
   const joy = { x: 0, y: 0 };
   let touchChop = 0;
@@ -71,7 +71,7 @@
   press($('btnChop'), () => { doAction('chop'); touchChop = 1; }, () => { touchChop = 0; });
 
   function readInput() {
-    let x = 0, y = 0;
+    let x = 0, y = 0, f = -1, c = !panelOpen() && (keys.has('chop') || touchChop) ? 1 : 0;
     if (!panelOpen()) {
       if (keys.has('arrowleft') || keys.has('a')) x -= 1;
       if (keys.has('arrowright') || keys.has('d')) x += 1;
@@ -79,17 +79,21 @@
       if (keys.has('arrowdown') || keys.has('s')) y += 1;
       x += joy.x; y += joy.y;
     }
+    if (Math.hypot(x, y) > 0.15 || panelOpen()) cancelAuto();          // hands on the keys: you drive
+    else if (auto.tgt || auto.path) {
+      const a = autoInput(); x = a.x; y = a.y; f = a.f; if (a.c) c = 1;
+    }
     const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; }
-    return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, c: !panelOpen() && (keys.has('chop') || touchChop) ? 1 : 0 };
+    return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, c, f };
   }
   let lastSentInput = '', lastInputAt = 0;
   function pushInput(now) {
     const n = readInput();
-    inp.x = n.x; inp.y = n.y; inp.c = n.c;
-    if (host) { state.in[0] = { x: n.x, y: n.y, c: n.c }; return; }
-    const key = n.x + ',' + n.y + ',' + n.c;
+    inp.x = n.x; inp.y = n.y; inp.c = n.c; inp.f = n.f;
+    if (host) { state.in[0] = { x: n.x, y: n.y, c: n.c, f: n.f }; return; }
+    const key = n.x + ',' + n.y + ',' + n.c + ',' + n.f;
     if (room.connected && (key !== lastSentInput && now - lastInputAt > 33 || now - lastInputAt > 1000)) {
-      lastSentInput = key; lastInputAt = now; room.send({ t: 'i', x: n.x, y: n.y, c: n.c });
+      lastSentInput = key; lastInputAt = now; room.send({ t: 'i', x: n.x, y: n.y, c: n.c, f: n.f });
     }
   }
   function doAction(kind) {
@@ -99,6 +103,64 @@
     bump = 0.12;
   }
   let bump = 0;
+
+  // ============================ tap / click to walk ============================
+  // Tap a floor tile to walk there; tap a station to walk beside it and face it. Tapping a station you already
+  // face uses it, and a board with something to chop is chopped automatically on arrival.
+  const auto = { path: null, tgt: null, face: -1, wp: null, wpD: Infinity, wpT: 0 };
+  const myPos = () => (host ? state.ch[0] : me);
+  const tileCenter = (c, r) => ({ x: c * T + 8, y: r * T + 8 });
+  const tkey = (c, r) => c + ',' + r;
+  function bfs(c0, r0, goals) {
+    const prev = new Map([[tkey(c0, r0), null]]), q = [[c0, r0]];
+    while (q.length) {
+      const [c, r] = q.shift();
+      if (goals.has(tkey(c, r))) { const path = []; let k = tkey(c, r); while (prev.get(k) !== null) { path.unshift(k.split(',').map(Number)); k = prev.get(k); } return path; }
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nc = c + dc, nr = r + dr; if (KR.tileAt(nc, nr) !== '.' || prev.has(tkey(nc, nr))) continue; prev.set(tkey(nc, nr), tkey(c, r)); q.push([nc, nr]); }
+    }
+    return null;
+  }
+  function cancelAuto() { auto.path = null; auto.tgt = null; auto.face = -1; auto.wp = null; }
+  function walkTo(c, r) {
+    if (!view || view.ph === 'over' || c < 0 || r < 0 || c >= W || r >= H) return;
+    const p = myPos(), sc = Math.floor(p.x / T), sr = Math.floor(p.y / T), ty = KR.tileAt(c, r);
+    if (ty === '.') { const path = bfs(sc, sr, new Set([tkey(c, r)])); if (!path) return; auto.path = path; auto.tgt = null; auto.face = -1; auto.wp = null; return; }
+    const goals = new Set(); for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (KR.tileAt(c + dc, r + dr) === '.') goals.add(tkey(c + dc, r + dr));
+    if (!goals.size) return;
+    const path = bfs(sc, sr, goals); if (!path) return;
+    const facing = KR.targetOf(p);
+    if (!path.length && facing && facing.c === c && facing.r === r) { auto.path = null; auto.tgt = { c, r, ty, i: r * W + c }; auto.face = p.d; auto.wp = null; doAction('grab'); return; } // second tap: use it (and keep facing it, so a board chops on its own)
+    const end = path.length ? path[path.length - 1] : [sc, sr];
+    const dc = c - end[0], dr = r - end[1];
+    auto.path = path; auto.tgt = { c, r, ty, i: r * W + c }; auto.face = dr > 0 ? 0 : dr < 0 ? 1 : dc < 0 ? 2 : 3; auto.wp = null;
+  }
+  function autoInput() {
+    const p = myPos(); let x = 0, y = 0, f = -1, c = 0;
+    if (auto.path) {
+      while (auto.path.length) {
+        const [wc, wr] = auto.path[0], t = tileCenter(wc, wr), dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
+        const key = tkey(wc, wr), now = performance.now();
+        if (auto.wp !== key) { auto.wp = key; auto.wpD = d; auto.wpT = now; auto.sx = Math.sign(dx); auto.sy = Math.sign(dy); }
+        // reached: close enough, or already past it along the way we set out (a position snap must never make us turn back)
+        const passed = (auto.sx && Math.sign(dx) !== auto.sx && Math.abs(dy) < 6) || (auto.sy && Math.sign(dy) !== auto.sy && Math.abs(dx) < 6);
+        if (d < (auto.path.length === 1 ? 1.2 : 2.5) || passed) { auto.path.shift(); auto.wp = null; continue; }
+        if (d < auto.wpD - 0.3) { auto.wpD = d; auto.wpT = now; }
+        else if (now - auto.wpT > 900) { cancelAuto(); return { x: 0, y: 0, f: -1, c: 0 }; } // blocked (probably by your partner)
+        x = dx / d; y = dy / d; break;
+      }
+      if (!auto.path.length) auto.path = null;
+    }
+    if (!auto.path && auto.tgt) {
+      f = auto.face;
+      if (auto.tgt.ty === 'B' && view && view.slots[auto.tgt.i] && KR.choppable(view.slots[auto.tgt.i].it) && KR.targetOf(Object.assign({}, p, { d: auto.face }))?.i === auto.tgt.i) c = 1;
+    }
+    return { x, y, f, c };
+  }
+  $('view').addEventListener('pointerdown', e => {
+    if (panelOpen() || !view) return;
+    const dpr = devicePixelRatio || 1, wx = (e.clientX * dpr - OX) / (S * A) - MX, wy = (e.clientY * dpr - OYpx) / (S * A) - OY;
+    walkTo(Math.floor(wx / T), Math.floor(wy / T));
+  });
 
   // ============================ networking ============================
   function snapshot() {
@@ -124,7 +186,7 @@
   room.on('disconnected', () => { if (host) state.in[1] = { x: 0, y: 0, c: 0 }; snaps.length = 0; setStatus(); });
   room.on('message', m => {
     if (host) {
-      if (m.t === 'i') state.in[1] = { x: clamp(+m.x || 0, -1, 1), y: clamp(+m.y || 0, -1, 1), c: m.c ? 1 : 0 };
+      if (m.t === 'i') state.in[1] = { x: clamp(+m.x || 0, -1, 1), y: clamp(+m.y || 0, -1, 1), c: m.c ? 1 : 0, f: [0, 1, 2, 3].includes(m.f) ? m.f : -1 };
       else if (m.t === 'a') { KR.action(state, 1, m.k === 'chop' ? 'chop' : 'grab', { x: +m.x, y: +m.y, d: [0, 1, 2, 3].includes(m.d) ? m.d : state.ch[1].d }); drainEvents(); }
       else if (m.t === 'start') hostStart();
       else if (m.t === 'me') { KR.setPlayer(state, 1, m.n, m.l); setStatus(); room.save(state); }
@@ -147,7 +209,7 @@
       ch: m.ch.map(c => ({ x: c[0], y: c[1], d: c[2], mv: c[3], it: c[4], ca: c[5] })) };
     const mine = view.ch[ME];
     // reconcile my predicted chef with the host: only snap on big divergence (teleport at round start, blocked moves)
-    if (!prev || prev.ph !== view.ph || Math.hypot(mine.x - me.x, mine.y - me.y) > 20) { me.x = mine.x; me.y = mine.y; me.d = mine.d; }
+    if (!prev || prev.ph !== view.ph || Math.hypot(mine.x - me.x, mine.y - me.y) > 20) { me.x = mine.x; me.y = mine.y; me.d = mine.d; auto.wp = null; }
     for (const e of m.ev || []) onEvent(e);
     onPhase();
   }
@@ -262,7 +324,7 @@
     if (!view) return;
     setStatus();
     if (view.ph !== lastPhase) {
-      if (view.ph === 'countdown') { roundStartedAt = performance.now(); $('over').hidden = true; $('legend').hidden = true; cards.forEach(c => c.el.remove()); cards.clear(); floaters.length = 0; parts.length = 0; }
+      if (view.ph === 'countdown') { cancelAuto(); roundStartedAt = performance.now(); $('over').hidden = true; $('legend').hidden = true; cards.forEach(c => c.el.remove()); cards.clear(); floaters.length = 0; parts.length = 0; }
       if (view.ph === 'ready' && lastPhase === null) { if (myChef.l) $('legend').hidden = false; else openPicker(); }
       if (view.ph !== 'ready' && lastPhase === null && !myChef.l) openPicker();
       if (view.ph === 'over' && lastPhase === null) showOver();
@@ -541,6 +603,12 @@
     if (chefs) chefs.forEach((ch, p) => { animT[p] = ch.mv ? animT[p] + dt : 0; ch.anim = animT[p]; objs.push({ y: ch.y + 4.5, draw: () => drawChef(p, ch, t) }); });
     objs.sort((a, b) => a.y - b.y).forEach(o => o.draw());
 
+    // where a tap sent me: destination diamond and the station I'm heading for
+    if (chefs && (auto.path || auto.tgt) && view.ph !== 'over') {
+      const pulse = 0.6 + Math.sin(t * 7) * 0.3;
+      if (auto.tgt) { bctx.strokeStyle = `rgba(95,224,212,${pulse})`; bctx.lineWidth = 0.5; bctx.strokeRect(auto.tgt.c * T + 0.25, auto.tgt.r * T + 0.25, 15.5, 15.5); }
+      if (auto.path && auto.path.length) { const [ec, er] = auto.path[auto.path.length - 1], cx = ec * T + 8, cy = er * T + 8 + Math.sin(t * 6) * 0.5; bctx.fillStyle = `rgba(95,224,212,${pulse})`; bctx.beginPath(); bctx.moveTo(cx, cy - 3); bctx.lineTo(cx + 3, cy); bctx.lineTo(cx, cy + 3); bctx.lineTo(cx - 3, cy); bctx.closePath(); bctx.fill(); }
+    }
     // target highlight for my chef
     if (chefs && view.ph === 'play') {
       const tg = KR.targetOf(chefs[ME]);
@@ -634,7 +702,7 @@
     if (!host && view && view.ph !== 'over') {
       // predict my own chef; the partner's interpolated position blocks me the same way the host's does
       const fr = chefsForRender()[FRIEND];
-      KR.moveChef(me, inp.x, inp.y, dt, [fr]);
+      KR.moveChef(me, inp.x, inp.y, dt, [fr], inp.f);
     } else if (!host && view) me.mv = 0;
     if (!host && view && view.ph === 'play') { view.tm = Math.max(0, view.tm - dt); for (const o of view.orders) o.t = Math.max(0, o.t - dt); }
     render(now / 1000, dt);
@@ -646,5 +714,5 @@
   requestAnimationFrame(frame);
 
   // test hook (read-only)
-  window.__kr = { get view() { return view; }, me, role: room.role, _state: host ? () => state : undefined, snaps };
+  window.__kr = { get view() { return view; }, me, role: room.role, _state: host ? () => state : undefined, snaps, layout: () => ({ OX, OYpx, S, A, MX, OY }), get auto() { return auto; }, floaters };
 })();
