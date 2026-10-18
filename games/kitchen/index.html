@@ -6,139 +6,177 @@
   <title>Kitchen Rush · PlayTogether</title>
   <link rel="stylesheet" href="../../shared/style.css">
   <style>
-    body { overflow: hidden; overscroll-behavior: none; }
-    .kr { position: fixed; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
-
-    /* ---------- HUD ---------- */
-    .hud {
-      display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: center; gap: 8px;
-      padding: 46px 12px 6px; background: var(--bg);
+    /* The whole window is the game. Its own palette (lacquer, wood, paper, gold) replaces the hub theme,
+       including the chrome drawn by shared/net.js, which reads these tokens. */
+    :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+      --night: #1e1a24; --wood: #4a2a1f; --wood2: #5e3a2a; --wood3: #8a5a3a; --wood-dark: #2a1510;
+      --lacquer: #a8302a; --lacquer2: #c9402f; --gold: #c9a24a; --paper: #f3e6c8; --paper2: #e8d7b0; --paper3: #d9c59a;
+      --jade: #2f8f7a; --board: #2f3a33; --chalk: #e9efe6;
+      --bg: var(--night); --surface: var(--paper); --surface-2: var(--paper2); --ink: #2a1a14; --muted: #7a5a44; --line: var(--wood3);
+      --accent: var(--lacquer2); --accent-ink: #fff; --accent-2: var(--jade); --good: var(--jade); --radius: 10px;
+      --shadow: 0 14px 40px rgba(0, 0, 0, .55); color-scheme: dark;
     }
-    .hud .left { display: flex; flex-direction: column; line-height: 1.05; }
-    .hud .title { font-weight: 700; font-size: 1.15rem; color: var(--accent); letter-spacing: .01em; }
-    .hud .round { color: var(--muted); font-size: .85rem; }
-    .hud .timer { font-size: 1.9rem; font-weight: 800; letter-spacing: .02em; font-variant-numeric: tabular-nums lining-nums; min-width: 4ch; text-align: center; }
-    .hud .timer.low { color: var(--accent); animation: pulse .5s steps(2) infinite; }
-    @keyframes pulse { 50% { opacity: .55; } }
-    .hud .right { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
-    .hud .score { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .hud .score small { font-size: .8rem; color: var(--muted); font-weight: 400; }
-    .hud .combo { color: var(--good); font-size: .85rem; font-weight: 600; min-height: 1em; }
-    .help { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-weight: 700; }
-    .hud-btns { display: inline-flex; gap: 6px; align-items: center; }
-    #chefBtn { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    @media (max-width: 520px) { #chefBtn { display: none; } }
+    html, body { height: 100%; }
+    body { background: var(--night); overflow: hidden; overscroll-behavior: none; color: var(--paper); }
+    #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
-    /* ---------- orders ---------- */
-    .orders { display: flex; gap: 8px; padding: 2px 12px 8px; overflow-x: auto; min-height: 58px; scrollbar-width: none; }
+    /* ---------- shared in-game styles ---------- */
+    .wood { background: linear-gradient(#5e3a2a, #4a2a1f); color: var(--paper); border: 2px solid var(--wood-dark); box-shadow: inset 0 0 0 1px var(--gold), 0 4px 0 var(--wood-dark), 0 8px 18px rgba(0,0,0,.45); border-radius: 8px; }
+    .paper { background: var(--paper) repeating-linear-gradient(transparent 0 26px, rgba(90, 50, 30, .06) 26px 27px); color: var(--ink); border: 3px solid var(--wood); box-shadow: inset 0 0 0 2px var(--gold), 0 6px 0 var(--wood-dark), 0 24px 60px rgba(0,0,0,.6); border-radius: 10px; }
+    .pt-btn, .wbtn { border-radius: 8px; font-weight: 700; }
+    .pt-btn { background: linear-gradient(var(--lacquer2), var(--lacquer)); color: #fff; border: 2px solid #5a1812; box-shadow: 0 3px 0 #5a1812, inset 0 1px 0 rgba(255,255,255,.25); padding: .6rem 1.1rem; }
+    .pt-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #5a1812; }
+    .pt-btn-ghost, .wbtn { background: linear-gradient(#6a4432, var(--wood)); color: var(--paper); border: 2px solid var(--wood-dark); box-shadow: 0 3px 0 var(--wood-dark), inset 0 0 0 1px rgba(201,162,74,.6); }
+    .pt-btn-ghost:active, .wbtn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--wood-dark); }
+    .wbtn { appearance: none; cursor: pointer; font: 700 .9rem var(--font); padding: .4rem .8rem; }
+    .pt-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .pt-btn:focus-visible, .wbtn:focus-visible, .name-input:focus-visible, .chef-card:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+    /* chrome drawn by net.js: lobby link, connection pill, update banner, host/join card */
+    .pt-lobby-link { top: 10px; left: 14px; padding: 4px 10px 5px; font-size: .85rem; }
+    .pt-lobby-link, .pt-pill { background: linear-gradient(#5e3a2a, #4a2a1f); color: var(--paper); border: 2px solid var(--wood-dark); box-shadow: inset 0 0 0 1px var(--gold), 0 3px 0 var(--wood-dark); border-radius: 8px; }
+    .pt-lobby-link:hover { color: #fff; }
+    .pt-pill { top: 8px; }
+    .pt-dot { background: var(--paper3); }
+    .pt-pill.is-on .pt-dot { background: #6fd3a1; box-shadow: 0 0 0 3px rgba(111, 211, 161, .3); }
+    .pt-overlay { background: rgba(14, 10, 18, .72); }
+    .pt-card { background: var(--paper) repeating-linear-gradient(transparent 0 26px, rgba(90, 50, 30, .06) 26px 27px); border: 3px solid var(--wood); box-shadow: inset 0 0 0 2px var(--gold), 0 6px 0 var(--wood-dark), 0 24px 60px rgba(0,0,0,.6); border-radius: 10px; color: var(--ink); }
+    .pt-code { background: var(--paper2); border: 2px dashed var(--wood3); border-radius: 8px; color: var(--ink); }
+    .pt-input { background: #fff9ea; border: 2px solid var(--wood3); color: var(--ink); border-radius: 8px; }
+    .pt-banner { background: linear-gradient(#5e3a2a, var(--wood)); color: var(--paper); border: 2px solid var(--gold); }
+    .pt-spinner { border-color: var(--paper3); border-top-color: var(--lacquer2); }
+
+    /* ---------- top band: sign, timer board, score, order tickets ---------- */
+    .top { position: fixed; left: 0; right: 0; top: 0; z-index: 20; pointer-events: none; }
+    .top button, .orders { pointer-events: auto; }
+    .hud { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 10px; padding: 44px 14px 0; }
+    .sign { display: inline-flex; flex-direction: column; padding: 6px 12px 7px; line-height: 1.05; position: relative; }
+    .sign::before, .sign::after { content: ''; position: absolute; top: -12px; width: 2px; height: 12px; background: var(--gold); }
+    .sign::before { left: 14px; } .sign::after { right: 14px; }
+    .title { font-weight: 800; font-size: 1.1rem; color: var(--gold); letter-spacing: .01em; text-shadow: 0 1px 0 #2a1510; }
+    .round { color: var(--paper2); font-size: .8rem; }
+    .timer-board { justify-self: center; background: var(--board); border: 3px solid var(--wood); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 4px 0 var(--wood-dark); border-radius: 8px; padding: 2px 16px 4px; }
+    .timer { font-size: 2rem; font-weight: 800; letter-spacing: .02em; font-variant-numeric: tabular-nums lining-nums; color: var(--chalk); text-align: center; min-width: 4ch; text-shadow: 0 0 10px rgba(233,239,230,.25); }
+    .timer.low { color: #ff8a6a; animation: pulse .5s steps(2) infinite; }
+    @keyframes pulse { 50% { opacity: .55; } }
+    .right { display: flex; justify-content: flex-end; align-items: start; gap: 8px; }
+    .score-sign { align-items: flex-end; }
+    .score { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--paper); }
+    .score small { font-size: .75rem; color: var(--paper2); font-weight: 600; }
+    .combo { color: var(--gold); font-size: .8rem; font-weight: 700; min-height: 1em; }
+    .hud-btns { display: inline-flex; gap: 6px; align-items: center; margin-top: 2px; }
+    .round-btn { width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+    #chefBtn { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 560px) { #chefBtn { display: none; } .hud { gap: 6px; padding-inline: 10px; } .timer { font-size: 1.6rem; } .title { font-size: .95rem; } }
+
+    .orders { display: flex; gap: 10px; padding: 10px 14px 6px; overflow-x: auto; min-height: 64px; scrollbar-width: none; }
     .orders::-webkit-scrollbar { display: none; }
     .order {
-      flex: none; display: flex; gap: 8px; align-items: center; min-width: 128px;
-      background: var(--surface); border: 2px solid var(--line); border-radius: 10px; padding: 5px 8px 5px 6px;
-      animation: slidein .25s ease-out; transition: opacity .4s, transform .4s, border-color .2s;
+      flex: none; display: flex; gap: 8px; align-items: center; min-width: 136px; position: relative;
+      background: var(--paper); color: var(--ink); border: 2px solid var(--wood); border-radius: 4px 4px 8px 8px; padding: 9px 10px 6px 8px;
+      box-shadow: 0 3px 0 var(--wood-dark), 0 8px 16px rgba(0,0,0,.4);
+      animation: slidein .25s ease-out; transition: opacity .4s, transform .4s, background .2s;
     }
+    .order::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--lacquer2); border-bottom: 1px solid #5a1812; }
     @keyframes slidein { from { opacity: 0; transform: translateY(-8px); } }
     .order canvas { width: 44px !important; height: 44px !important; image-rendering: pixelated; }
-    .order .ob { display: grid; gap: 3px; min-width: 70px; }
+    .order .ob { display: grid; gap: 3px; min-width: 74px; }
     .order b { font-size: .85rem; line-height: 1; white-space: nowrap; }
     .order small { font-size: .7rem; color: var(--muted); line-height: 1; margin-top: -2px; }
-    .order .bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
-    .order .bar i { display: block; height: 100%; background: var(--good); border-radius: 3px; }
-    .order.urgent { border-color: var(--accent); animation: slidein .25s ease-out, wobble .4s ease-in-out infinite; }
-    .order.urgent .bar i { background: var(--accent); }
+    .order .bar { height: 6px; background: var(--paper3); border-radius: 3px; overflow: hidden; border: 1px solid var(--wood3); }
+    .order .bar i { display: block; height: 100%; background: var(--jade); border-radius: 3px; }
+    .order.urgent { background: #f6d9c8; animation: slidein .25s ease-out, wobble .4s ease-in-out infinite; }
+    .order.urgent .bar i { background: var(--lacquer2); }
     @keyframes wobble { 50% { transform: rotate(1.5deg); } }
-    .order.done { border-color: var(--good); opacity: 0; transform: translateY(-12px) scale(.9); }
-    .order.lost { border-color: var(--accent); opacity: 0; transform: scale(.85); }
-
-    /* ---------- stage ---------- */
-    .stage { position: relative; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
-    #view { width: 100%; height: 100%; display: block; touch-action: none; }
-    .status { margin: 0; padding: 4px 12px 6px; text-align: center; color: var(--muted); font-size: .9rem; min-height: 1.5em; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
-    .toasts { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; pointer-events: none; width: calc(100% - 24px); }
-    .toast { background: var(--ink); color: var(--bg); padding: 6px 12px; border-radius: 999px; font-size: .9rem; font-weight: 600; animation: slidein .2s ease-out; transition: opacity .5s, transform .5s; }
-    .toast.good { background: var(--good); color: #fff; }
-    .toast.bad { background: var(--accent); color: #fff; }
+    .order.done { opacity: 0; transform: translateY(-12px) scale(.9); }
+    .order.lost { opacity: 0; transform: scale(.85); }
+    .toasts { display: grid; gap: 6px; justify-items: center; pointer-events: none; padding: 4px 12px; }
+    .toast { background: linear-gradient(#5e3a2a, var(--wood)); color: var(--paper); border: 2px solid var(--wood-dark); box-shadow: inset 0 0 0 1px var(--gold), 0 3px 0 var(--wood-dark); padding: 5px 12px; border-radius: 8px; font-size: .9rem; font-weight: 700; animation: slidein .2s ease-out; transition: opacity .5s, transform .5s; }
+    .toast.good { background: linear-gradient(#3aa58c, var(--jade)); border-color: #1d5a4d; box-shadow: 0 3px 0 #1d5a4d; }
+    .toast.bad { background: linear-gradient(var(--lacquer2), var(--lacquer)); border-color: #5a1812; box-shadow: 0 3px 0 #5a1812; }
     .toast.out { opacity: 0; transform: translateY(-6px); }
 
-    /* ---------- touch controls ---------- */
+    /* ---------- bottom band: status plaque, keys, touch controls ---------- */
+    .bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none; display: grid; justify-items: center; gap: 8px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+    .bottom button, .bottom .touch { pointer-events: auto; }
+    .plaque { margin: 0; display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; padding: 6px 14px; font-size: .9rem; color: var(--paper); max-width: calc(100% - 24px); text-align: center; }
+    .hint-keys { color: #a8968f; font-size: .82rem; padding: 0 12px; text-align: center; }
+    .hint-keys kbd { background: var(--wood); color: var(--paper); border: 1px solid var(--wood-dark); box-shadow: inset 0 0 0 1px rgba(201,162,74,.5); border-radius: 5px; padding: 1px 6px; font: 600 .78rem var(--font); }
     .touch { display: none; }
     @media (pointer: coarse) { .touch { display: flex; } .hint-keys { display: none; } }
-    .touch { align-items: center; justify-content: space-between; padding: 6px 18px calc(14px + env(safe-area-inset-bottom)); gap: 12px; }
-    #joy { position: relative; width: 112px; height: 112px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--line); touch-action: none; flex: none; }
-    #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); box-shadow: var(--shadow); }
+    .touch { width: 100%; align-items: center; justify-content: space-between; padding: 0 18px; gap: 12px; }
+    #joy { position: relative; width: 112px; height: 112px; border-radius: 50%; background: radial-gradient(circle at 50% 45%, #5e3a2a, var(--wood) 70%); border: 3px solid var(--wood-dark); box-shadow: inset 0 0 0 2px var(--gold), 0 4px 0 var(--wood-dark); touch-action: none; flex: none; }
+    #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f8efd8, var(--paper2) 70%); border: 2px solid var(--wood-dark); box-shadow: 0 3px 0 var(--wood-dark); }
     .btns { display: flex; gap: 14px; }
-    .btns button {
-      width: 78px; height: 78px; border-radius: 50%; border: 0; font: 800 1rem var(--font); letter-spacing: .04em;
-      color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 4px 0 rgba(0,0,0,.25);
-    }
-    #btnGrab { background: var(--accent-2); } #btnChop { background: var(--accent); }
-    .btns button.down { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); filter: brightness(1.1); }
-    .hint-keys { text-align: center; color: var(--muted); font-size: .85rem; padding: 0 12px 10px; }
-    .hint-keys kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font: 600 .8rem var(--font); }
-    @media (max-width: 420px) { .hud .timer { font-size: 1.6rem; } .hud .title { font-size: 1rem; } .btns button { width: 70px; height: 70px; } #joy { width: 100px; height: 100px; } }
+    .btns button { width: 78px; height: 78px; border-radius: 50%; border: 3px solid; font: 800 1rem var(--font); letter-spacing: .04em; color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
+    #btnGrab { background: radial-gradient(circle at 40% 35%, #3fb39b, var(--jade) 70%); border-color: #1d5a4d; box-shadow: 0 5px 0 #1d5a4d, inset 0 0 0 2px rgba(255,255,255,.2); }
+    #btnChop { background: radial-gradient(circle at 40% 35%, #e05a45, var(--lacquer) 70%); border-color: #5a1812; box-shadow: 0 5px 0 #5a1812, inset 0 0 0 2px rgba(255,255,255,.2); }
+    .btns button.down { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.4); filter: brightness(1.1); }
+    @media (max-width: 420px) { .btns button { width: 70px; height: 70px; } #joy { width: 100px; height: 100px; } }
 
-    /* ---------- panels ---------- */
-    .panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(4px); }
-    .sheet { width: min(560px, 100%); max-height: calc(100% - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
-    .sheet h2 { margin: 0; font-size: 1.6rem; }
+    /* ---------- panels: picker, legend, results ---------- */
+    .panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: rgba(14, 10, 18, .62); backdrop-filter: blur(3px); }
+    .sheet { width: min(560px, 100%); max-height: calc(100% - 40px); overflow: auto; padding: 22px 22px 20px; }
+    .sheet h2 { margin: 0; font-size: 1.7rem; color: var(--ink); letter-spacing: -.01em; }
     .sheet .sub { color: var(--muted); margin: 4px 0 0; }
-    .sheet h4 { margin: 16px 0 8px; font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
-    .recipe { display: grid; grid-template-columns: 48px 1fr; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+    .sheet h4 { margin: 18px 0 8px; font-size: .78rem; text-transform: uppercase; letter-spacing: .14em; color: var(--wood3); border-bottom: 2px solid var(--paper3); padding-bottom: 4px; }
+    .recipe { display: grid; grid-template-columns: 48px 1fr; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--paper3); }
     .recipe:last-child { border-bottom: 0; }
     .recipe canvas, .lg canvas { image-rendering: pixelated; vertical-align: middle; }
     .recipe b { display: block; font-size: .95rem; }
     .steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; color: var(--muted); font-weight: 700; }
-    .grp { display: inline-flex; gap: 1px; background: var(--surface-2); border-radius: 8px; padding: 2px 4px; }
+    .grp { display: inline-flex; gap: 1px; background: var(--paper2); border: 1px solid var(--paper3); border-radius: 8px; padding: 2px 4px; }
     .icons { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .9rem; }
     .lg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
     .tips { margin: 0; padding-left: 18px; font-size: .92rem; line-height: 1.5; }
     .tips li { margin: 2px 0; }
-    .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+    .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; align-items: center; }
     .row .note { color: var(--muted); font-size: .9rem; margin-right: auto; }
-    .stars { font-size: 2.4rem; color: #e6b93c; line-height: 1; margin: 6px 0; letter-spacing: .1em; }
-    .big { font-size: 3rem; font-weight: 700; line-height: 1; }
+    .stars { font-size: 2.4rem; color: var(--gold); line-height: 1; margin: 6px 0; letter-spacing: .1em; text-shadow: 0 1px 0 var(--wood-dark); }
+    .big { font-size: 3rem; font-weight: 800; line-height: 1; }
     .stat { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); margin-top: 10px; font-size: .95rem; }
     .stat b { color: var(--ink); }
     .dishes { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; }
     .team { color: var(--muted); margin: 6px 0 0; font-weight: 600; }
 
-    /* ---------- chef picker ---------- */
     .chefs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
     .chef-card {
-      appearance: none; font: inherit; cursor: pointer; border: 2px solid var(--line); background: var(--surface-2); color: var(--ink);
-      border-radius: 16px; padding: 14px 10px 12px; display: grid; justify-items: center; gap: 4px; transition: transform .1s, border-color .15s, box-shadow .15s;
+      appearance: none; font: inherit; cursor: pointer; border: 2px solid var(--wood3); background: var(--paper2); color: var(--ink);
+      border-radius: 10px; padding: 14px 10px 12px; display: grid; justify-items: center; gap: 4px; transition: transform .1s, border-color .15s, box-shadow .15s;
     }
     .chef-card:hover { transform: translateY(-2px); }
-    .chef-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); background: var(--surface); }
+    .chef-card.sel { border-color: var(--lacquer2); box-shadow: inset 0 0 0 2px var(--gold), 0 0 0 3px rgba(201, 64, 47, .25); background: #fff8e8; }
     .chef-card .chef-pic { width: 96px; height: 144px; image-rendering: pixelated; }
     .chef-card b { font-size: 1.15rem; }
-    .chef-sub { color: var(--muted); font-size: .85rem; }
     .name-row { display: grid; gap: 6px; margin-top: 14px; }
-    .name-row label { font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; }
-    .name-input { font: inherit; font-size: 1.1rem; font-weight: 600; padding: .6rem .9rem; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); width: 100%; }
-    .name-input:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 1px; }
+    .name-row label { font-size: .78rem; text-transform: uppercase; letter-spacing: .14em; color: var(--wood3); font-weight: 700; }
+    .name-input { font: inherit; font-size: 1.1rem; font-weight: 600; padding: .6rem .9rem; border-radius: 8px; border: 2px solid var(--wood3); background: #fff9ea; color: var(--ink); width: 100%; }
   </style>
 </head>
 <body>
-  <div class="kr">
+  <canvas id="view"></canvas>
+
+  <div class="top" id="top">
     <header class="hud">
-      <div class="left"><span class="title">Kitchen Rush</span><span class="round" id="hudRound">Round 1</span></div>
-      <div class="timer" id="hudTimer">3:00</div>
-      <div class="right"><span class="score"><b id="hudScore">0</b> <small>pts</small></span><span class="combo" id="hudCombo"></span></div>
-      <span class="hud-btns"><button class="pt-btn pt-btn-small pt-btn-ghost" id="chefBtn" title="Change chef or name">Choose chef</button><button class="pt-btn pt-btn-small pt-btn-ghost help" id="helpBtn" title="How to play (H)">?</button></span>
+      <div><div class="sign wood"><span class="title">Kitchen Rush</span><span class="round" id="hudRound">Round 1</span></div></div>
+      <div class="timer-board"><div class="timer" id="hudTimer">3:00</div></div>
+      <div class="right">
+        <div class="sign wood score-sign"><span class="score"><b id="hudScore">0</b> <small>pts</small></span><span class="combo" id="hudCombo"></span></div>
+        <span class="hud-btns"><button class="wbtn" id="chefBtn" title="Change chef or name">Choose chef</button><button class="wbtn round-btn" id="helpBtn" title="How to play (H)">?</button></span>
+      </div>
     </header>
     <div class="orders" id="orders"></div>
-    <div class="stage">
-      <canvas id="view"></canvas>
-      <div class="toasts" id="toasts"></div>
-      <p class="status"><span id="status">Connecting…</span> <button class="pt-btn pt-btn-small" id="startBtn2" hidden>Start round</button></p>
-    </div>
+    <div class="toasts" id="toasts"></div>
+  </div>
+
+  <div class="bottom" id="bottom">
     <div class="touch"><div id="joy"><div id="knob"></div></div><div class="btns"><button id="btnChop">CHOP</button><button id="btnGrab">GRAB</button></div></div>
+    <p class="plaque wood"><span id="status">Connecting…</span> <button class="pt-btn pt-btn-small" id="startBtn2" hidden>Start round</button></p>
     <div class="hint-keys"><kbd>WASD</kbd>/<kbd>←↑↓→</kbd> move · <kbd>Space</kbd> grab / drop · <kbd>E</kbd> or <kbd>Shift</kbd> chop (hold) · <kbd>H</kbd> help</div>
   </div>
 
   <div class="panel" id="picker" hidden>
-    <div class="sheet" style="width:min(440px,100%)">
+    <div class="sheet paper" style="width:min(440px,100%)">
       <h2>Choose your chef</h2>
       <p class="sub">Your partner sees your chef and name in the kitchen.</p>
       <div class="chefs" id="chefs"></div>
@@ -148,7 +186,7 @@
   </div>
 
   <div class="panel" id="legend" hidden>
-    <div class="sheet">
+    <div class="sheet paper">
       <h2>Kitchen Rush</h2>
       <p class="sub">Co-op. Three minutes. A vegetarian menu from across Asia: serve as many orders as you can, together.</p>
       <h4>The menu</h4>
@@ -173,7 +211,7 @@
   </div>
 
   <div class="panel" id="over" hidden>
-    <div class="sheet">
+    <div class="sheet paper">
       <h2 id="ovTitle"></h2>
       <div class="stars" id="ovStars"></div>
       <p class="team" id="ovTeam"></p>

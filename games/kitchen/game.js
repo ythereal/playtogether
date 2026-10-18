@@ -379,14 +379,23 @@
   const [buf, bctx] = KA.canvas(BW, BH);
   const [light, lctx] = KA.canvas(BW, BH);
   let S = 2, OX = 0, OYpx = 0;                          // S: art px -> device px
+  const topEl = $('top'), bottomEl = $('bottom');
+  let layoutKey = '';
   function resize() {
-    const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-    cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
-    S = Math.min(cv.width / BW, cv.height / BH);
+    const dpr = devicePixelRatio || 1, w = Math.max(1, Math.round(innerWidth * dpr)), h = Math.max(1, Math.round(innerHeight * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    // the kitchen sits between the HUD band and the bottom plaque / touch controls
+    const top = (topEl.getBoundingClientRect().bottom + 4) * dpr, bottom = (bottomEl.getBoundingClientRect().top - 4) * dpr;
+    const key = w + ':' + h + ':' + Math.round(top) + ':' + Math.round(bottom);
+    if (key === layoutKey) return; layoutKey = key;
+    const availH = Math.max(BH, bottom - top), availW = w - 16 * dpr;
+    S = Math.min(availW / BW, availH / BH);
     if (S >= 1.5) S = Math.floor(S * 4) / 4;
-    OX = Math.floor((cv.width - BW * S) / 2); OYpx = Math.floor((cv.height - BH * S) / 2);
+    OX = Math.floor((w - BW * S) / 2); OYpx = Math.floor(top + (availH - BH * S) / 2);
   }
   addEventListener('resize', resize); resize(); setTimeout(resize, 300);
+  // backdrop: the dark wall-top texture continues across the whole window
+  const backPat = (() => { const [c, x] = KA.canvas(64, 64); KA.rect(x, 0, 0, 64, 64, '#2b2533'); for (let i = 0; i < 64; i += 4) for (let j = 0; j < 64; j += 4) if (KA.hash(i, j) < 0.15) KA.rect(x, i, j, 2, 1, '#342d3d'); for (let j = 0; j < 64; j += 32) KA.rect(x, 0, j, 64, 1, '#241f2b'); return c; })();
   const worldXf = () => bctx.setTransform(A, 0, 0, A, MX * A, OY * A);
   const img = (spr, x, y) => bctx.drawImage(spr, x, y, spr.width / A, spr.height / A);
   const P = (x, y, w, h, col) => { bctx.fillStyle = col; bctx.fillRect(x, y, w, h); };
@@ -516,7 +525,7 @@
     bctx.globalCompositeOperation = 'source-over';
     // vignette
     const vg = bctx.createRadialGradient(BW / 2, BH / 2, Math.min(BW, BH) * 0.45, BW / 2, BH / 2, Math.max(BW, BH) * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,5,20,.45)');
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,5,20,.3)');
     bctx.fillStyle = vg; bctx.fillRect(0, 0, BW, BH);
   }
   const animT = [0, 0];
@@ -562,10 +571,16 @@
     drawLighting(t);
 
     // ---- blit ----
+    resize();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#111'; ctx.fillRect(0, 0, cv.width, cv.height);
+    const pat = ctx.createPattern(backPat, 'repeat'); pat.setTransform(new DOMMatrix().scale(Math.max(1, S)));
+    ctx.fillStyle = pat; ctx.fillRect(0, 0, cv.width, cv.height);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(buf, OX, OYpx, Math.round(BW * S), Math.round(BH * S));
+    // frame shadow + window vignette so the kitchen reads as a lit set in a dark room
+    ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = Math.max(2, S * 2); ctx.strokeRect(OX - S, OYpx - S, BW * S + 2 * S, BH * S + 2 * S);
+    const wv = ctx.createRadialGradient(cv.width / 2, cv.height / 2, Math.min(cv.width, cv.height) * 0.35, cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * 0.8);
+    wv.addColorStop(0, 'rgba(0,0,0,0)'); wv.addColorStop(1, 'rgba(0,0,0,.6)'); ctx.fillStyle = wv; ctx.fillRect(0, 0, cv.width, cv.height);
     if (flash > 0) { ctx.fillStyle = `rgba(229,68,58,${flash * 0.5})`; ctx.fillRect(OX, OYpx, BW * S, BH * S); flash -= dt; }
 
     // ---- crisp overlays in device space ----
