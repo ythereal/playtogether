@@ -639,8 +639,7 @@
 
     // ---- blit through the camera ----
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const bg = ctx.createLinearGradient(0, 0, 0, ch); bg.addColorStop(0, '#182036'); bg.addColorStop(1, '#0b0f1a');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#f6f1e9'; ctx.fillRect(0, 0, cw, ch);
     ctx.imageSmoothingEnabled = cam.z < 1;
     const sx0 = cam.x - cw / cam.z / 2, sy0 = cam.y - ch / cam.z / 2;
     ctx.setTransform(DPR * cam.z, 0, 0, DPR * cam.z, -sx0 * DPR * cam.z, -sy0 * DPR * cam.z);
