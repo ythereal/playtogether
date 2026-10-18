@@ -192,60 +192,75 @@
   // ======================= ITEMS (24x24) =======================
   const itemCache = {};
   const C = {
-    tomato: '#e23b2e', tomatoD: '#9c2118', tomatoL: '#ff8a78', pink: '#f28577', pinkL: '#f9b3a8', seed: '#ffe08a', stem: '#3f8f3a', stemD: '#2c6b2a', stemL: '#6fbf5a',
-    lettuce: '#5fbd4a', lettuceD: '#3f9a34', lettuceD2: '#2f7a28', lettuceL: '#a0e07a', lettuceL2: '#d2f3b0',
     onion: '#a6509b', onionD: '#6e2f64', onionL: '#c98bbd', onionL2: '#efd6ea',
-    potato: '#c9a26a', potatoL: '#e4c48e', potatoD: '#8f6a3a', potatoD2: '#5e4322', eye: '#6b4a24', tikki: '#e9d79c', tikkiL: '#f7ecc0', tikkiD: '#c4ad6a', pea: '#5fae45', spice: '#b8402a', cooked: '#d4903a', cookedL: '#f0bf6a', cookedD: '#9a5f1e', cookedD2: '#6a3e10',
-    bun: '#d9a055', bunL: '#efcf95', bunD: '#a8702e', sesame: '#f7e6c0', burnt: '#2b2b2e', burntL: '#55555a',
-    plate: '#f6f6f4', plateRim: '#cfd3d8', plateIn: '#e8e9ec', plateBlue: '#7fa3c9', soup: '#e8702a', soupL: '#f3a660', cream: '#f8ddb4', bowl: '#eeeeeb', bowlD: '#c6c8cc',
+    potato: '#c9a26a', potatoL: '#e4c48e', potatoD: '#8f6a3a', potatoD2: '#5e4322', eye: '#6b4a24', tikki: '#e9d79c', tikkiL: '#f7ecc0', tikkiD: '#c4ad6a', pea: '#5fae45', spice: '#b8402a',
+    cooked: '#d4903a', cookedL: '#f0bf6a', cookedD: '#9a5f1e', cookedD2: '#6a3e10',
+    tofu: '#f4efe2', tofuL: '#fffdf6', tofuD: '#d9d0ba', tofuD2: '#b8ad94', tofuF: '#dfa54c', tofuFL: '#f3cd86', tofuFD: '#a86f26',
+    rice: '#f6f3ea', riceD: '#d9d3c2', riceD2: '#b9b2a0', grain: '#ffffff', sack: '#c9a26a', sackD: '#8f6a3a',
+    noodle: '#e2c27a', noodleD: '#b8954a', noodleC: '#f2dc92', noodleCL: '#fbefbf', noodleCD: '#c9a85a',
+    nori: '#20412c', noriL: '#3a6b45', noriD: '#132a1b', herb: '#3f9a34', herbL: '#8fd66a', herbD: '#2a6f26', stemC: '#7fa84a',
+    burnt: '#2b2b2e', burntL: '#55555a',
+    plate: '#f6f6f4', plateRim: '#cfd3d8', plateIn: '#e8e9ec', plateBlue: '#7fa3c9', bowl: '#eeeeeb', bowlD: '#c6c8cc', broth: '#e7b663', brothD: '#c48f3a', brothL: '#f6d68e',
   };
-  function tomatoSlice(x, cx, cy, r) {
-    blob(x, cx, cy, r, r, C.tomato, { flat: true }); blob(x, cx, cy, r - 1.2, r - 1.2, C.pink, { flat: true }); blob(x, cx, cy, r - 2.6, r - 2.6, C.pinkL, { flat: true });
-    for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + 0.4; rect(x, Math.round(cx + Math.cos(a) * (r - 2) - 0.5), Math.round(cy + Math.sin(a) * (r - 2) - 0.5), 1, 1, C.seed); }
-    rect(x, Math.round(cx - 0.5), Math.round(cy - 0.5), 1, 1, C.tomato);
-  }
   function onionRing(x, cx, cy, r) { ring(x, cx, cy, r, 1.6, C.onion); ring(x, cx, cy, r - 1.4, 1.2, C.onionL2); ring(x, cx, cy, r - 2.6, 1, C.onionL); }
   function drawRaw(x, tok) {
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     switch (tok) {
-      case 'tomato':
-        blob(x, 12, 14, 9.5, 8.5, C.tomato, { dark: C.tomatoD, light: C.tomatoL, dark2: '#7a1810' });
-        R(9, 8, 2, 2, C.tomatoD); R(13, 7, 2, 3, C.tomatoD); // lobes
-        R(11, 3, 2, 3, C.stem); R(10, 5, 1, 1, C.stemD); R(8, 6, 3, 1, C.stem); R(7, 7, 2, 1, C.stemL); R(13, 5, 3, 1, C.stem); R(16, 6, 2, 1, C.stemL); R(12, 6, 2, 2, C.stemD); R(15, 7, 1, 1, C.stem); break;
-      case 'lettuce':
-        blob(x, 12, 13, 10, 9, C.lettuce, { dark: C.lettuceD, dark2: C.lettuceD2, light: C.lettuceL, spec: C.lettuceL2 });
-        R(8, 7, 2, 6, C.lettuceD); R(14, 5, 2, 4, C.lettuceD); R(11, 15, 6, 1, C.lettuceD); R(16, 12, 2, 4, C.lettuceD); R(6, 14, 3, 1, C.lettuceD);
-        R(10, 6, 2, 1, C.lettuceL2); R(16, 8, 2, 1, C.lettuceL2); R(5, 12, 2, 1, C.lettuceL); R(3, 15, 2, 2, C.lettuce); R(20, 14, 2, 2, C.lettuce); R(4, 17, 2, 2, C.lettuceD); R(19, 17, 2, 2, C.lettuceD); R(2, 16, 1, 1, C.lettuceD2); break;
       case 'onion':
         blob(x, 12, 14, 9, 9, C.onion, { dark: C.onionD, light: C.onionL, spec: C.onionL2, dark2: '#4e1f46' });
         R(8, 8, 1, 10, '#8a3f80'); R(16, 8, 1, 10, '#8a3f80'); R(12, 6, 1, 14, '#8a3f80'); R(10, 7, 1, 2, C.onionL2);
         R(11, 2, 2, 4, '#c9a96a'); R(10, 1, 1, 2, '#e0c080'); R(13, 2, 1, 2, '#b09050'); R(9, 3, 1, 1, '#c9a96a'); break;
+      case 'onion+':
+        onionRing(x, 10, 12, 7); onionRing(x, 10, 12, 3.4); onionRing(x, 17, 15, 5); R(14, 18, 1, 1, C.onionD); break;
       case 'potato':
         blob(x, 12, 13, 10, 7.5, C.potato, { dark: C.potatoD, dark2: C.potatoD2, light: C.potatoL, spec: '#f3dcae' });
         R(6, 9, 2, 1, C.eye); R(7, 10, 1, 1, C.potatoD2); R(15, 8, 1, 2, C.eye); R(9, 16, 2, 1, C.eye); R(17, 14, 2, 1, C.eye); R(18, 15, 1, 1, C.potatoD2); R(12, 12, 1, 1, C.potatoD); R(4, 14, 1, 1, C.potatoD);
         R(3, 11, 1, 1, C.potatoL); R(20, 10, 1, 2, C.potatoD2); break;
-      case 'bun':
-        blob(x, 12, 12, 10, 7.5, C.bun, { dark: C.bunD, light: '#e9bd78', spec: C.bunL }); x.clearRect(0, 15, 24, 9);
-        R(3, 15, 18, 2, C.bunL); R(3, 17, 18, 2, C.bunD); R(4, 19, 16, 1, '#8a5a24'); R(2, 15, 1, 2, C.bunL); R(21, 15, 1, 2, C.bunL);
-        R(7, 8, 2, 1, C.sesame); R(12, 6, 2, 1, C.sesame); R(16, 9, 2, 1, C.sesame); R(9, 12, 2, 1, C.sesame); R(14, 12, 2, 1, C.sesame); R(5, 11, 2, 1, C.sesame); R(18, 12, 1, 1, C.sesame); break;
-      case 'tomato+':
-        tomatoSlice(x, 15, 8, 6.5); tomatoSlice(x, 8, 15, 6.5); R(17, 14, 4, 6, C.tomato); R(18, 15, 2, 4, C.pink); R(18, 16, 1, 1, C.seed); R(17, 14, 1, 6, C.tomatoD); break;
-      case 'lettuce+':
-        R(3, 12, 6, 4, C.lettuceL); R(9, 8, 6, 4, C.lettuce); R(14, 14, 6, 4, C.lettuceL); R(7, 16, 6, 4, C.lettuceD); R(16, 7, 5, 4, C.lettuce); R(5, 6, 4, 4, C.lettuceD); R(12, 12, 4, 2, C.lettuce); R(18, 18, 4, 2, C.lettuce);
-        R(3, 12, 6, 1, C.lettuceL2); R(9, 8, 6, 1, C.lettuceL); R(14, 14, 6, 1, C.lettuceL2); R(16, 7, 5, 1, C.lettuceL); R(7, 19, 6, 1, C.lettuceD2); R(5, 9, 4, 1, C.lettuceD2); R(9, 11, 6, 1, C.lettuceD); R(14, 17, 6, 1, C.lettuceD); break;
-      case 'onion+':
-        onionRing(x, 10, 12, 7); onionRing(x, 10, 12, 3.4); onionRing(x, 17, 15, 5); R(14, 18, 1, 1, C.onionD); break;
-      case 'potato+': // raw aloo tikki: mashed potato patty with peas and spice flecks
+      case 'potato+':
         blob(x, 12, 13, 10, 6, C.tikki, { dark: C.tikkiD, light: C.tikkiL, spec: '#ffffff', dark2: '#a8905a' });
         R(7, 11, 2, 2, C.pea); R(7, 11, 1, 1, '#8fd66a'); R(15, 14, 2, 2, C.pea); R(15, 14, 1, 1, '#8fd66a'); R(11, 15, 1, 1, C.pea);
         R(10, 10, 1, 1, C.spice); R(17, 11, 1, 1, C.spice); R(5, 14, 1, 1, C.spice); R(13, 12, 1, 1, '#c9b070'); break;
-      case 'potato*': // fried: golden, crisp edges
+      case 'potato*':
         blob(x, 12, 13, 10, 6, C.cooked, { dark: C.cookedD, light: C.cookedL, spec: '#fbe2a8', dark2: C.cookedD2 });
         R(5, 11, 3, 1, C.cookedD); R(11, 10, 3, 1, C.cookedD); R(16, 12, 2, 1, C.cookedD2); R(7, 15, 3, 1, C.cookedD2); R(13, 16, 3, 1, C.cookedD); R(9, 13, 1, 1, C.cookedD2);
         R(8, 11, 2, 2, '#4f8f3a'); R(15, 15, 1, 1, '#4f8f3a'); R(10, 9, 1, 1, C.cookedL); R(18, 14, 1, 1, '#fbe2a8'); break;
+      case 'tofu':
+        R(4, 9, 16, 4, C.tofuD); R(4, 12, 16, 8, C.tofu); R(4, 5, 16, 5, C.tofuL); R(4, 5, 16, 1, '#ffffff'); R(4, 19, 16, 1, C.tofuD2); R(18, 10, 2, 10, C.tofuD); R(19, 10, 1, 10, C.tofuD2); R(4, 10, 1, 9, C.tofuL);
+        R(7, 7, 1, 1, C.tofuD); R(13, 8, 1, 1, C.tofuD); R(9, 15, 1, 1, C.tofuD); R(15, 14, 2, 1, C.tofuD); R(11, 17, 1, 1, C.tofuD); break;
+      case 'tofu+':
+        for (const [cx, cy] of [[4, 4], [13, 5], [7, 12], [15, 13]]) { R(cx, cy, 7, 7, C.tofu); R(cx, cy, 7, 2, C.tofuL); R(cx, cy, 1, 7, C.tofuL); R(cx + 6, cy + 1, 1, 6, C.tofuD); R(cx + 1, cy + 6, 6, 1, C.tofuD2); R(cx + 3, cy + 3, 1, 1, C.tofuD); } break;
+      case 'tofu*':
+        for (const [cx, cy] of [[4, 4], [13, 5], [7, 12], [15, 13]]) { R(cx, cy, 7, 7, C.tofuF); R(cx, cy, 7, 2, C.tofuFL); R(cx, cy, 1, 7, C.tofuFL); R(cx + 6, cy + 1, 1, 6, C.tofuFD); R(cx + 1, cy + 6, 6, 1, '#7a4e18'); R(cx + 2, cy + 3, 2, 1, C.tofuFD); R(cx + 4, cy + 4, 1, 1, C.tofuFL); } break;
+      case 'rice':
+        blob(x, 12, 12, 10, 4.5, C.sack, { flat: true }); blob(x, 12, 11, 8.5, 3.4, C.riceD, { flat: true }); blob(x, 12, 10, 7.5, 2.8, C.rice, { flat: true });
+        R(4, 13, 16, 7, C.sack); R(4, 13, 2, 6, '#e0c080'); R(18, 13, 2, 7, C.sackD); R(5, 19, 14, 1, C.sackD); R(6, 20, 12, 1, '#5e4322');
+        for (const [gx, gy] of [[7, 9], [10, 8], [14, 8], [17, 9], [9, 11], [15, 11], [12, 9]]) R(gx, gy, 2, 1, C.grain); R(9, 15, 6, 2, '#f1e4c6'); R(10, 16, 4, 1, '#c0392b'); break;
+      case 'rice*':
+        blob(x, 12, 14, 10, 7, C.rice, { dark: C.riceD, dark2: C.riceD2, light: '#ffffff', spec: '#ffffff' });
+        for (const [gx, gy] of [[6, 12], [9, 9], [13, 8], [16, 11], [8, 16], [12, 13], [15, 16], [18, 14], [10, 18], [14, 19]]) { R(gx, gy, 2, 1, C.riceD); R(gx, gy - 1, 1, 1, '#ffffff'); } break;
+      case 'noodles':
+        blob(x, 12, 12, 10, 8, C.noodle, { dark: C.noodleD, light: C.noodleC, spec: C.noodleCL, dark2: '#8f7030' });
+        for (let j = 6; j < 19; j += 3) for (let i = 4; i < 20; i++) if ((i + j) % 4 < 2) R(i, j + ((i >> 1) % 2), 1, 1, C.noodleD);
+        R(6, 9, 3, 1, C.noodleCL); R(14, 7, 3, 1, C.noodleCL); break;
+      case 'noodles*':
+        blob(x, 12, 14, 10.5, 7, C.noodleC, { dark: C.noodleCD, light: C.noodleCL, spec: '#ffffff', dark2: '#a88a3f' });
+        for (let k = 0; k < 7; k++) { const yy = 9 + k * 1.6; for (let i = 3; i < 21; i++) { if (Math.sin(i * 0.9 + k) > 0.3) R(i, Math.round(yy + Math.sin(i * 0.7 + k * 2) * 1.2), 1, 1, k % 2 ? C.noodleCD : C.noodleCL); } }
+        R(2, 15, 3, 1, C.noodleC); R(19, 17, 3, 1, C.noodleC); break;
+      case 'nori':
+        R(4, 4, 16, 16, C.nori); R(4, 4, 16, 1, C.noriL); R(4, 4, 1, 16, C.noriL); R(19, 5, 1, 15, C.noriD); R(5, 19, 15, 1, C.noriD);
+        for (let j = 6; j < 19; j += 2) for (let i = 6; i < 18; i += 3) if (hash(i, j) < 0.5) R(i + (j % 4 ? 1 : 0), j, 1, 1, C.noriL);
+        R(16, 4, 4, 4, '#f4efe2'); R(16, 4, 4, 1, C.noriD); R(16, 4, 1, 4, C.noriD); R(17, 5, 2, 2, C.noriL); R(7, 7, 2, 1, '#5a8f62'); break;
+      case 'herbs':
+        R(11, 14, 2, 8, C.stemC); R(9, 15, 2, 6, C.stemC); R(13, 15, 2, 6, '#6b8f3a'); R(9, 18, 6, 2, '#c9a26a'); R(9, 18, 6, 1, '#e0c080');
+        for (const [lx, ly, big] of [[4, 5, 1], [10, 2, 1], [16, 4, 1], [7, 9, 0], [14, 9, 1], [11, 7, 0], [3, 11, 0], [18, 11, 0]]) {
+          if (big) { blob(x, lx + 3, ly + 2.5, 3.6, 2.6, C.herb, { dark: C.herbD, light: C.herbL }); R(lx + 1, ly + 2, 4, 1, C.herbD); }
+          else { R(lx, ly, 4, 3, C.herb); R(lx, ly, 2, 1, C.herbL); R(lx + 3, ly + 2, 1, 1, C.herbD); }
+        } break;
+      case 'herbs+':
+        for (const [lx, ly, w, h, col] of [[3, 6, 4, 2, C.herb], [8, 4, 3, 2, C.herbL], [13, 7, 4, 2, C.herb], [18, 5, 3, 2, C.herbD], [5, 11, 3, 2, C.herbD], [10, 10, 4, 2, C.herbL], [16, 12, 3, 2, C.herb], [4, 16, 4, 2, C.herbL], [9, 15, 3, 2, C.herb], [14, 17, 4, 2, C.herbD], [19, 16, 2, 2, C.herb], [12, 13, 2, 1, C.herbD]]) R(lx, ly, w, h, col);
+        R(8, 5, 1, 1, C.herbD); R(11, 11, 1, 1, C.herbD); R(5, 17, 1, 1, C.herbD); break;
       case 'burnt':
         blob(x, 12, 13, 10, 6.5, C.burnt, { dark: '#111114', light: C.burntL, spec: '#6a6a70', dark2: '#050507' }); R(8, 11, 2, 1, C.burntL); R(14, 15, 2, 1, C.burntL); R(16, 10, 1, 1, '#c0392b'); R(7, 15, 1, 1, '#e8742b'); R(11, 13, 2, 1, '#3a3a3e'); break;
-      case 'soup': drawBowl(x, true); break;
       case 'plate': drawPlate(x, 15); break;
       case 'pot': drawPot(x, 0, 4); break;
       case 'pan': drawPan(x, 0, 6); break;
@@ -260,12 +275,11 @@
     rect(x, 4, cy - 3, 4, 1, '#ffffff'); rect(x, 3, cy - 2, 1, 1, '#ffffff');
     for (let a = 0.5; a < 2.7; a += 0.06) rect(x, Math.round(12 + Math.cos(a + Math.PI) * 9.8 - 0.5), Math.round(cy + Math.sin(a + Math.PI) * 3.8 - 0.5), 1, 1, C.plateBlue);
   }
-  function drawBowl(x, full) {
+  function drawBowl(x, fill) {
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     R(4, 12, 16, 7, C.bowl); R(5, 19, 14, 2, C.bowlD); R(6, 21, 12, 1, '#a8aaae'); R(18, 12, 2, 7, C.bowlD); R(4, 12, 2, 5, '#ffffff'); R(5, 16, 14, 1, C.plateBlue);
     blob(x, 12, 12, 10.5, 5, C.bowl, { flat: true }); blob(x, 12, 13, 10.5, 5, C.bowlD, { flat: true }); blob(x, 12, 12, 10.5, 5, C.bowl, { flat: true }); ring(x, 12, 12, 10.5, 1, '#ffffff');
-    if (full) { blob(x, 12, 12, 8.5, 3.6, C.soup, { flat: true }); R(9, 10, 4, 1, C.soupL); R(14, 12, 4, 1, C.cream); R(8, 13, 2, 1, C.soupL); R(6, 12, 1, 1, C.cream); R(15, 10, 2, 1, C.soupL); R(11, 14, 3, 1, '#d4601f'); }
-    else blob(x, 12, 12, 8.5, 3.6, '#dcdcd8', { flat: true });
+    blob(x, 12, 12, 8.5, 3.6, fill || '#dcdcd8', { flat: true });
   }
   function drawPan(x, X, Y) {
     const R = (a, b, w, h, col) => rect(x, X + a, Y + b, w, h, col);
@@ -282,27 +296,42 @@
   function drawMini(x, tok, cx, cy) { // small token on a plate
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     switch (tok) {
-      case 'tomato+': tomatoSlice(x, cx, cy, 4.5); break;
-      case 'lettuce+': R(cx - 5, cy - 2, 4, 3, C.lettuceL); R(cx - 2, cy - 4, 5, 3, C.lettuce); R(cx + 2, cy - 1, 4, 3, C.lettuceL); R(cx - 4, cy + 1, 5, 2, C.lettuceD); R(cx + 1, cy + 2, 3, 1, C.lettuceD2); R(cx - 2, cy - 4, 5, 1, C.lettuceL2); R(cx - 5, cy - 2, 4, 1, C.lettuceL2); break;
       case 'onion+': onionRing(x, cx, cy, 4.5); onionRing(x, cx + 3, cy + 2, 2.6); break;
       case 'potato*': blob(x, cx, cy, 6.5, 3.6, C.cooked, { dark: C.cookedD, light: C.cookedL, spec: '#fbe2a8', dark2: C.cookedD2 }); R(cx - 4, cy - 1, 2, 1, C.cookedD2); R(cx + 1, cy, 2, 1, C.cookedD2); R(cx - 1, cy + 1, 1, 1, '#4f8f3a'); R(cx - 2, cy - 2, 1, 1, '#4f8f3a'); break;
-      case 'bun': blob(x, cx, cy, 6, 4, C.bun, { dark: C.bunD, light: '#e9bd78' }); R(cx - 2, cy - 2, 1, 1, C.sesame); R(cx + 1, cy - 1, 1, 1, C.sesame); R(cx - 1, cy + 1, 1, 1, C.sesame); break;
+      case 'tofu*': for (const [dx, dy] of [[-5, -3], [1, -4], [-2, 1], [4, 0]]) { R(cx + dx, cy + dy, 4, 4, C.tofuF); R(cx + dx, cy + dy, 4, 1, C.tofuFL); R(cx + dx + 3, cy + dy + 1, 1, 3, C.tofuFD); R(cx + dx + 1, cy + dy + 3, 3, 1, '#7a4e18'); } break;
+      case 'rice*': blob(x, cx, cy, 6.5, 4, C.rice, { dark: C.riceD, dark2: C.riceD2, light: '#ffffff', spec: '#ffffff' }); for (const [gx, gy] of [[-4, -1], [-1, -3], [2, -1], [0, 1], [3, 2], [-3, 2]]) R(cx + gx, cy + gy, 2, 1, C.riceD); break;
+      case 'noodles*': blob(x, cx, cy, 7, 4, C.noodleC, { dark: C.noodleCD, light: C.noodleCL, spec: '#ffffff' }); for (let k = -2; k <= 2; k++) for (let i = -5; i <= 5; i++) if ((i + k) % 3 === 0) R(cx + i, cy + k + ((i >> 1) & 1), 1, 1, k % 2 ? C.noodleCD : C.noodleCL); break;
+      case 'herbs+': for (const [dx, dy, col] of [[-4, -2, C.herb], [-1, -3, C.herbL], [2, -1, C.herbD], [-3, 1, C.herbL], [1, 2, C.herb], [4, 1, C.herbL]]) R(cx + dx, cy + dy, 2, 1, col); break;
+      case 'nori': R(cx - 3, cy - 3, 7, 6, C.nori); R(cx - 3, cy - 3, 7, 1, C.noriL); R(cx - 1, cy - 1, 1, 1, C.noriL); R(cx + 1, cy + 1, 1, 1, C.noriL); break;
     }
   }
   function drawPlated(x, toks) {
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
-    if (toks.includes('soup')) { drawBowl(x, true); return; }
-    if (toks.includes('bun')) {
+    const has = t => toks.includes(t), key = toks.slice().sort().join(',');
+    if (key === 'nori,rice*') { // onigiri: rice triangle with a nori band
       drawPlate(x, 17);
-      let y = 17;
-      R(5, y - 2, 14, 3, C.bunL); R(4, y - 1, 1, 2, C.bunL); R(19, y - 1, 1, 2, C.bunL); R(5, y, 14, 1, C.bunD); R(6, y + 1, 12, 1, '#8a5a24'); y -= 3;
-      if (toks.includes('potato*')) { R(3, y - 2, 18, 3, C.cooked); R(3, y, 18, 1, C.cookedD2); R(4, y - 2, 4, 1, C.cookedL); R(10, y - 2, 3, 1, C.cookedL); R(3, y - 1, 1, 2, C.cookedD); R(8, y - 1, 1, 1, '#4f8f3a'); R(16, y - 1, 1, 1, C.cookedD2); y -= 3; }
-      if (toks.includes('lettuce+')) { R(2, y - 1, 20, 2, C.lettuce); R(3, y - 2, 3, 1, C.lettuceL); R(9, y - 2, 4, 1, C.lettuceL); R(16, y - 2, 3, 1, C.lettuceL); R(5, y, 2, 1, C.lettuceD); R(13, y, 2, 1, C.lettuceD); R(19, y, 2, 1, C.lettuceD2); y -= 2; }
-      blob(x, 12, y - 3, 9.5, 5, C.bun, { dark: C.bunD, light: '#e9bd78', spec: C.bunL }); x.clearRect(0, y, 24, 1); R(3, y - 1, 18, 1, C.bun); R(3, y, 18, 1, C.bunD);
-      R(7, y - 5, 2, 1, C.sesame); R(12, y - 6, 2, 1, C.sesame); R(16, y - 4, 2, 1, C.sesame); R(9, y - 3, 2, 1, C.sesame); R(14, y - 3, 1, 1, C.sesame); R(5, y - 3, 1, 1, C.sesame);
-      return;
+      for (let j = 0; j < 12; j++) { const w = 2 + j * 1.4, X = Math.round(12 - w / 2); R(X, 5 + j, Math.round(w), 1, j < 2 ? '#ffffff' : C.rice); R(X + Math.round(w) - 1, 5 + j, 1, 1, C.riceD); }
+      R(5, 16, 14, 1, C.riceD); for (const [gx, gy] of [[9, 9], [13, 10], [8, 13], [15, 13], [11, 12]]) R(gx, gy, 2, 1, C.riceD);
+      R(9, 13, 6, 5, C.nori); R(9, 13, 6, 1, C.noriL); R(10, 15, 1, 1, C.noriL); R(13, 16, 1, 1, C.noriL); return;
+    }
+    if (has('noodles*') && has('onion+') && has('herbs+')) { // pho in a bowl
+      drawBowl(x, C.broth); R(6, 11, 3, 1, C.brothL); R(14, 13, 2, 1, C.brothL); R(10, 14, 3, 1, C.brothD);
+      for (let i = 5; i < 19; i++) R(i, 11 + ((i >> 1) & 1), 1, 1, C.noodleCL); for (let i = 6; i < 18; i++) R(i, 13 + ((i >> 1) & 1), 1, 1, C.noodleC);
+      onionRing(x, 8, 12, 2.2); R(14, 10, 2, 1, C.herb); R(11, 9, 2, 1, C.herbL); R(16, 12, 2, 1, C.herbD); R(7, 9, 1, 1, C.herbL); return;
     }
     drawPlate(x, 15);
+    if (has('rice*') && has('tofu*') && has('onion+')) { // fried rice
+      blob(x, 12, 13, 9.5, 5.5, '#f2e2b0', { dark: '#d4bc7a', dark2: '#b89b55', light: '#fff6dc', spec: '#ffffff' });
+      for (const [gx, gy] of [[5, 12], [9, 9], [15, 10], [17, 14], [8, 15], [12, 16]]) R(gx, gy, 2, 1, '#d4bc7a');
+      for (const [dx, dy] of [[6, 10], [13, 12], [9, 14]]) { R(dx, dy, 3, 3, C.tofuF); R(dx, dy, 3, 1, C.tofuFL); R(dx + 2, dy + 1, 1, 2, C.tofuFD); }
+      R(11, 9, 2, 1, C.onionL2); R(16, 12, 2, 1, C.onionL); R(7, 13, 1, 1, C.onion); R(14, 15, 2, 1, C.herbL); return;
+    }
+    if (has('noodles*') && has('tofu*') && has('herbs+')) { // pad thai
+      blob(x, 12, 12, 8, 4.5, C.noodleC, { dark: C.noodleCD, light: C.noodleCL, spec: '#ffffff' });
+      for (let k = -3; k <= 3; k++) for (let i = -7; i <= 7; i++) if ((i + k * 2) % 3 === 0) R(12 + i, 12 + k + ((i >> 1) & 1), 1, 1, k % 2 ? C.noodleCD : C.noodleCL);
+      for (const [dx, dy] of [[6, 10], [14, 13]]) { R(dx, dy, 3, 3, C.tofuF); R(dx, dy, 3, 1, C.tofuFL); R(dx + 2, dy + 1, 1, 2, C.tofuFD); }
+      R(10, 9, 2, 1, C.herb); R(16, 10, 2, 1, C.herbL); R(8, 15, 2, 1, C.herbD); R(13, 16, 2, 1, C.herb); R(5, 13, 2, 1, '#e23b2e'); return;
+    }
     const pos = toks.length === 1 ? [[12, 13]] : toks.length === 2 ? [[8, 13], [16, 15]] : [[7, 15], [17, 15], [12, 10]];
     toks.slice().sort().forEach((t, i) => drawMini(x, t, pos[i][0], pos[i][1]));
   }
@@ -387,7 +416,7 @@
         R(6, 4, 20, 4, '#5f6770'); R(6, 4, 20, 1, '#8b949e'); R(7, 5, 18, 1, '#747c86'); R(14, 2, 4, 2, '#8b949e'); R(10, 7, 4, 2, '#f1e4c6'); R(10, 7, 4, 1, '#ffffff'); R(20, 7, 2, 1, '#3f8f3a');
         R(6, 28, 6, 2, '#3a3f46'); R(12, 29, 4, 1, '#5f6770'); break;
       default: { // crates
-        const kind = { t: 'tomato', l: 'lettuce', o: 'onion', p: 'potato', b: 'bun' }[ch];
+        const kind = { p: 'potato', o: 'onion', f: 'tofu', r: 'rice', n: 'noodles', w: 'nori', h: 'herbs' }[ch];
         R(0, 0, 32, 22, '#7d5428'); R(0, 0, 32, 2, '#c99a5b'); R(0, 0, 2, 22, '#b3843f'); R(30, 0, 2, 22, '#9a6b35'); R(0, 20, 32, 2, '#5e3e1c'); R(2, 2, 28, 1, '#5e3e1c'); R(2, 2, 1, 18, '#5e3e1c');
         R(0, 22, 32, 10, '#9a6b35'); R(0, 22, 32, 1, '#b98849'); R(0, 25, 32, 1, '#6b4820'); R(0, 28, 32, 1, '#6b4820'); R(0, 31, 32, 1, '#4a2f12'); R(0, 24, 32, 1, '#a9793f'); R(0, 27, 32, 1, '#a9793f');
         for (const nx of [2, 28]) for (const ny of [23, 29]) { R(nx, ny, 2, 2, '#d9b070'); R(nx, ny, 1, 1, '#f0d090'); }
@@ -400,23 +429,25 @@
   }
   function drawDecor(x, c, r) {
     const R = (a, b, w, h, col) => rect(x, a, b, w, h, col);
-    const k = ({ '0,0': 0, '12,0': 1, '0,4': 2, '0,7': 3, '12,7': 4, '0,8': 5, '12,8': 1 })[c + ',' + r] ?? Math.floor(hash(c + 1, r + 1) * 6);
+    const k = ({ '0,0': 0, '12,0': 1, '12,7': 2, '0,8': 3, '12,8': 4 })[c + ',' + r] ?? Math.floor(hash(c + 1, r + 1) * 6);
     if (k === 0) { // knife block
       R(9, 7, 14, 12, '#8a5a2a'); R(9, 7, 14, 1, '#b07a3e'); R(9, 7, 2, 12, '#a86f38'); R(21, 7, 2, 12, '#5e3e1c'); R(9, 18, 14, 1, '#4a2f12');
       for (let i = 0; i < 4; i++) { R(11 + i * 3, 3, 2, 5, '#3a2a20'); R(11 + i * 3, 2, 2, 1, '#8a8a90'); R(11 + i * 3, 4, 1, 1, '#8a8a90'); }
     } else if (k === 1) { // utensil crock
       R(10, 8, 12, 11, '#c9c3b6'); R(10, 8, 2, 11, '#e6e1d6'); R(20, 8, 2, 11, '#9a948a'); R(10, 18, 12, 1, '#6f6a62'); blob(x, 16, 8, 6, 2.2, '#6f6a62', { flat: true });
       R(12, 1, 1, 8, '#9aa3ad'); R(11, 0, 3, 2, '#9aa3ad'); R(15, 2, 1, 7, '#9aa3ad'); R(14, 1, 3, 1, '#b4bcc5'); R(18, 1, 1, 8, '#8a5a2a'); R(17, 0, 3, 2, '#c08a4a'); R(20, 3, 1, 6, '#9aa3ad'); R(19, 2, 3, 2, '#9aa3ad');
-    } else if (k === 2) { // folded towels
-      R(7, 10, 18, 4, '#d9534f'); R(7, 10, 18, 1, '#f08a86'); R(7, 13, 18, 1, '#a63a37'); R(8, 6, 16, 4, '#f3efe4'); R(8, 6, 16, 1, '#ffffff'); R(8, 9, 16, 1, '#c9c3b6'); R(9, 2, 14, 4, '#4a86c8'); R(9, 2, 14, 1, '#7fb0e8'); R(9, 5, 14, 1, '#2f5a8c'); R(12, 7, 8, 1, '#4a86c8');
-    } else if (k === 3) { // potted herb
-      R(10, 11, 12, 8, '#b5623a'); R(10, 11, 12, 1, '#d98a5a'); R(9, 10, 14, 2, '#c9704a'); R(20, 12, 2, 7, '#8a4428'); R(10, 18, 12, 1, '#6a3420');
-      R(11, 9, 10, 2, '#4a3220'); for (const [lx, ly] of [[12, 4], [15, 2], [18, 5], [14, 6], [17, 8], [11, 7]]) { R(lx, ly, 3, 2, '#4faa3e'); R(lx, ly, 1, 1, '#8fd66a'); R(lx + 2, ly + 1, 1, 1, '#2f7a28'); } R(15, 4, 2, 6, '#2f7a28');
-    } else if (k === 4) { // radio
-      bevel(x, 6, 6, 20, 12, '#5a3a24', 0.25); R(8, 8, 8, 8, '#2a2a30'); R(9, 9, 6, 6, '#3f4a40'); R(10, 10, 4, 4, '#2a2a30'); R(18, 8, 6, 2, '#d9c3a0'); R(18, 11, 6, 1, '#9aa3ad'); R(19, 13, 2, 2, '#e8c040'); R(22, 13, 2, 2, '#9aa3ad'); R(23, 1, 1, 6, '#9aa3ad'); R(24, 0, 1, 2, '#c8cdd3');
-    } else { // fruit bowl
+    } else if (k === 2) { // stacked bamboo steamers
+      for (let i = 0; i < 3; i++) { const y = 14 - i * 5; R(6, y, 20, 5, '#d6b071'); R(6, y, 20, 1, '#e9cb92'); R(6, y + 4, 20, 1, '#9a7a3f'); for (let j = 8; j < 26; j += 4) R(j, y + 1, 1, 3, '#bf9a58'); }
+      R(5, 2, 22, 2, '#c9a26a'); R(5, 1, 22, 1, '#e0c080'); R(14, 0, 4, 1, '#8a5a2a');
+    } else if (k === 3) { // lucky bamboo in a pot
+      R(10, 12, 12, 7, '#4a7a9a'); R(10, 12, 12, 1, '#7fb0c8'); R(20, 13, 2, 6, '#2f5a74'); R(10, 18, 12, 1, '#223f52'); R(11, 11, 10, 1, '#c9a26a');
+      for (const [sx, h] of [[12, 9], [15, 11], [18, 8]]) { R(sx, 11 - h, 2, h, '#5fae45'); R(sx, 11 - h, 1, h, '#8fd66a'); R(sx, 11 - h + 3, 2, 1, '#2f7a28'); R(sx, 11 - h + 7, 2, 1, '#2f7a28'); R(sx + 2, 11 - h + 1, 3, 2, '#4faa3e'); R(sx - 2, 11 - h + 4, 2, 2, '#4faa3e'); }
+    } else if (k === 4) { // rice cooker
+      blob(x, 16, 7, 10, 3, '#e8e8e4', { flat: true }); R(6, 7, 20, 11, '#f0f0ec'); R(6, 7, 2, 11, '#ffffff'); R(24, 7, 2, 11, '#c9c9c4'); R(6, 17, 20, 2, '#9a9a96'); R(14, 3, 4, 3, '#9a9a96'); R(15, 2, 2, 1, '#c9c9c4');
+      R(9, 12, 14, 3, '#2a2a30'); R(10, 13, 3, 1, '#e04040'); R(15, 13, 6, 1, '#40c060'); R(22, 13, 1, 1, '#ffffff');
+    } else { // bowl of chillies and limes
       blob(x, 16, 13, 11, 4, '#8a5a2a', { flat: true }); blob(x, 16, 12, 10, 3.2, '#c08a4a', { flat: true }); blob(x, 16, 12, 8, 2.2, '#8a5a2a', { flat: true });
-      blob(x, 12, 9, 3.5, 3.5, '#e8b23a', { dark: '#b07a18' }); blob(x, 19, 9, 3.5, 3.5, '#e03a2d', { dark: '#9c2118' }); blob(x, 16, 6, 3.5, 3.5, '#6fbf3a', { dark: '#3f8f2a' }); R(16, 2, 1, 2, '#5a3a22');
+      blob(x, 12, 9, 3.5, 3.5, '#9fd44a', { dark: '#5f9a2a' }); blob(x, 19, 9, 3.5, 3.5, '#b8e05a', { dark: '#6fa02a' }); R(14, 4, 2, 5, '#d8302a'); R(16, 5, 2, 5, '#e8402a'); R(13, 3, 1, 1, '#3f8f3a'); R(17, 4, 1, 1, '#3f8f3a'); R(9, 6, 2, 4, '#e8402a'); R(10, 5, 1, 1, '#3f8f3a');
     }
   }
 
@@ -430,22 +461,24 @@
     R(0, 0, BW, BH, '#1e1a24'); R(0, 0, BW, BH, '#2b2533');
     for (let i = 0; i < BW; i += 4) for (let j = 0; j < BH; j += 4) if (hash(i, j) < 0.15) R(i, j, 2, 1, '#342d3d');
     R(ox - 2, 0, W * TA + 4, oy + H * TA + 2, '#17131c'); // inner shadow line
-    // ---- backsplash ----
-    R(ox, 0, W * TA, oy, '#a4b4bb');
+    // ---- backsplash: cream tiles with a lacquer-red trim ----
+    R(ox, 0, W * TA, oy, '#b9a98e');
     for (let j = 0; j < 6; j++) for (let i = -1; i < W * 4 + 1; i++) {
       const X = ox + i * 8 + (j % 2 ? 4 : 0), Y = j * 6; if (X < ox - 8 || X > ox + W * TA) continue;
-      const col = hash(i + 7, j + 3) < 0.5 ? '#dde8ec' : '#d3e0e5'; R(Math.max(ox, X), Y, Math.min(7, ox + W * TA - Math.max(ox, X)), 5, col); R(Math.max(ox, X), Y, Math.min(7, ox + W * TA - Math.max(ox, X)), 1, '#eaf2f5');
+      const col = hash(i + 7, j + 3) < 0.5 ? '#efe4cf' : '#e6dac3'; R(Math.max(ox, X), Y, Math.min(7, ox + W * TA - Math.max(ox, X)), 5, col); R(Math.max(ox, X), Y, Math.min(7, ox + W * TA - Math.max(ox, X)), 1, '#f8f0e0');
     }
-    R(ox, 0, W * TA, 3, '#5d5260'); R(ox, 3, W * TA, 1, '#8a7f8f'); // cornice shadow
-    R(ox, 36, W * TA, 3, '#8d9ea6'); R(ox, 36, W * TA, 1, '#b4c3c9'); R(ox, 39, W * TA, 2, '#6e7e86'); R(ox, 41, W * TA, 7, '#59666d'); R(ox, 41, W * TA, 1, '#7b8a92'); // trim + wall base
-    // serving hatch over cols 2-3: an opening into the warm dining room
+    R(ox, 0, W * TA, 3, '#5a2a24'); R(ox, 3, W * TA, 1, '#c9a24a');
+    R(ox, 36, W * TA, 3, '#9a2f2a'); R(ox, 36, W * TA, 1, '#c9a24a'); R(ox, 39, W * TA, 2, '#6a1e1c'); R(ox, 41, W * TA, 7, '#59444a'); R(ox, 41, W * TA, 1, '#7b6a70');
+    // serving hatch over cols 2-3 with a split noren curtain
     { const X = ox + 2 * TA + 4, Wd = 2 * TA - 8;
       R(X - 3, 0, Wd + 6, 44, '#6e4a2a'); R(X - 3, 0, Wd + 6, 2, '#9a6b3a'); R(X, 2, Wd, 42, '#2a1e1e');
       for (let j = 0; j < 40; j++) R(X + 2, 2 + j, Wd - 4, 1, shade('#4a3030', j * 0.012));
-      R(X + 6, 6, Wd - 12, 1, '#7a5a40'); R(X + 10, 16, 8, 6, '#1c1410'); R(X + 30, 18, 8, 5, '#1c1410'); // silhouettes of tables
-      R(X + Wd / 2 - 1, 2, 2, 10, '#3a2a20'); blob(x, X + Wd / 2, 15, 7, 4, '#e8b060', { flat: true }); blob(x, X + Wd / 2, 14, 5, 2.5, '#fff0b0', { flat: true }); // hanging lamp
-      R(X + 4, 36, Wd - 8, 4, '#c08a4a'); R(X + 4, 36, Wd - 8, 1, '#e0b070'); R(X, 40, Wd, 4, '#8a6a4a'); // sill
-      R(X + 8, 30, 10, 1, '#e8b060aa'); R(X + 34, 32, 8, 1, '#e8b060aa');
+      R(X + 10, 18, 8, 6, '#1c1410'); R(X + 30, 20, 8, 5, '#1c1410');
+      R(X + Wd / 2 - 1, 2, 2, 8, '#3a2a20'); blob(x, X + Wd / 2, 13, 7, 4, '#e8b060', { flat: true }); blob(x, X + Wd / 2, 12, 5, 2.5, '#fff0b0', { flat: true });
+      R(X - 2, 2, Wd + 4, 2, '#1d2a4a'); R(X, 4, Wd / 2 - 2, 20, '#2a3d6b'); R(X + Wd / 2 + 2, 4, Wd / 2 - 2, 20, '#2a3d6b'); R(X, 4, Wd / 2 - 2, 1, '#3b5490'); R(X + Wd / 2 + 2, 4, Wd / 2 - 2, 1, '#3b5490');
+      R(X, 22, Wd / 2 - 2, 2, '#1d2a4a'); R(X + Wd / 2 + 2, 22, Wd / 2 - 2, 2, '#1d2a4a');
+      blob(x, X + Wd / 2 - 7, 12, 4, 4, '#f3efe2', { flat: true }); blob(x, X + Wd / 2 + 7, 12, 4, 4, '#f3efe2', { flat: true }); R(X + Wd / 2 - 8, 11, 2, 2, '#c9302a'); R(X + Wd / 2 + 6, 11, 2, 2, '#c9302a');
+      R(X + 4, 36, Wd - 8, 4, '#c08a4a'); R(X + 4, 36, Wd - 8, 1, '#e0b070'); R(X, 40, Wd, 4, '#8a6a4a');
     }
     // range hood over cols 6-8
     { const X = ox + 6 * TA - 8, Wd = 3 * TA + 16;
@@ -453,24 +486,29 @@
       for (let i = 6; i < Wd - 6; i += 6) { R(X + i, 6, 3, 10, '#545a65'); R(X + i, 6, 1, 10, '#454a53'); }
       R(X + Wd / 2 - 7, 17, 14, 4, '#2a2d33'); R(X + Wd / 2 - 5, 18, 10, 2, '#ffe9a0'); R(X + Wd / 2 - 4, 18, 8, 1, '#ffffff');
     }
-    // utensil rail over cols 9-10
+    // utensil rail over cols 9-10: ladle, wok, bamboo steamer, spider strainer
     { const X = ox + 9 * TA + 4; R(X, 8, 52, 2, '#5f6770'); R(X, 8, 52, 1, '#8a929b'); R(X + 2, 6, 2, 2, '#3a3f46'); R(X + 48, 6, 2, 2, '#3a3f46');
-      R(X + 6, 10, 1, 12, '#9aa3ad'); blob(x, X + 6.5, 24, 3, 2.5, '#b4bcc5', { flat: true }); // ladle
-      R(X + 16, 10, 1, 8, '#9aa3ad'); for (let k = 0; k < 4; k++) R(X + 14 + k, 18 + k, 1, 6 - k, '#c8cdd3'); R(X + 15, 24, 3, 1, '#c8cdd3'); // whisk
-      R(X + 28, 10, 2, 10, '#5a3a24'); blob(x, X + 29, 25, 6, 5, '#2b2b2f', { flat: true }); blob(x, X + 29, 25, 4, 3, '#3b3b41', { flat: true }); // small pan
-      R(X + 42, 10, 1, 10, '#9aa3ad'); R(X + 39, 20, 7, 6, '#c08a4a'); R(X + 39, 20, 7, 1, '#d9a665'); R(X + 39, 25, 7, 1, '#8a5a2a'); // spatula
+      R(X + 5, 10, 1, 12, '#9aa3ad'); blob(x, X + 5.5, 24, 3, 2.5, '#b4bcc5', { flat: true });
+      R(X + 17, 10, 2, 6, '#5a3a24'); blob(x, X + 18, 23, 8, 6.5, '#2b2b2f', { flat: true }); blob(x, X + 18, 22, 6, 4.5, '#3b3b41', { flat: true }); R(X + 14, 27, 8, 1, '#111114');
+      R(X + 32, 10, 1, 4, '#9aa3ad'); R(X + 27, 14, 11, 8, '#d6b071'); R(X + 27, 14, 11, 1, '#e9cb92'); R(X + 27, 21, 11, 1, '#9a7a3f'); for (let j = 29; j < 38; j += 3) R(X + j, 15, 1, 6, '#bf9a58');
+      R(X + 45, 10, 1, 9, '#c08a4a'); blob(x, X + 45.5, 23, 4, 3.5, '#c8cdd3', { flat: true }); blob(x, X + 45.5, 23, 2.5, 2, '#8a929b', { flat: true }); R(X + 44, 22, 3, 1, '#c8cdd3');
     }
-    // shelf with jars over cols 4-5
-    { const X = ox + 4 * TA + 2; R(X, 22, 60, 3, '#8a5a2a'); R(X, 22, 60, 1, '#b07a3e'); R(X, 25, 60, 2, '#5e3e1c');
-      const jars = [['#e03a2d', 8], ['#f0c040', 6], ['#3f8f3a', 9], ['#c9a96a', 5], ['#a6509b', 8], ['#e8702a', 7], ['#5fbd4a', 6]];
-      jars.forEach(([col, h], i) => { const jx = X + 3 + i * 8; R(jx, 22 - h, 6, h, col); R(jx, 22 - h, 1, h, shade(col, 0.35)); R(jx + 5, 22 - h, 1, h, shade(col, -0.3)); R(jx, 20 - h, 6, 2, '#3a2a20'); R(jx + 1, 24 - h, 2, 2, '#ffffff90'); R(jx + 1, 22 - Math.floor(h / 2), 4, 2, '#f1e4c6'); });
+    // shelf of spice tins and a teapot over cols 4-5
+    { const X = ox + 4 * TA + 2; R(X, 22, 60, 3, '#6e4a2a'); R(X, 22, 60, 1, '#9a6b3a'); R(X, 25, 60, 2, '#4a2f12');
+      const tins = [['#e8a020', 9], ['#d8302a', 8], ['#b07a3e', 9], ['#3f8f3a', 7], ['#c9a24a', 8]];
+      tins.forEach(([col, h], i) => { const jx = X + 3 + i * 8; R(jx, 22 - h, 6, h, col); R(jx, 22 - h, 1, h, shade(col, 0.35)); R(jx + 5, 22 - h, 1, h, shade(col, -0.3)); R(jx, 22 - h, 6, 1, '#d9d9d2'); R(jx + 1, 22 - Math.floor(h / 2), 4, 2, '#f1e4c6'); R(jx + 2, 21 - Math.floor(h / 2), 2, 1, shade(col, -0.4)); });
+      blob(x, X + 51, 17, 6, 4.5, '#8a3a2a', { dark: '#5a2018', light: '#b05a44' }); R(X + 56, 15, 3, 1, '#8a3a2a'); R(X + 58, 13, 1, 3, '#8a3a2a'); R(X + 44, 16, 2, 1, '#8a3a2a'); R(X + 50, 11, 2, 2, '#5a2018');
     }
     x.drawImage(item('clock'), ox + 3, 2, 24, 24);
-    // chalkboard over cols 11-12
-    { const X = ox + 11 * TA + 6; R(X, 4, 54, 30, '#8a5a2a'); R(X, 4, 54, 2, '#b07a3e'); R(X + 3, 7, 48, 24, '#2f3a33'); R(X + 4, 8, 46, 1, '#3d4a42');
+    // menu board over cols 11-12 (dark lacquer frame)
+    { const X = ox + 11 * TA + 6; R(X, 4, 54, 30, '#5a2a24'); R(X, 4, 54, 2, '#8a3a2a'); R(X + 3, 7, 48, 24, '#2f3a33'); R(X + 4, 8, 46, 1, '#3d4a42');
       R(X + 8, 11, 18, 2, '#dfe8dd'); R(X + 8, 16, 26, 1, '#dfe8ddaa'); R(X + 8, 20, 20, 1, '#dfe8ddaa'); R(X + 8, 24, 30, 1, '#dfe8ddaa'); R(X + 30, 11, 14, 2, '#f0d070'); R(X + 36, 19, 10, 6, '#e8c040'); R(X + 38, 21, 6, 2, '#2f3a33'); }
-    // menu neon-ish sign over col 0-1
-    { const X = ox + 30; R(X, 12, 36, 16, '#2a2233'); R(X + 1, 13, 34, 14, '#3a2d44'); R(X + 4, 17, 8, 6, '#ff6b8a'); R(X + 14, 17, 18, 6, '#ff6b8a'); R(X + 5, 18, 6, 4, '#3a2d44'); R(X + 15, 18, 16, 4, '#3a2d44'); R(X + 7, 19, 2, 2, '#ff6b8a'); R(X + 17, 19, 2, 2, '#ff6b8a'); R(X + 21, 19, 2, 2, '#ff6b8a'); R(X + 25, 19, 2, 2, '#ff6b8a'); R(X + 29, 19, 2, 2, '#ff6b8a'); }
+    // paper lanterns hanging from the cornice
+    for (const [lx, col] of [[ox + 40, '#d8302a'], [ox + 150, '#e8a020'], [ox + 286, '#d8302a'], [ox + 370, '#e8a020']]) {
+      R(lx + 5, 4, 1, 5, '#3a2a20'); R(lx + 3, 9, 5, 1, '#c9a24a');
+      blob(x, lx + 5.5, 16, 5.5, 6.5, col, { dark: shade(col, -0.3), light: shade(col, 0.3), spec: shade(col, 0.55) });
+      R(lx + 1, 14, 9, 1, shade(col, -0.25)); R(lx + 1, 18, 9, 1, shade(col, -0.25)); R(lx + 3, 23, 5, 1, '#c9a24a'); R(lx + 5, 24, 1, 4, '#c9a24a'); R(lx + 4, 28, 3, 1, '#c9a24a');
+    }
     // ---- floor ----
     for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) floorTile(x, ox + c * TA, oy + r * TA, c, r);
     // rubber mats in front of the stoves and the serving window

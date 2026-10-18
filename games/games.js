@@ -18,7 +18,7 @@ window.PT_GAMES = [
   {
     id: 'kitchen',
     name: 'Kitchen Rush',
-    blurb: 'Co-op cooking against the clock. Chop, fry, plate and serve orders together before they expire.',
+    blurb: 'Co-op cooking against the clock. Onigiri, aloo tikki, pho, fried rice and pad thai: chop, fry, boil and serve together.',
     icon: '🍳',
     type: 'Co-op · Real-time',
   },

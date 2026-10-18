@@ -218,8 +218,9 @@
         el.append(iconCanvas('plate:' + KR.DISHES[o.d].tokens.join(','), 48));
         const body = document.createElement('div'); body.className = 'ob';
         const name = document.createElement('b'); name.textContent = KR.DISHES[o.d].name;
+        const cu = document.createElement('small'); cu.textContent = KR.DISHES[o.d].cuisine;
         const bar = document.createElement('div'); bar.className = 'bar'; const fill = document.createElement('i'); bar.append(fill);
-        body.append(name, bar); el.append(body); ordersEl.append(el);
+        body.append(name, cu, bar); el.append(body); ordersEl.append(el);
         c = { el, fill }; cards.set(o.id, c);
       }
       if (c.leaving) continue;
@@ -319,20 +320,21 @@
   // legend / tutorial panel
   function buildLegend() {
     const rows = [
-      [0, [['lettuce', 'knife'], ['tomato', 'knife']]],
+      [0, [['rice', 'pot'], ['nori']]],
       [1, [['potato', 'knife', 'pan'], ['onion', 'knife']]],
-      [2, [['tomato', 'knife'], ['onion', 'knife'], ['pot']]],
-      [3, [['bun'], ['potato', 'knife', 'pan'], ['lettuce', 'knife']]],
+      [2, [['noodles', 'pot'], ['onion', 'knife'], ['herbs', 'knife']]],
+      [3, [['rice', 'pot'], ['tofu', 'knife', 'pan'], ['onion', 'knife']]],
+      [4, [['noodles', 'pot'], ['tofu', 'knife', 'pan'], ['herbs', 'knife']]],
     ];
     const el = $('recipes'); el.replaceChildren();
     for (const [d, groups] of rows) {
       const D = KR.DISHES[d], row = document.createElement('div'); row.className = 'recipe';
       row.append(iconCanvas('plate:' + D.tokens.join(','), 48));
       const body = document.createElement('div');
-      const name = document.createElement('b'); name.textContent = D.name + ' · ' + D.base + ' pts'; body.append(name);
+      const name = document.createElement('b'); name.textContent = D.name + ' · ' + D.cuisine + ' · ' + D.base + ' pts'; body.append(name);
       const steps = document.createElement('div'); steps.className = 'steps';
       groups.forEach((g, gi) => {
-        if (gi) { const plus = document.createElement('span'); plus.textContent = g[0] === 'pot' ? '→' : '+'; steps.append(plus); }
+        if (gi) { const plus = document.createElement('span'); plus.textContent = '+'; steps.append(plus); }
         const grp = document.createElement('span'); grp.className = 'grp';
         g.forEach(tok => { const c = iconCanvas(tok, 24); c.title = tok === 'knife' ? (g[0] === 'potato' ? 'mash & shape' : 'chop') : tok === 'pan' ? 'fry' : tok === 'pot' ? 'boil' : tok; grp.append(c); });
         steps.append(grp);
@@ -340,7 +342,7 @@
       body.append(steps); row.append(body); el.append(row);
     }
     const ex = $('legendIcons'); ex.replaceChildren();
-    for (const [tok, label] of [['knife', 'chop on a board'], ['pan', 'fry (watch the burn bar)'], ['pot', 'boil tomato + onion'], ['plate', 'plate, then serve']]) {
+    for (const [tok, label] of [['knife', 'chop on a board'], ['pan', 'fry (watch the burn bar)'], ['pot', 'boil rice or noodles'], ['plate', 'plate, then serve']]) {
       const s = document.createElement('span'); s.className = 'lg'; s.append(iconCanvas(tok, 24), ' ' + label); ex.append(s);
     }
   }
@@ -396,21 +398,19 @@
   const potSpr = (() => { const [c, x] = KA.canvas(32, 24); KA.drawPot(x, 2, 0); return KA.outline(c); })();
   const knifeSpr = KA.item('knife');
   const potFillCache = {};
-  function potFill(tk, fr) { // what shows in the pot opening (centre at art 16,6 of the pot sprite)
-    const key = tk.join(',') + '#' + fr;
+  function potFill(it, fr) { // what shows in the pot opening (centre at art 16,6 of the pot sprite)
+    const key = it + '#' + fr;
     if (potFillCache[key]) return potFillCache[key];
     const [c, x] = KA.canvas(32, 24), R = (a, b, w, h, col) => KA.rect(x, a, b, w, h, col);
-    if (tk[0] === 'soup') {
-      KA.blob(x, 16, 6, 8.5, 2.6, '#e8702a', { flat: true }); R(10, 5, 4, 1, '#f3a660'); R(18, 6, 4, 1, '#f8ddb4'); R(9, 7, 2, 1, '#d4601f');
-      R(12 + fr * 3, 4 + (fr % 2), 2, 1, '#f8ddb4'); R(21 - fr * 2, 7 - (fr % 2), 1, 1, '#f8ddb4'); R(15 + fr, 6, 1, 1, '#ffffff');
-    } else if (tk[0] === 'burnt') { KA.blob(x, 16, 6, 8.5, 2.6, '#2b2b2e', { flat: true }); R(13, 6, 2, 1, '#55555a'); R(19, 5, 1, 1, '#c0392b'); }
-    else {
-      KA.blob(x, 16, 6, 8.5, 2.6, '#8a6a4a', { flat: true }); R(10 + fr, 5, 3, 1, '#a08060');
-      if (tk.includes('tomato+')) { R(10, 5, 3, 2, '#e23b2e'); R(16, 7, 3, 1, '#f28577'); R(13, 4, 2, 1, '#e23b2e'); R(20, 5, 2, 2, '#e23b2e'); }
-      if (tk.includes('onion+')) { R(18, 4, 3, 1, '#efd6ea'); R(14, 6, 2, 1, '#c98bbd'); R(21, 7, 2, 1, '#efd6ea'); R(11, 7, 2, 1, '#a6509b'); }
-    }
+    const water = () => { KA.blob(x, 16, 6, 8.5, 2.6, '#8fb6c9', { flat: true }); R(10 + fr, 5, 3, 1, '#c9e2ee'); R(19 - fr, 7, 2, 1, '#c9e2ee'); };
+    if (it === 'rice') { water(); for (const [gx, gy] of [[11, 5], [14, 7], [17, 5], [20, 6], [13, 4], [18, 7]]) R(gx + (fr % 2), gy, 2, 1, '#f6f3ea'); }
+    else if (it === 'rice*') { KA.blob(x, 16, 6, 8.5, 2.8, '#f6f3ea', { flat: true }); for (const [gx, gy] of [[11, 5], [15, 7], [19, 5], [13, 7], [17, 4]]) R(gx, gy, 2, 1, '#d9d3c2'); R(12 + fr * 2, 4, 1, 1, '#ffffff'); }
+    else if (it === 'noodles') { water(); for (let i = 9; i < 23; i++) if ((i + fr) % 3) R(i, 5 + ((i >> 1) & 1), 1, 1, '#e2c27a'); }
+    else if (it === 'noodles*') { KA.blob(x, 16, 6, 8.5, 2.8, '#f2dc92', { flat: true }); for (let i = 9; i < 23; i++) R(i, 5 + ((i + fr) % 3 === 0 ? 1 : 0) + ((i >> 1) & 1), 1, 1, (i + fr) % 2 ? '#c9a85a' : '#fbefbf'); }
+    else if (it === 'burnt') { KA.blob(x, 16, 6, 8.5, 2.6, '#2b2b2e', { flat: true }); R(13, 6, 2, 1, '#55555a'); R(19, 5, 1, 1, '#c0392b'); }
     return (potFillCache[key] = c);
   }
+  const cookingOn = (ty, it) => !!it && it !== 'burnt' && (ty === 'S' || ty === 'P');
   const chopSeen = {};  // slot index -> [lastProgress, lastChangeTime]
 
   function drawFlames(x, y, t, hot) {
@@ -446,22 +446,14 @@
           if (sl.p > 0 && sl.p < 1) drawBar(X, Y - 7, sl.p, '#7ee081', false, t);
         }
       }
-    } else if (ty === 'S') {
-      const it = sl && sl.it;
-      if (it === 'potato+' || it === 'potato*') drawFlames(X + 1, Y + 9.5, t, it === 'potato*');
-      img(panSpr, X, Y);
-      if (it) img(KA.item(it), X + 1, Y - 1);
-      if (it === 'potato+') drawBar(X, Y - 7, sl.p, '#ffb347', false, t);
-      else if (it === 'potato*') drawBar(X, Y - 7, sl.b, '#e5443a', sl.b > 0.6, t);
-    } else if (ty === 'P') {
-      const it = sl && sl.it, tk = it ? KR.tokens(it) : [];
-      const cooking = tk.length === 2 || tk[0] === 'soup';
-      if (cooking) drawFlames(X + 1, Y + 10.5, t, tk[0] === 'soup');
-      img(potSpr, X, Y);
-      if (tk.length) img(potFill(tk, Math.floor(t * 5) % 3), X, Y);
-      if (tk.length === 2) drawBar(X, Y - 7, sl.p, '#ffb347', false, t);
-      else if (tk[0] === 'soup') drawBar(X, Y - 7, sl.b, '#e5443a', sl.b > 0.6, t);
-      else if (tk.length === 1) drawBar(X, Y - 7, 0.5, '#9aa3ad', false, t);
+    } else if (ty === 'S' || ty === 'P') {
+      const it = sl && sl.it, raw = it && (ty === 'S' ? KR.FRY[it] : KR.BOIL[it]), done = it && it.endsWith('*');
+      if (it && it !== 'burnt') drawFlames(X + 1, Y + (ty === 'S' ? 9.5 : 10.5), t, !!done);
+      img(ty === 'S' ? panSpr : potSpr, X, Y);
+      if (ty === 'S' && it) img(KA.item(it), X + 1, Y - 1);
+      if (ty === 'P' && it) img(potFill(it, Math.floor(t * 5) % 3), X, Y);
+      if (raw) drawBar(X, Y - 7, sl.p, '#ffb347', false, t);
+      else if (done) drawBar(X, Y - 7, sl.b, '#e5443a', sl.b > 0.6, t);
     }
   }
   function drawChef(p, ch, t) {
@@ -509,8 +501,7 @@
     for (const L of LAMPS) hole(L.x, L.y, L.r);
     if (view) for (const i in view.slots) {
       const sl = view.slots[i], ty = MAP[Math.floor(i / W)][i % W];
-      const on = (ty === 'S' && (sl.it === 'potato+' || sl.it === 'potato*')) || (ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup'));
-      if (on) hole((i % W) * T + 8, Math.floor(i / W) * T + 8, 22 + Math.sin(t * 17 + i) * 2, 0.9);
+      if (cookingOn(ty, sl.it)) hole((i % W) * T + 8, Math.floor(i / W) * T + 8, 22 + Math.sin(t * 17 + i) * 2, 0.9);
     }
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.drawImage(light, 0, 0);
@@ -520,8 +511,7 @@
     for (const L of LAMPS) glow(L.x, L.y, L.r * 0.7, L.warm ? 'rgba(255,170,80,.13)' : 'rgba(120,160,255,.08)');
     if (view) for (const i in view.slots) {
       const sl = view.slots[i], ty = MAP[Math.floor(i / W)][i % W];
-      const on = (ty === 'S' && (sl.it === 'potato+' || sl.it === 'potato*')) || (ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup'));
-      if (on) glow((i % W) * T + 8, Math.floor(i / W) * T + 10, 20 + Math.sin(t * 23 + i) * 2, 'rgba(255,120,30,.28)');
+      if (cookingOn(ty, sl.it)) glow((i % W) * T + 8, Math.floor(i / W) * T + 10, 20 + Math.sin(t * 23 + i) * 2, 'rgba(255,120,30,.28)');
     }
     bctx.globalCompositeOperation = 'source-over';
     // vignette
@@ -562,7 +552,7 @@
     // steam from cooking stations
     if (view && Math.random() < 0.5) for (const i in view.slots) {
       const sl = view.slots[i], ty = MAP[Math.floor(i / W)][i % W];
-      if ((ty === 'P' && (KR.tokens(sl.it).length === 2 || sl.it === 'pot:soup')) || (ty === 'S' && (sl.it === 'potato+' || sl.it === 'potato*'))) {
+      if (cookingOn(ty, sl.it)) {
         const p = slotPos(+i), burning = sl.b > 0.5;
         parts.push({ kind: burning ? 'smoke' : 'steam', x: p.x + (Math.random() - .5) * 8, y: p.y - 2, vx: (Math.random() - .5) * 6, vy: -8 - Math.random() * 8, life: burning ? 1.2 : 0.8, col: burning ? '#3a3a40' : 'rgba(255,255,255,.7)' });
       }
