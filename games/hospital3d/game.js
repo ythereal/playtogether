@@ -459,10 +459,11 @@
   }
   const minZ = () => Math.max(0.6, Math.min(fitZ, 1.5)), maxZ = () => 4;
   function clampCam() {
+    // the view centre may sit anywhere over the map, at any zoom, so panning always works
     cam.z = clamp(cam.z, minZ(), maxZ());
-    const hw = cw / cam.z / 2, hh = ch / cam.z / 2;
-    cam.x = clamp(cam.x, Math.min(hw, BW / 2), Math.max(BW - hw, BW / 2));
-    cam.y = clamp(cam.y, Math.min(hh - 40, BH / 2), Math.max(BH - hh + 60, BH / 2));
+    const ex = HI.extent();
+    cam.x = clamp(cam.x, ex.x, ex.x + ex.w);
+    cam.y = clamp(cam.y, ex.y, ex.y + ex.h);
   }
   function fitView() {
     const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
