@@ -110,13 +110,11 @@
     R(bx, 11, bw, tall, coat); R(bx, 10 + tall, bw, 1, coatD); R(bx + bw - 1, 11, 1, tall, coatD); R(bx, 11, 1, tall - 1, coatL);
     if (fur) for (let i = 0; i < bw; i += 2) R(bx + i, 10 + (i % 4 ? 0 : -1) + 1, 1, 1, skin);
     if (dress && !side && o.coat !== 'mgr') R(4, 15, 8, 1, coatD);
-    if (o.coat === 'mgr' && dress && !side) { R(3, 21, 10, 1, '#e3b341'); }
     if (!back && !side) {
       if (o.coat === 'doctor') { R(6, 11, 4, 4, '#9fc4e8'); R(7, 11, 2, 1, '#2b2e3a'); R(7, 12, 1, 3, '#c43c2c'); R(5, 11, 1, 5, '#e0e0da'); R(10, 11, 1, 5, '#e0e0da'); R(5, 14, 1, 2, '#9aa0a8'); R(10, 14, 1, 2, '#9aa0a8'); R(6, 16, 4, 1, '#9aa0a8'); R(7, 17, 2, 1, '#6a7078'); }
       else if (o.coat === 'nurse') { R(5, 13, 6, 6, '#ffffff'); R(5, 12, 2, 1, '#ffffff'); R(9, 12, 2, 1, '#ffffff'); R(7, 14, 2, 1, '#e8533f'); R(6, 15, 4, 1, '#e8533f'); R(7, 16, 2, 1, '#e8533f'); }
       else if (o.coat === 'recep') { R(7, 11, 2, 2, '#f4f4f0'); R(4, 11, 1, 3, '#2b2e3a'); R(3, 11, 2, 1, '#2b2e3a'); }
-      else if (o.coat === 'mgr' && !dress) { R(6, 11, 4, 4, '#f4f4f0'); R(7, 11, 2, 1, '#2b2e3a'); R(7, 12, 1, 4, o.tie || '#c43c2c'); R(5, 11, 1, 6, coatL); R(10, 11, 1, 6, coatL); R(4, 17, 1, 1, '#e3b341'); }
-      else if (o.coat === 'mgr' && dress) { R(4, 11, 8, 1, '#e3b341'); R(7, 12, 2, 4, '#e3b341'); R(4, 16, 8, 1, '#e3b341'); R(5, 12, 1, 1, '#e3b341'); R(10, 12, 1, 1, '#e3b341'); }
+      else if (o.coat === 'mgr') { R(6, 11, 4, 4, '#f4f4f0'); R(5, 11, 1, 6, coatL); R(10, 11, 1, 6, coatL); if (o.notie) { R(7, 12, 2, 1, '#e3b341'); } else { R(7, 11, 2, 1, '#2b2e3a'); R(7, 12, 1, 4, o.tie || '#c43c2c'); } R(4, 17, 1, 1, '#e3b341'); }
       else if (d === 'ribs') { for (let j = 12; j < 18; j += 2) R(5, j, 6, 1, '#f4f0e6'); R(7, 11, 2, 7, '#f4f0e6'); }
       else if (!fur) { R(7, 11, 2, 2, coatL); R(7, 14, 1, 1, coatD); R(7, 16, 1, 1, coatD); }
     }
@@ -183,7 +181,6 @@
       }
       if (fur) { for (let i = 4; i < 12; i += 2) R(i, 2 + (i % 4 ? 0 : -1), 1, 1, skin); R(3, 5, 1, 3, skin); R(12, 5, 1, 3, skin); }
       if (o.quiff && !bald && !back) { if (side) { R(3, 1, 6, 1, hair); R(4, 0, 4, 1, hair); } else { R(5, 1, 5, 1, hair); R(6, 0, 3, 1, hair); R(10, 2, 1, 1, shade(hair, 0.25)); } }
-      if (o.bindi && !back && !side) R(7, 6, 1, 1, '#c43c2c');
       if (o.earrings && !back) { if (side) R(9, 8, 1, 2, '#e3b341'); else { R(4, 8, 1, 2, '#e3b341'); R(11, 8, 1, 2, '#e3b341'); } }
       if (o.cap && !bald && !back) { R(4, 1, 8, 3, '#2a4a7a'); R(4, 4, 8, 1, '#1a2a4a'); if (!side) R(3, 4, 10, 1, '#1a2a4a'); else R(2, 4, 8, 1, '#1a2a4a'); }
       if (o.cap && back) { R(4, 1, 8, 3, '#2a4a7a'); }
@@ -208,8 +205,8 @@
   const staffSheet = (lookIdx, kind) => personSheet('s' + lookIdx + ':' + kind, Object.assign(look(lookIdx), { longHair: false, bun: kind === 'n' && lookIdx % 2 === 0, cap: false, dress: false, coat: kind === 'd' ? 'doctor' : kind === 'n' ? 'nurse' : 'recep' }));
   // the two playable hospital managers
   const AVATARS = [
-    { id: 'arjun', name: 'Arjun', skin: '#b5784e', hair: '#141010', shirt: '#2a3a6a', pants: '#1d2029', beard: true, quiff: true, tie: '#c43c2c', coat: 'mgr', clip: true },
-    { id: 'priya', name: 'Priya', skin: '#c48a60', hair: '#141010', shirt: '#1f8f87', pants: '#1f8f87', longHair: true, dress: true, bindi: true, earrings: true, coat: 'mgr', clip: true },
+    { id: 'max', name: 'Max', skin: '#e0b088', hair: '#4a2e1e', shirt: '#2a3a6a', pants: '#1d2029', quiff: true, tie: '#c43c2c', coat: 'mgr', clip: true },
+    { id: 'zoe', name: 'Zoe', skin: '#f0c4a0', hair: '#c98a3a', shirt: '#8a2f38', pants: '#2b2e3a', longHair: true, notie: true, earrings: true, coat: 'mgr', clip: true },
   ];
   const managerSheet = av => personSheet('m' + av, AVATARS[av] || AVATARS[0]);
   const portraitCache = {};

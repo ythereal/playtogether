@@ -47,7 +47,7 @@
     HA.AVATARS.forEach((A, i) => {
       const b = el('button', 'avatar' + (i === pickAv ? ' on' : ''));
       const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(HA.portrait(i, 96), 0, 0);
-      b.append(c, el('b', null, A.name), el('small', null, i ? 'Runs a tight ship and a kinder waiting room.' : 'Sharp suit, sharper clipboard.'));
+      b.append(c, el('b', null, A.name), el('small', null, i ? 'Runs a tight ship and a calm waiting room.' : 'Sharp suit, sharper clipboard.'));
       b.addEventListener('click', () => { pickAv = i; [...wrap.children].forEach((ch, k) => ch.classList.toggle('on', k === i)); if (!$('profInput').value.trim() || HA.AVATARS.some(a => a.name === $('profInput').value.trim())) $('profInput').value = A.name; });
       wrap.append(b);
     });
