@@ -34,9 +34,16 @@
     <div class="grid" id="games"></div>
     <p class="how">Hosting gives you a 4-letter code and an invite link. Your friend opens the link and you're connected. If either of you reloads, you reconnect to the same room automatically.</p>
   </main>
-  <script src="games/games.js"></script>
   <script>
+    // Load the registry with a cache-buster: GitHub Pages lets browsers cache files for 10 minutes,
+    // which would otherwise hide newly added games right after a deploy.
     const grid = document.getElementById('games');
+    const reg = document.createElement('script');
+    reg.src = 'games/games.js?t=' + Date.now();
+    reg.onload = renderGames;
+    reg.onerror = () => { grid.textContent = 'Could not load the game list. Try reloading.'; };
+    document.body.appendChild(reg);
+    function renderGames() {
     for (const g of window.PT_GAMES || []) {
       const a = document.createElement('a');
       a.className = 'tile';
@@ -47,6 +54,7 @@
       a.querySelector('p').textContent = g.blurb || '';
       a.querySelector('.tag').textContent = g.type || '';
       grid.appendChild(a);
+    }
     }
   </script>
 </body>
