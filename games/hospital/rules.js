@@ -11,8 +11,8 @@
   const MONTHS = 36;                // three years, then the better hospital wins
   const EXIT = [-16, LANE], RECEP = [34, 98];
   const PSPEED = 30, SSPEED = 40, BUILD_TIME = 4;
-  const START_CASH = 15000, START_REP = 500;
-  const TARGETS = { cured: 120, rep: 800, cash: 30000 };   // meet all three first to win early
+  const START_CASH = 30000, START_REP = 500;
+  const TARGETS = { cured: 120, rep: 800, cash: 60000 };   // meet all three first to win early
   const DEATH_REP = 15, ANGRY_REP = 3, UNCURED_REP = 3, HOME_REP = 1, NOGP_REP = 2, CROWD_REP = 1, CROWD = 16;
 
   const ROOMS = {
