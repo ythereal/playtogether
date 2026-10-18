@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Kitchen Rush · PlayTogether</title>
   <link rel="stylesheet" href="../../shared/style.css">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
   <style>
     body { overflow: hidden; overscroll-behavior: none; }
     .kr { position: fixed; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
-    .pix { font-family: 'Pixelify Sans', var(--font); }
 
     /* ---------- HUD ---------- */
     .hud {
@@ -19,11 +17,11 @@
     .hud .left { display: flex; flex-direction: column; line-height: 1.05; }
     .hud .title { font-weight: 700; font-size: 1.15rem; color: var(--accent); letter-spacing: .01em; }
     .hud .round { color: var(--muted); font-size: .85rem; }
-    .hud .timer { font-size: 1.9rem; font-weight: 700; letter-spacing: .04em; font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
+    .hud .timer { font-size: 1.9rem; font-weight: 800; letter-spacing: .02em; font-variant-numeric: tabular-nums lining-nums; min-width: 4ch; text-align: center; }
     .hud .timer.low { color: var(--accent); animation: pulse .5s steps(2) infinite; }
     @keyframes pulse { 50% { opacity: .55; } }
     .hud .right { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
-    .hud .score { font-size: 1.25rem; font-weight: 700; }
+    .hud .score { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
     .hud .score small { font-size: .8rem; color: var(--muted); font-weight: 400; }
     .hud .combo { color: var(--good); font-size: .85rem; font-weight: 600; min-height: 1em; }
     .help { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-weight: 700; }
@@ -69,7 +67,7 @@
     #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); box-shadow: var(--shadow); }
     .btns { display: flex; gap: 14px; }
     .btns button {
-      width: 78px; height: 78px; border-radius: 50%; border: 0; font: 700 1rem 'Pixelify Sans', sans-serif; letter-spacing: .04em;
+      width: 78px; height: 78px; border-radius: 50%; border: 0; font: 800 1rem var(--font); letter-spacing: .04em;
       color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 4px 0 rgba(0,0,0,.25);
     }
     #btnGrab { background: var(--accent-2); } #btnChop { background: var(--accent); }
@@ -120,7 +118,7 @@
     .name-input:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 1px; }
   </style>
 </head>
-<body class="pix">
+<body>
   <div class="kr">
     <header class="hud">
       <div class="left"><span class="title">Kitchen Rush</span><span class="round" id="hudRound">Round 1</span></div>

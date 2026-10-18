@@ -531,6 +531,7 @@
     bctx.fillStyle = vg; bctx.fillRect(0, 0, BW, BH);
   }
   const animT = [0, 0];
+  const uiFont = getComputedStyle(document.body).fontFamily || 'sans-serif';
   function render(t, dt) {
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.drawImage(mapC, 0, 0);
@@ -580,7 +581,7 @@
 
     // ---- crisp overlays in device space ----
     const SW = S * A; // world unit -> device px
-    const font = (px, w) => `${w || 700} ${Math.max(10, Math.round(px * SW))}px 'Pixelify Sans', sans-serif`;
+    const font = (px, w) => `${w || 800} ${Math.max(11, Math.round(px * SW))}px ${uiFont}`;
     const toX = x => OX + (MX + x) * SW, toY = y => OYpx + (OY + y) * SW;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let i = floaters.length - 1; i >= 0; i--) {
