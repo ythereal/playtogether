@@ -192,7 +192,7 @@
     const key = [view.ph, view.month, h.cash, h.rep, h.cured, r.cash, r.rep, r.cured, tab, nameOf(ME), nameOf(FRIEND), avOf(FRIEND)].join('|');
     if (key === hudKey) return; hudKey = key;
     const ym = RH.yearMonth(Math.min(view.month, RH.MONTHS - 1));
-    $('hudDate').innerHTML = view.ph === 'ready' ? 'Not open yet' : `Year <b>${ym.year}</b> · <b>${RH.MONTH_NAMES[ym.month]}</b>`;
+    $('hudDate').innerHTML = view.ph === 'ready' ? '<small>Opening</small>soon' : `<small>Year ${ym.year}</small>${RH.MONTH_NAMES[ym.month]}`;
     $('hudCash').textContent = money(h.cash); $('hudCash').classList.toggle('neg', h.cash < 0);
     $('hudRep').textContent = h.rep; $('hudCured').textContent = h.cured; $('hudScore').textContent = RH.score(h).toLocaleString('en-US');
     $('stCash').classList.toggle('met', h.cash >= RH.TARGETS.cash); $('stRep').classList.toggle('met', h.rep >= RH.TARGETS.rep); $('stCured').classList.toggle('met', h.cured >= RH.TARGETS.cured);
@@ -201,8 +201,10 @@
     const tg = RH.TARGETS, ok = (v, t) => (v >= t ? 'ok' : '');
     $('foot').innerHTML = `<span>Targets:</span><span class="${ok(h.cured, tg.cured)}"><b>${h.cured}</b>/${tg.cured} cured</span><span class="${ok(h.rep, tg.rep)}"><b>${h.rep}</b>/${tg.rep} rep</span><span class="${ok(h.cash, tg.cash)}"><b>${money(h.cash)}</b>/${money(tg.cash)}</span><span class="alt">· or best value after 3 years</span>`;
   }
-  let statusKey = '';
+  let statusKey = '', barH = 0;
+  function placeStatus() { const hgt = $('status').parentElement.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); } }
   function setStatus() {
+    placeStatus();
     let s, warn = false;
     if (!room.connected) s = 'Waiting for your friend to join…' + (view && view.ph === 'play' ? ' (paused)' : '');
     else if (!view) s = 'Syncing…';
@@ -393,7 +395,7 @@
   let S = 2, DPR = 1;
   function resize() {
     const r = scroller.getBoundingClientRect(); DPR = devicePixelRatio || 1;
-    S = Math.floor(Math.min(r.width / BW, (r.height - 4) / BH) * 2) / 2;
+    S = Math.floor(Math.min(r.width / BW, (r.height - 180) / BH) * 2) / 2;
     if (S < 2) S = 2;
     cv.style.width = BW * S + 'px'; cv.style.height = BH * S + 'px';
     cv.width = Math.round(BW * S * DPR); cv.height = Math.round(BH * S * DPR);
@@ -563,7 +565,7 @@
   function frame(now) {
     // rAF timestamps can precede a performance.now() taken earlier, so never let dt go negative
     const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
-    try { render(now / 1000, dt); renderHud(); } catch (err) { console.error(err); }
+    try { render(now / 1000, dt); renderHud(); placeStatus(); } catch (err) { console.error(err); }
     requestAnimationFrame(frame);
   }
   if (host) onPhase();

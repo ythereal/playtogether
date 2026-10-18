@@ -255,7 +255,7 @@
   function furniture(name) { return furnCache[name] || (furnCache[name] = FURN[name]()); }
 
   // ======================= FLOORS, WALLS, MAP =======================
-  const C = { grass: '#6fae4a', grassD: '#5f9a3e', pave: '#cfc8ba', paveD: '#bbb4a5', hall: '#ece6d8', hallD: '#ddd6c6', lot: '#cbc3b4', lotD: '#b8af9f' };
+  const C = { grass: '#6fae4a', grassD: '#5f9a3e', pave: '#cfc8ba', paveD: '#bbb4a5', hall: '#eceef0', hallD: '#b9bec6', lot: '#cbc3b4', lotD: '#b8af9f' };
   function speckle(x, X, Y, w, h, col, n, seed) { for (let i = 0; i < n; i++) rect(x, X + Math.floor(hash(seed + i, X + Y) * (w - 1)), Y + Math.floor(hash(seed * 3 + i, X - Y) * (h - 1)), 1, 1, col); }
   // room floors: 'tile' (grout grid), 'plank' (wood grain), 'carpet' (pattern), 'lino' (big checks)
   function floor(x, X, Y, w, h, kind, a, b) {

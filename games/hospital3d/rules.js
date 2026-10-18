@@ -1,15 +1,16 @@
 // Rival Hospital rules: pure simulation. No DOM, no networking.
 // Loads in the browser as window.RH and in Node (module.exports) so the economy can be tuned headless.
 //
-// Layout (tiles, 16px): 22 wide x 11 tall. Rooms are 4x4 and sit in ten slots: five above the corridor
-// (rows 0-3) and five below (rows 7-10). The corridor is rows 4-6; everyone walks along LANE (y = 88px).
-// The entrance is the left edge of the corridor; the reception desk sits at the bottom-left of it.
+// Layout (tiles, 16px): 25 wide x 22 tall. Two horizontal corridors (A: rows 4-6, B: rows 15-17) joined by a
+// vertical connector (cols 2-4). Rooms are 4x4 in twenty lots: five above and five below each corridor.
+// Everyone walks along a corridor's centre line (LANES) and switches corridors via the connector (CX).
+// The entrance is the west end of corridor A; the reception desk sits just inside it.
 (function (root) {
   'use strict';
-  const T = 16, W = 22, H = 11, LANE = 88, SLOTS = 10;
+  const T = 16, W = 25, H = 22, LANES = [88, 264], LANE = LANES[0], CX = 56, SLOTS = 20, BAND_Y0 = [0, 7, 11, 18];
   const MONTH = 30;                 // real seconds per in-game month (a year is 6 minutes)
   const MONTHS = 36;                // three years, then the better hospital wins
-  const EXIT = [-16, LANE], RECEP = [34, 98];
+  const EXIT = [-16, LANE], RECEP = [38, 98];
   const PSPEED = 30, SSPEED = 40, BUILD_TIME = 4;
   const START_CASH = 30000, START_REP = 500;
   const TARGETS = { cured: 120, rep: 800, cash: 60000 };   // meet all three first to win early
@@ -36,10 +37,10 @@
     drinks:   { name: 'Drinks machine', cost: 600, comfort: 1, sells: true, desc: 'Sells drinks for $30 a go. The cans end up on the floor.' },
   };
   const DECOR_ORDER = ['plant', 'bench', 'bin', 'radiator', 'drinks'];
-  const DOOR_COLS = new Set([3, 4, 7, 8, 11, 12, 15, 16, 19, 20]);
-  const decorSpot = (c, r) => (r === 4 || r === 6) && c >= 2 && c < W && !DOOR_COLS.has(c);
+  const DOOR_COLS = new Set([6, 7, 10, 11, 14, 15, 18, 19, 22, 23]);
+  const decorSpot = (c, r) => ((r === 4 || r === 6 || r === 15 || r === 17) && c >= 5 && c < W && !DOOR_COLS.has(c)) || ((c === 2 || c === 4) && r >= 7 && r <= 14);
   const decorKey = (c, r) => c + ',' + r;
-  const MAX_MESS = 30, MAX_COMFORT = 12, CLEAN_TIME = 2.5;
+  const MAX_MESS = 40, MAX_COMFORT = 16, CLEAN_TIME = 2.5;
   // w: relative frequency · from: first month it appears · time: base treatment seconds
   const DISEASES = [
     { id: 'cold',    name: 'Uncommon Cold',     room: 'pharm',  fee: 400,  time: 2.5, w: 20, from: 0,  rep: 2, desc: 'Sniffles of unusual size. One spoon of syrup and a stern look.' },
@@ -66,18 +67,39 @@
   const r2 = v => Math.round(v * 100) / 100;
 
   // ---------- geometry ----------
-  const slotTop = k => k < 5;
-  const slotX0 = k => 2 + 4 * (k % 5);
-  const slotY0 = k => (slotTop(k) ? 0 : 7);
+  const slotBand = k => Math.floor(k / 5);
+  const slotTop = k => slotBand(k) % 2 === 0;
+  const slotX0 = k => 5 + 4 * (k % 5);
+  const slotY0 = k => BAND_Y0[slotBand(k)];
+  const slotLane = k => LANES[slotBand(k) >> 1];
   const slotCx = k => slotX0(k) * T + 32;
+  // which lot (if any) covers a world point
+  function slotAtWorld(x, y) {
+    if (x < 80 || x >= W * T) return null;
+    const col = Math.floor((x - 80) / 64);
+    const band = y < 64 ? 0 : y >= 112 && y < 176 ? 1 : y >= 176 && y < 240 ? 2 : y >= 288 && y < 352 ? 3 : -1;
+    return band < 0 ? null : band * 5 + col;
+  }
   // q: head of the queue (corridor) · in: patient spot inside · st: staff spot inside
   function spots(k) {
-    const cx = slotCx(k);
-    return slotTop(k) ? { q: [cx, 76], in: [cx + 9, 54], st: [cx - 9, 50] } : { q: [cx, 104], in: [cx + 9, 168], st: [cx - 9, 164] };
+    const cx = slotCx(k), y0 = slotY0(k) * T, L = slotLane(k);
+    return slotTop(k) ? { q: [cx, L - 12], in: [cx + 9, y0 + 54], st: [cx - 9, y0 + 50] } : { q: [cx, L + 16], in: [cx + 9, y0 + 56], st: [cx - 9, y0 + 52] };
   }
   const QUEUE_GAP = 11;
-  const queuePos = (k, i) => { const sp = spots(k); return [Math.max(8, sp.q[0] - QUEUE_GAP * i), sp.q[1]]; };
-  const idlePos = i => [14 + 10 * (i % 5), 74 + 12 * Math.floor(i / 5)];
+  // queue spots run from the door back along the corridor, skipping any tile with decoration on it
+  function queuePos(h, k, i) {
+    const sp = spots(k), r = Math.floor(sp.q[1] / T);
+    let x = sp.q[0], n = 0;
+    for (let guard = 0; guard < 40; guard++) {
+      const busy = h && h.decor && h.decor[decorKey(Math.floor(x / T), r)];
+      if (!busy) { if (n === i) return [x, sp.q[1]]; n++; }
+      if (x - QUEUE_GAP < 84) return [84 - 2 * (i - n), sp.q[1]];
+      x -= QUEUE_GAP;
+    }
+    return [84, sp.q[1]];
+  }
+  const idlePos = i => [50 + 6 * (i % 2), 124 + 12 * Math.floor(i / 2)];
+  const laneOf = y => (y < 176 ? LANES[0] : LANES[1]);
 
   // ---------- movement ----------
   function walk(e, speed, dt) {
@@ -89,13 +111,15 @@
     e.f = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 2 : 3) : (dy < 0 ? 1 : 0);
     return false;
   }
-  // Path along the corridor to (gx, gy). `via` is the room's centre x when leaving the inside of a room.
+  // Path along the corridors to (gx, gy). `via` is the room's centre x when leaving the inside of a room.
   function route(e, gx, gy, via) {
     const p = [];
     let x = e.x, y = e.y;
     if (via !== undefined && Math.abs(x - via) > 0.5) { p.push([via, y]); x = via; }
-    if (Math.abs(y - LANE) > 0.5) { p.push([x, LANE]); y = LANE; }
-    if (Math.abs(x - gx) > 0.5) { p.push([gx, LANE]); x = gx; }
+    const l0 = laneOf(y), l1 = laneOf(gy);
+    if (Math.abs(y - l0) > 0.5) { p.push([x, l0]); y = l0; }
+    if (l0 !== l1) { if (Math.abs(x - CX) > 0.5) { p.push([CX, l0]); x = CX; } p.push([CX, l1]); y = l1; }
+    if (Math.abs(x - gx) > 0.5) { p.push([gx, y]); x = gx; }
     if (Math.abs(y - gy) > 0.5 || !p.length) p.push([gx, gy]);
     e.path = p;
   }
@@ -175,7 +199,7 @@
     const r = h.rooms[k]; if (!r) return;
     r.q.forEach((id, i) => {
       const pt = patById(h, id); if (!pt) return;
-      const [x, y] = queuePos(k, i);
+      const [x, y] = queuePos(h, k, i);
       if (pt.path.length) pt.path[pt.path.length - 1] = [x, y];
       else if (pt.x !== x || pt.y !== y) pt.path = [[x, y]];
     });
@@ -190,7 +214,7 @@
     pt.slot = null; pt.st = 'leave'; pt.why = why;
     if (h.drinks > 0 && inCorridor(pt) && why !== 'nogp' && why !== 'crowd' && rnd() < 0.35) {
       h.cash += 30; h.income += 30;
-      if (rnd() < (binNear(h, pt.x) ? 0.1 : 0.5)) spawnMess(s, p, pt.x + (rnd() - 0.5) * 10, clamp(pt.y + 4, 68, 108), 'litter');
+      if (rnd() < (binNear(h, pt.x, pt.y) ? 0.1 : 0.5)) spawnMess(s, p, pt.x + (rnd() - 0.5) * 10, pt.y + 4, 'litter');
     }
     route(pt, EXIT[0], EXIT[1], pt.inRoom != null ? slotCx(pt.inRoom) : undefined);
     pt.inRoom = null;
@@ -207,7 +231,7 @@
     cands.sort((a, b) => staffed(a) - staffed(b) || h.rooms[a].q.length - h.rooms[b].q.length || a - b);
     const k = cands[0], r = h.rooms[k];
     r.q.push(pt.id);
-    const [qx, qy] = queuePos(k, r.q.length - 1);
+    const [qx, qy] = queuePos(h, k, r.q.length - 1);
     route(pt, qx, qy, pt.inRoom != null ? slotCx(pt.inRoom) : undefined);
     pt.inRoom = null; pt.slot = k; pt.st = 'queue';
   }
@@ -240,8 +264,8 @@
   const treatTime = (r, sk) => (r.k === 'gp' ? 2 : DISEASES[r.dis].time) * (1.4 - 0.6 * sk);
 
   // ---------- decoration, mess ----------
-  const inCorridor = e => e.y > 66 && e.y < 110 && e.x > 34;
-  const binNear = (h, x) => Object.keys(h.decor).some(k => h.decor[k] === 'bin' && Math.abs((+k.split(',')[0]) * T + 8 - x) < 72);
+  const inCorridor = e => e.x > 34 && ((e.y > 66 && e.y < 110) || (e.y > 242 && e.y < 286) || (e.x < 78 && e.y > 66 && e.y < 286));
+  const binNear = (h, x, y) => Object.keys(h.decor).some(k => { if (h.decor[k] !== 'bin') return false; const [c, r] = k.split(',').map(Number); return Math.abs(c * T + 8 - x) + Math.abs(r * T + 8 - y) < 90; });
   const messNear = (h, x, y, kind) => h.mess.some(m => (!kind || m.k === kind) && Math.hypot(m.x - x, m.y - y) < 14);
   function drainRate(h, pt) { return (1 / (1 + 0.08 * h.comfort)) * (messNear(h, pt.x, pt.y) ? 2 : 1); }
   function spawnMess(s, p, x, y, kind) { const h = s.h[p]; if (h.mess.length >= MAX_MESS) return; h.mess.push({ id: s.nextId++, x: r2(x), y: r2(y), k: kind }); }
@@ -257,6 +281,7 @@
     if (h.decor[decorKey(c, r)]) return 'That spot is taken';
     if (h.cash < DECOR[kind].cost) return 'Not enough cash';
     h.cash -= DECOR[kind].cost; h.decor[decorKey(c, r)] = kind; recount(h);
+    for (const key in h.rooms) reQueue(h, +key);
     s.ev.push({ k: 'decor', p, kind, c, r });
     return null;
   }
@@ -265,6 +290,7 @@
     const h = s.h[p], key = decorKey(c | 0, r | 0), kind = h.decor[key];
     if (!kind) return 'Nothing there';
     delete h.decor[key]; h.cash += Math.round(DECOR[kind].cost / 2); recount(h);
+    for (const k2 in h.rooms) reQueue(h, +k2);
     s.ev.push({ k: 'undecor', p, kind });
     return null;
   }
@@ -293,7 +319,7 @@
     for (const id of ids) {
       const pt = patById(h, id); if (!pt) continue;
       pt.slot = null; pt.st = 'recep'; pt.t = 0.3;
-      if (pt.inRoom === k) { route(pt, pt.x < slotCx(k) ? slotCx(k) - 16 : slotCx(k) + 16, LANE, slotCx(k)); pt.inRoom = null; }
+      if (pt.inRoom === k) { route(pt, pt.x < slotCx(k) ? slotCx(k) - 16 : slotCx(k) + 16, slotLane(k), slotCx(k)); pt.inRoom = null; }
       else { pt.path = []; }
     }
     for (const st of h.staff) if (st.slot === k) st.slot = null;
@@ -335,7 +361,7 @@
   }
 
   // ---------- time ----------
-  const arrivals = m => 8 + 0.45 * m;      // patients per month for the whole town
+  const arrivals = m => 9 + 0.55 * m;      // patients per month for the whole town
   function monthTick(s) {
     s.month++;
     for (let p = 0; p < 2; p++) {
@@ -385,7 +411,7 @@
           let best = null, bd = 1e9;
           for (const m of h.mess) { if (taken.has(m.id)) continue; const d = Math.abs(m.x - st.x) + Math.abs(m.y - st.y); if (d < bd) { bd = d; best = m; } }
           if (best) { st.job = best.id; st.clean = 0; route(st, best.x, best.y); }
-          else if (!st.path.length) { st.wt -= dt; if (st.wt <= 0) { st.wt = 2 + rnd() * 4; route(st, 44 + rnd() * (W * T - 80), rnd() < 0.5 ? LANE - 10 : LANE + 10); } }
+          else if (!st.path.length) { st.wt -= dt; if (st.wt <= 0) { st.wt = 2 + rnd() * 4; const L = pick(LANES); route(st, 90 + rnd() * (W * T - 120), L + (rnd() < 0.5 ? -4 : 4)); } }
         }
       }
       // patients
@@ -435,8 +461,8 @@
     while (s.ph === 'play' && s.t >= (s.month + 1) * MONTH) monthTick(s);
   }
 
-  const api = { T, W, H, LANE, SLOTS, MONTH, MONTHS, EXIT, RECEP, TARGETS, START_CASH, START_REP, ROOMS, ROOM_ORDER, DISEASES, MONTH_NAMES, DECOR, DECOR_ORDER, decorSpot, decorKey, placeDecor, removeDecor, MAX_COMFORT,
-    slotTop, slotX0, slotY0, slotCx, spots, queuePos, idlePos, yearMonth, score, metTargets, arrivals, treatTime,
+  const api = { T, W, H, LANE, LANES, CX, BAND_Y0, SLOTS, MONTH, MONTHS, EXIT, RECEP, TARGETS, START_CASH, START_REP, ROOMS, ROOM_ORDER, DISEASES, MONTH_NAMES, DECOR, DECOR_ORDER, decorSpot, decorKey, placeDecor, removeDecor, MAX_COMFORT,
+    slotBand, slotTop, slotX0, slotY0, slotLane, slotCx, slotAtWorld, spots, queuePos, idlePos, laneOf, yearMonth, score, metTargets, arrivals, treatTime,
     newState, start, step, build, demolish, hire, fire, setProfile, staffById, patById };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RH = api;
 })(typeof window !== 'undefined' ? window : globalThis);

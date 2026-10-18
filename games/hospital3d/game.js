@@ -134,7 +134,7 @@
     const dt = Math.min((now - lastTick) / 1000, 0.1); lastTick = now;
     const paused = !room.connected && state.ph === 'play';
     if (!paused) { acc += dt; while (acc >= TICK) { RH.step(state, TICK); acc -= TICK; } drainEvents(); onPhase(); } else acc = 0;
-    if (room.connected && now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; room.send(snapshot()); }
+    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected) room.send(snapshot()); refreshSheets(); }
     if (now - lastSave > 2000) { lastSave = now; room.save(state); }
   }, 1000 / 120);
 
@@ -200,7 +200,7 @@
     const key = [view.ph, view.month, h.cash, h.rep, h.cured, r.cash, r.rep, r.cured, tab, nameOf(ME), nameOf(FRIEND), avOf(FRIEND)].join('|');
     if (key === hudKey) return; hudKey = key;
     const ym = RH.yearMonth(Math.min(view.month, RH.MONTHS - 1));
-    $('hudDate').innerHTML = view.ph === 'ready' ? 'Not open yet' : `Year <b>${ym.year}</b> · <b>${RH.MONTH_NAMES[ym.month]}</b>`;
+    $('hudDate').innerHTML = view.ph === 'ready' ? '<small>Opening</small>soon' : `<small>Year ${ym.year}</small>${RH.MONTH_NAMES[ym.month]}`;
     $('hudCash').textContent = money(h.cash); $('hudCash').classList.toggle('neg', h.cash < 0);
     $('hudRep').textContent = h.rep; $('hudCured').textContent = h.cured; $('hudScore').textContent = RH.score(h).toLocaleString('en-US');
     $('stCash').classList.toggle('met', h.cash >= RH.TARGETS.cash); $('stRep').classList.toggle('met', h.rep >= RH.TARGETS.rep); $('stCured').classList.toggle('met', h.cured >= RH.TARGETS.cured);
@@ -209,8 +209,10 @@
     const tg = RH.TARGETS, ok = (v, t) => (v >= t ? 'ok' : '');
     $('foot').innerHTML = `<span>Targets:</span><span class="${ok(h.cured, tg.cured)}"><b>${h.cured}</b>/${tg.cured} cured</span><span class="${ok(h.rep, tg.rep)}"><b>${h.rep}</b>/${tg.rep} rep</span><span class="${ok(h.cash, tg.cash)}"><b>${money(h.cash)}</b>/${money(tg.cash)}</span><span class="alt">· or best value after 3 years</span>`;
   }
-  let statusKey = '';
+  let statusKey = '', barH = 0;
+  function placeStatus() { const hgt = $('status').parentElement.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); } }
   function setStatus() {
+    placeStatus();
     let s, warn = false;
     if (!room.connected) s = 'Waiting for your friend to join…' + (view && view.ph === 'play' ? ' (paused)' : '');
     else if (!view) s = 'Syncing…';
@@ -224,7 +226,7 @@
       else if (unst) { s = `Your ${RH.ROOMS[unst.k].name} has no ${RH.ROOMS[unst.k].staff === 'd' ? 'doctor' : 'nurse'}. Hire one under Staff.`; warn = true; }
       else if (h.mess.length >= 3 && !h.staff.some(x => x.k === 'h' && !x.gone)) { s = `${h.mess.length} messes on the floor and nobody to clean them. Hire a handyman under Staff.`; warn = true; }
       else if (!rooms.some(r => r.k !== 'gp')) s = 'Build a Pharmacy next: colds and gut rot are the most common complaints.';
-      else s = 'Tap a lot to build · tap a corridor tile to decorate · tap a room or patient for details' + (scroller.scrollWidth > scroller.clientWidth + 4 ? ' · swipe to see it all' : '');
+      else s = 'Tap a lot to build · tap a corridor tile to decorate · drag to pan, pinch to zoom, Q/E to rotate';
     }
     if (s !== statusKey) { statusKey = s; $('status').textContent = s; $('status').classList.toggle('warn', warn); }
     if (host) { $('startBtn').disabled = !room.connected; $('startBtn').hidden = !(view && view.ph === 'ready'); }
@@ -259,14 +261,20 @@
     const h = view.h[ME];
     if (h.rooms[openSlot] || view.ph !== 'play') { $('buildSheet').hidden = true; return; }
     $('buildSub').textContent = `Lot ${openSlot + 1} · you have ${money(h.cash)}`;
-    const list = $('buildList'); list.replaceChildren();
-    for (const kind of RH.ROOM_ORDER) {
-      const R = RH.ROOMS[kind], cures = RH.DISEASES.filter(d => d.room === kind).map(d => d.name);
-      const b = el('button', 'item room'); b.disabled = h.cash < R.cost;
-      const body = el('div'); body.append(el('b', null, R.name), el('small', null, (kind === 'gp' ? 'Diagnoses every patient. ' : 'Cures ' + cures.join(', ') + '. ') + 'Needs a ' + (R.staff === 'd' ? 'doctor' : 'nurse') + '.'));
-      b.append(body, el('span', 'price', money(R.cost)));
-      b.addEventListener('click', () => { act('build', { slot: openSlot, kind }); $('buildSheet').hidden = true; });
-      list.append(b);
+    // Rebuilt only when a room becomes (un)affordable. The sheet is refreshed on every snapshot, and replacing the
+    // buttons while one is pressed swallows the click (pointerdown and pointerup land on different elements).
+    const list = $('buildList');
+    const key = [openSlot].concat(RH.ROOM_ORDER.map(k => (h.cash < RH.ROOMS[k].cost ? 0 : 1))).join('|');
+    if (list.dataset.key !== key) {
+      list.dataset.key = key; list.replaceChildren();
+      for (const kind of RH.ROOM_ORDER) {
+        const R = RH.ROOMS[kind], cures = RH.DISEASES.filter(d => d.room === kind).map(d => d.name);
+        const b = el('button', 'item room'); b.disabled = h.cash < R.cost;
+        const body = el('div'); body.append(el('b', null, R.name), el('small', null, (kind === 'gp' ? 'Diagnoses every patient. ' : 'Cures ' + cures.join(', ') + '. ') + 'Needs a ' + (R.staff === 'd' ? 'doctor' : 'nurse') + '.'));
+        b.append(body, el('span', 'price', money(R.cost)));
+        b.addEventListener('click', () => { act('build', { slot: openSlot, kind }); $('buildSheet').hidden = true; });
+        list.append(b);
+      }
     }
     $('buildErr').textContent = lastErr && performance.now() - lastErr.at < 4000 ? lastErr.m : '';
   }
@@ -276,21 +284,24 @@
     const h = view.h[tab], r = h.rooms[openSlot];
     if (!r) { $('roomSheet').hidden = true; return; }
     const R = RH.ROOMS[r.k];
+    const st = r.st != null ? h.staff.find(s => s.id === r.st) : null;
+    const pt = r.p != null ? h.pats.find(x => x.id === r.p) : null;
+    const canRaze = tab === ME && view.ph === 'play';
+    const key = [tab, openSlot, r.k, r.bt > 0 ? 1 : 0, r.n, qn(r), st ? `${st.id}:${st.look}:${st.sk}:${st.sal}` : '', pt ? `${pt.id}:${pt.look}:${pt.dis}:${Math.round(r.prog * 100)}` : '', canRaze ? 1 : 0, razeArmed ? 1 : 0].join('|');
+    if ($('roomSheet').dataset.key === key) return;
+    $('roomSheet').dataset.key = key;
     $('roomTitle').textContent = R.name + (tab !== ME ? ' (rival)' : '');
     $('roomSub').textContent = r.bt > 0 ? 'Under construction…' : `Lot ${openSlot + 1} · ${r.n} patient${r.n === 1 ? '' : 's'} seen · ${qn(r)} waiting`;
     const info = $('roomInfo'); info.replaceChildren();
-    const st = r.st != null ? h.staff.find(s => s.id === r.st) : null;
     const si = el('div', 'item'); si.append(st ? spriteCanvas(HA.staffSheet(st.look, st.k), 33) : el('span', null, '—'));
     const sb = el('div'); sb.append(el('b', null, st ? st.nm : 'Nobody working here'), el('small', null, st ? `skill ${stars(st.sk)} · ${money(st.sal)}/month` : `Hire a ${R.staff === 'd' ? 'doctor' : 'nurse'} under Staff`));
     si.append(sb, el('span')); info.append(si);
-    const pt = r.p != null ? h.pats.find(x => x.id === r.p) : null;
     if (pt) {
       const pi = el('div', 'item'); pi.append(spriteCanvas(HA.patientSheet(pt.look, RH.DISEASES[pt.dis].id), 33));
       const pb = el('div'); pb.append(el('b', null, pt.nm), el('small', null, (r.k === 'gp' ? 'Being diagnosed' : 'Being treated for ' + dname(pt.dis)) + ` · ${Math.round(r.prog * 100)}%`));
       pi.append(pb, el('span')); info.append(pi);
     }
     if (r.k !== 'gp') { const c = el('div', 'item'); c.append(el('span', null, '✚'), el('small', null, 'Cures ' + RH.DISEASES.filter(d => d.room === r.k).map(d => `${d.name} (${money(d.fee)})`).join(', ')), el('span')); info.append(c); }
-    const canRaze = tab === ME && view.ph === 'play';
     $('roomRaze').hidden = !canRaze;
     $('roomRaze').textContent = razeArmed ? `Really demolish? +${money(R.cost / 2)}` : 'Demolish';
     $('roomNote').textContent = canRaze ? 'Demolishing refunds half the cost.' : '';
@@ -421,39 +432,95 @@
     if (k === 'escape') { if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; closeSheets(); return; }
     if (k === 'h' || k === '?') { if (!e.repeat) toggleLegend(); return; }
     if (k === 'tab') { e.preventDefault(); setTab(tab === ME ? FRIEND : ME); return; }
-    if (k === 's' && !panelOpen()) openStaff();
+
   });
 
-  // ============================ canvas, input ============================
+  // ============================ canvas, camera, input ============================
   const HI = window.HI;
-  const cv = $('view'), ctx = cv.getContext('2d'), scroller = $('scroller');
+  const cv = $('view'), ctx = cv.getContext('2d');
   const BW = HI.BW, BH = HI.BH;
   const [buf, bctx] = HA.canvas(BW, BH);
   const groundC = HI.ground(), ghostSpr = HA.ghost(), mopSpr = HA.furniture('mop');
-  const outsideItems = HI.outside();
-  let S = 2, DPR = 1;
+  let cw = 1, ch = 1, DPR = 1;
+  const cam = { x: BW / 2, y: BH / 2 - 10, z: 2 };          // centre of the view in buffer px, zoom
+  let fitZ = 1;
   function resize() {
-    const r = scroller.getBoundingClientRect(); DPR = devicePixelRatio || 1;
-    S = Math.floor(Math.min(r.width / BW, (r.height - 4) / BH) * 2) / 2;
-    if (S < 2) S = 2;
-    cv.style.width = BW * S + 'px'; cv.style.height = BH * S + 'px';
-    cv.width = Math.round(BW * S * DPR); cv.height = Math.round(BH * S * DPR);
+    DPR = devicePixelRatio || 1; cw = innerWidth; ch = innerHeight;
+    cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
+    fitZ = Math.min(cw / BW, (ch - 110) / BH) * 0.96;
+    clampCam();
   }
-  addEventListener('resize', resize); resize(); setTimeout(resize, 300);
-  let selected = null, down = null;
-  cv.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-  cv.addEventListener('pointerup', e => {
-    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 || performance.now() - down.t > 600) { down = null; return; }
-    down = null;
-    const r = cv.getBoundingClientRect();
-    const [wx, wy] = HI.unproj((e.clientX - r.left) / S, (e.clientY - r.top) / S);
-    onTap(wx, wy);
+  const minZ = () => Math.max(0.6, Math.min(fitZ, 1.5)), maxZ = () => 4;
+  function clampCam() {
+    cam.z = clamp(cam.z, minZ(), maxZ());
+    const hw = cw / cam.z / 2, hh = ch / cam.z / 2;
+    cam.x = clamp(cam.x, Math.min(hw, BW / 2), Math.max(BW - hw, BW / 2));
+    cam.y = clamp(cam.y, Math.min(hh - 40, BH / 2), Math.max(BH - hh + 60, BH / 2));
+  }
+  function fitView() {
+    cam.z = Math.max(fitZ, 0.6); cam.x = BW / 2; cam.y = BH / 2 - 10;
+    if (cw < 700) { cam.z = Math.max(cam.z, 1.4); const [ex, ey] = HI.px(120, 100); cam.x = ex; cam.y = ey; }   // phones: start zoomed in on the entrance
+    clampCam();
+  }
+  function zoomAt(f, px, py) {   // zoom by factor f keeping the screen point (px, py) fixed
+    const z0 = cam.z, z1 = clamp(z0 * f, minZ(), maxZ());
+    const bx = cam.x + (px - cw / 2) / z0, by = cam.y + (py - ch / 2) / z0;
+    cam.z = z1; cam.x = bx - (px - cw / 2) / z1; cam.y = by - (py - ch / 2) / z1; clampCam();
+  }
+  function rotate(dir) { HI.setRot(HI.getRot() + dir); hudKey = ''; }
+  addEventListener('resize', resize); resize(); fitView(); setTimeout(() => { resize(); fitView(); }, 300);
+  const toBuf = (px, py) => [cam.x + (px - cw / 2) / cam.z, cam.y + (py - ch / 2) / cam.z];
+  const toScr = (bx, by) => [(bx - cam.x) * cam.z + cw / 2, (by - cam.y) * cam.z + ch / 2];
+  // pointers: one drags, two pinch; a short still press is a tap
+  const ptrs = new Map();
+  let gesture = null;
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture && (() => { try { cv.setPointerCapture(e.pointerId); } catch (err) {} })();
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) gesture = { kind: 'tap', x0: e.clientX, y0: e.clientY, t0: performance.now(), lx: e.clientX, ly: e.clientY };
+    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; }
   });
-  cv.addEventListener('pointercancel', () => { down = null; });
-  function slotAt(bx, by) {
-    if (bx < 32 || bx >= RH.W * T) return null;
-    const col = Math.floor((bx - 32) / 64);
-    if (by >= 0 && by < 64) return col; if (by >= 112 && by < RH.H * T) return 5 + col; return null;
+  cv.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesture) return;
+    if (gesture.kind === 'pinch' && ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const target = clamp(gesture.z0 * d / Math.max(10, gesture.d0), minZ(), maxZ());
+      zoomAt(target / cam.z, mx, my);
+      cam.x -= (mx - gesture.mx) / cam.z; cam.y -= (my - gesture.my) / cam.z; gesture.mx = mx; gesture.my = my; clampCam();
+      return;
+    }
+    if (gesture.kind === 'tap' && Math.hypot(e.clientX - gesture.x0, e.clientY - gesture.y0) > 6) { gesture.kind = 'drag'; cv.classList.add('drag'); }
+    if (gesture.kind === 'drag') { cam.x -= (e.clientX - gesture.lx) / cam.z; cam.y -= (e.clientY - gesture.ly) / cam.z; clampCam(); }
+    gesture.lx = e.clientX; gesture.ly = e.clientY;
+  });
+  const endPtr = e => {
+    const wasTap = gesture && gesture.kind === 'tap' && performance.now() - gesture.t0 < 600;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 0) { cv.classList.remove('drag'); if (wasTap) { const [bx, by] = toBuf(e.clientX, e.clientY); const [wx, wy] = HI.unproj(bx, by); onTap(wx, wy); } gesture = null; }
+    else if (ptrs.size === 1) { const [a] = [...ptrs.values()]; gesture = { kind: 'drag', lx: a.x, ly: a.y }; }
+  };
+  cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+  cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); else { cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); } }, { passive: false });
+  $('camRotL').addEventListener('click', () => rotate(-1)); $('camRotR').addEventListener('click', () => rotate(1));
+  $('camIn').addEventListener('click', () => zoomAt(1.3, cw / 2, ch / 2)); $('camOut').addEventListener('click', () => zoomAt(1 / 1.3, cw / 2, ch / 2)); $('camFit').addEventListener('click', fitView);
+  const keysDown = new Set();
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || !$('profile').hidden || panelOpen()) return;
+    const k = e.key.toLowerCase();
+    if (k === 'q') rotate(-1); else if (k === 'e') rotate(1); else if (k === 'f') fitView();
+    else if (k === '+' || k === '=') zoomAt(1.25, cw / 2, ch / 2); else if (k === '-' || k === '_') zoomAt(0.8, cw / 2, ch / 2);
+    else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 'd'].includes(k) || (k === 's' && !e.repeat && false)) { keysDown.add(k); e.preventDefault(); }
+  });
+  addEventListener('keyup', e => keysDown.delete(e.key.toLowerCase()));
+  addEventListener('blur', () => keysDown.clear());
+  function panKeys(dt) {
+    if (!keysDown.size) return;
+    const v = 320 * dt / cam.z;
+    if (keysDown.has('arrowleft') || keysDown.has('a')) cam.x -= v; if (keysDown.has('arrowright') || keysDown.has('d')) cam.x += v;
+    if (keysDown.has('arrowup') || keysDown.has('w')) cam.y -= v; if (keysDown.has('arrowdown')) cam.y += v;
+    clampCam();
   }
   function onTap(bx, by) {
     if (!view || panelOpen()) return;
@@ -464,11 +531,12 @@
     for (const pt of h.pats) { const [x, y] = posOf('p', pt); const [sx, sy] = HI.px(x, y); if (Math.abs(tx - sx) <= 8 && ty <= sy + 2 && ty >= sy - 24) { const d = Math.abs(tx - sx) + Math.abs(ty - (sy - 12)); if (d < bd) { bd = d; best = pt; } } }
     if (best) { selected = { id: best.id, until: performance.now() + 3500 }; return; }
     selected = null;
-    const k = slotAt(bx, by);
+    const k = RH.slotAtWorld(bx, by);
     if (k != null) { if (h.rooms[k]) openRoom(k); else if (tab === ME && view.ph === 'play') openBuild(k); return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
     if (RH.decorSpot(c, r) && tab === ME) { if (h.decor[RH.decorKey(c, r)]) openDecorInfo(c, r); else if (view.ph === 'play') openDecor(c, r); }
   }
+  let selected = null;
 
   // ============================ rendering ============================
   const P = (x, y, w, h, col) => { bctx.fillStyle = col; bctx.fillRect(x, y, w, h); };
@@ -479,52 +547,51 @@
     return [prev[0] + (e.x - prev[0]) * k, prev[1] + (e.y - prev[1]) * k];
   }
   const animT = new Map();
-  // draws an upright sprite at its projected feet; returns the screen position of the feet
+  // draws an upright sprite at its projected feet; returns the screen (buffer) position of the feet
   function drawPerson(sheet, e, kind, t, dt, wx, wy) {
     const key = kind + e.id;
     const a = (animT.get(key) || 0) + (e.mv ? dt : 0); animT.set(key, e.mv ? a : 0);
     const frame = e.mv ? [1, 0, 2, 0][Math.floor(a * 8) % 4] : 0;
-    const dir = sheet[DIRS[e.f]] || sheet.down, sh = dir[frame] || dir[0];
+    const dir = sheet[DIRS[HI.facing(e.f)]] || sheet.down, sh = dir[frame] || dir[0];
     const [sx, sy] = HI.px(wx, wy);
     bctx.fillStyle = 'rgba(0,0,0,.28)'; bctx.beginPath(); bctx.ellipse(sx, sy, 6, 3, 0, 0, Math.PI * 2); bctx.fill();
     bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23);
     return [Math.round(sx), Math.round(sy)];
   }
-  const labels = [];  // device-space text drawn after the blit (positions in buffer px)
+  const labels = [];  // text drawn after the blit (positions in buffer px)
+  const buildingItems = () => HI.buildingWalls();
   function render(t, dt) {
     labels.length = 0;
     bctx.setTransform(1, 0, 0, 1, 0, 0);
-    bctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#111'; bctx.fillRect(0, 0, BW, BH);
+    bctx.clearRect(0, 0, BW, BH);
     const h = view ? view.h[tab] : null;
     const mine = tab === ME;
     // floors
     HI.floorAt(bctx, groundC, 0, 0);
     if (h) for (const key in h.rooms) { const k = +key, r = h.rooms[k]; HI.floorAt(bctx, HI.roomFloor(r.k), RH.slotX0(k) * T, RH.slotY0(k) * T); }
-    const objs = outsideItems.slice();
+    const objs = HI.outside().concat(buildingItems());
     // walls, furniture, lots
     for (let k = 0; k < RH.SLOTS; k++) {
       const X = RH.slotX0(k) * T, Y = RH.slotY0(k) * T, top = RH.slotTop(k), r = h && h.rooms[k];
       if (!r) {
         objs.push(...HI.lotWalls(X, Y, top));
-        if (h && mine && view.ph === 'play') objs.push({ d: X + Y + 64, draw: c => { const [sx, sy] = HI.px(X + 32, Y + 32); const a = 0.5 + Math.sin(t * 3) * 0.2; c.globalAlpha = a; P(sx - 1, sy - 9, 2, 10, '#5a5246'); P(sx - 5, sy - 5, 10, 2, '#5a5246'); c.globalAlpha = 1; } });
+        if (h && mine && view.ph === 'play') objs.push({ d: HI.depth(X + 32, Y + 32), draw: c => { const [sx, sy] = HI.px(X + 32, Y + 32); const a = 0.5 + Math.sin(t * 3) * 0.2; c.globalAlpha = a; P(sx - 1, sy - 9, 2, 10, '#5a5246'); P(sx - 5, sy - 5, 10, 2, '#5a5246'); c.globalAlpha = 1; } });
         continue;
       }
       objs.push(...HI.roomWalls(k, r.k, X, Y, top));
       if (r.bt > 0) { objs.push(...HI.scaffoldItems(X, Y, 1 - r.bt / 4)); continue; }
-      for (const it of HI.ROOM_ITEMS[r.k]) objs.push({ d: X + it.x + it.w + Y + it.y + it.d, draw: c => it.draw(c, X, Y) });
+      for (const it of HI.roomItems(r.k, top)) objs.push({ d: HI.depth(X + it.x + it.w, Y + it.y + it.d), draw: c => it.draw(c, X, Y) });
     }
     if (h) {
-      // corridor decoration + mess + free-spot markers
-      for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], [fw, fd] = HI.DECOR_FOOT[kind], x = c * T + 8, y = r * T + 8; objs.push({ d: x + fw / 2 + y + fd / 2, draw: cx => HI.DECOR_DRAW[kind](cx, x, y) }); }
+      for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], [fw, fd] = HI.DECOR_FOOT[kind], x = c * T + 8, y = r * T + 8; objs.push({ d: HI.depth(x + fw / 2, y + fd / 2), draw: cx => HI.DECOR_DRAW[kind](cx, x, y) }); }
       for (const m of h.mess) objs.push(HI.messItem(m));
-      if (mine && view.ph === 'play' && decorHint > 0) for (let c = 2; c < RH.W; c++) for (const r of [4, 6]) if (RH.decorSpot(c, r) && !h.decor[RH.decorKey(c, r)]) objs.push({ d: c * T + 8 + r * T + 8, draw: cx => { const [sx, sy] = HI.px(c * T + 8, r * T + 8); cx.globalAlpha = 0.35 + Math.sin(t * 4) * 0.15; P(sx - 1, sy - 1, 3, 3, '#1f8f87'); cx.globalAlpha = 1; } });
-      // people
-      for (const st of h.staff) objs.push({ d: st.x + st.y, draw: () => {
+      if (mine && view.ph === 'play' && decorHint > 0) for (let c = 2; c < RH.W; c++) for (let r = 4; r <= 17; r++) if (RH.decorSpot(c, r) && !h.decor[RH.decorKey(c, r)]) objs.push({ d: HI.depth(c * T + 8, r * T + 8), draw: cx => { const [sx, sy] = HI.px(c * T + 8, r * T + 8); cx.globalAlpha = 0.35 + Math.sin(t * 4) * 0.15; P(sx - 1, sy - 1, 3, 3, '#1f8f87'); cx.globalAlpha = 1; } });
+      for (const st of h.staff) objs.push({ d: HI.depth(st.x, st.y), draw: () => {
         const [x, y] = posOf('s', st);
         const [sx, sy] = drawPerson(HA.staffSheet(st.look, st.k), st, 's', t, dt, x, y);
-        if (st.k === 'h' && (st.cl || st.clean > 0)) { bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20); }
+        if (st.k === 'h' && (st.cl || st.clean > 0)) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20);
       } });
-      for (const pt of h.pats) objs.push({ d: pt.x + pt.y, draw: () => {
+      for (const pt of h.pats) objs.push({ d: HI.depth(pt.x, pt.y), draw: () => {
         const dis = RH.DISEASES[pt.dis], shown = pt.why === 'cured' ? null : dis.id;
         const [x, y] = posOf('p', pt);
         const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), pt, 'p', t, dt, x, y);
@@ -535,30 +602,27 @@
           labels.push({ x: sx, y: sy - 32, txt: pt.nm + ' · ' + (pt.dx ? dis.name : 'undiagnosed') + (pt.st === 'queue' ? ' · patience ' + Math.max(0, Math.round(pt.pat)) + 's' : pt.st === 'in' ? ' · in treatment' : pt.why === 'cured' ? ' · cured!' : ''), col: '#fff6e0', bubble: true, size: 4.6 });
         }
       } });
-      // the manager pacing the corridor with a clipboard (cosmetic, driven by local time)
+      // the manager pacing corridor A with a clipboard (cosmetic, driven by local time)
       {
-        const ph = (t % 48) / 48, x0 = 46, x1 = 298;
+        const ph = (t % 48) / 48, x0 = 100, x1 = 330;
         let mx, mf, mv;
         if (ph < 0.4) { mx = x0 + (ph / 0.4) * (x1 - x0); mf = 3; mv = 1; } else if (ph < 0.5) { mx = x1; mf = 0; mv = 0; } else if (ph < 0.9) { mx = x1 - ((ph - 0.5) / 0.4) * (x1 - x0); mf = 2; mv = 1; } else { mx = x0; mf = 0; mv = 0; }
         const mgr = { id: 'm' + tab, f: mf, mv }, my = RH.LANE - 3;
-        objs.push({ d: mx + my, draw: () => { const [sx, sy] = drawPerson(HA.managerSheet(avOf(tab)), mgr, 'g', t, dt, mx, my); labels.push({ x: sx, y: sy - 30, txt: nameOf(tab), col: '#fff6e0', size: 3.8, plate: true }); } });
+        objs.push({ d: HI.depth(mx, my), draw: () => { const [sx, sy] = drawPerson(HA.managerSheet(avOf(tab)), mgr, 'g', t, dt, mx, my); labels.push({ x: sx, y: sy - 30, txt: nameOf(tab), col: '#fff6e0', size: 3.8, plate: true }); } });
       }
-      // receptionist behind the desk
-      objs.push({ d: 12 + 94, draw: () => { const [sx, sy] = HI.px(12, 94); bctx.drawImage(HA.staffSheet(3, 'r').down[0], Math.round(sx) - 8, Math.round(sy) - 23); } });
+      objs.push({ d: HI.depth(46, 94), draw: () => { const [sx, sy] = HI.px(46, 94); bctx.drawImage(HA.staffSheet(3, 'r')[DIRS[HI.facing(0)]][0], Math.round(sx) - 8, Math.round(sy) - 23); } });
     }
     objs.sort((a, b) => a.d - b.d).forEach(o => o.draw(bctx));
     if (h) {
-      // room signs, warnings, treatment bars, queue counts
       for (const key in h.rooms) {
         const k = +key, r = h.rooms[k], X = RH.slotX0(k) * T, Y = RH.slotY0(k) * T, cx = RH.slotCx(k), top = RH.slotTop(k);
-        const [dx, dy] = HI.px(cx, top ? 66 : 110);
-        labels.push({ x: dx - 12, y: dy - (top ? 16 : 14), txt: RH.ROOMS[r.k].short, col: '#fff6e0', size: 4.2, plate: true });
-        if (r.st == null && r.bt <= 0) { const [wx, wy] = HI.px(X + 32, Y + 40); labels.push({ x: wx, y: wy - 6, txt: 'no ' + (RH.ROOMS[r.k].staff === 'd' ? 'doctor' : 'nurse'), col: '#ff6b57', size: 4.2 }); }
+        const [dx, dy] = HI.px(cx, top ? Y + 66 : Y - 2);
+        labels.push({ x: dx - 12, y: dy - 14, txt: RH.ROOMS[r.k].short, col: '#fff6e0', size: 4.2, plate: true });
+        if (r.st == null && r.bt <= 0) { const [wx, wy] = HI.px(X + 32, Y + 32); labels.push({ x: wx, y: wy - 6, txt: 'no ' + (RH.ROOMS[r.k].staff === 'd' ? 'doctor' : 'nurse'), col: '#ff6b57', size: 4.2 }); }
         if (r.p != null && r.prog > 0) { const sp = RH.spots(k), [bx, by] = HI.px(sp.in[0], sp.in[1]); P(bx - 8, by - 29, 16, 4, '#1b1720'); P(bx - 7, by - 28, Math.round(14 * clamp(r.prog, 0, 1)), 2, r.k === 'gp' ? '#6fd3ff' : '#7ee081'); }
-        const q = qn(r); if (q > 0) labels.push({ x: dx + 14, y: dy - (top ? 16 : 14), txt: q + ' waiting', col: q > 5 ? '#ff6b57' : '#fff6e0', size: 3.6, dim: true });
+        const q = qn(r); if (q > 0) labels.push({ x: dx + 14, y: dy - 14, txt: q + ' waiting', col: q > 5 ? '#ff6b57' : '#fff6e0', size: 3.6, dim: true });
       }
     }
-    // effects (world coordinates, projected)
     for (let i = sparks.length - 1; i >= 0; i--) {
       const q = sparks[i]; q.life -= dt; if (q.life <= 0) { sparks.splice(i, 1); continue; }
       if (q.p !== tab) continue; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 40 * dt;
@@ -572,20 +636,25 @@
       bctx.drawImage(ghostSpr, Math.round(sx - 7 + Math.sin(g.life * 6) * 2), Math.round(sy - 20 - (2.2 - g.life) * 14));
       bctx.globalAlpha = 1;
     }
-    const vg = bctx.createRadialGradient(BW / 2, BH / 2, BW * 0.3, BW / 2, BH / 2, BW * 0.7);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,10,30,.22)'); bctx.fillStyle = vg; bctx.fillRect(0, 0, BW, BH);
-    if (!room.connected || !view) { bctx.fillStyle = 'rgba(20,16,24,.45)'; bctx.fillRect(0, 0, BW, BH); }
 
-    // ---- blit ----
+    // ---- blit through the camera ----
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(buf, 0, 0, BW * S, BH * S);
-    // ---- crisp overlays ----
+    const bg = ctx.createLinearGradient(0, 0, 0, ch); bg.addColorStop(0, '#182036'); bg.addColorStop(1, '#0b0f1a');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch);
+    ctx.imageSmoothingEnabled = cam.z < 1;
+    const sx0 = cam.x - cw / cam.z / 2, sy0 = cam.y - ch / cam.z / 2;
+    ctx.setTransform(DPR * cam.z, 0, 0, DPR * cam.z, -sx0 * DPR * cam.z, -sy0 * DPR * cam.z);
+    ctx.drawImage(buf, 0, 0);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (!room.connected || !view) { ctx.fillStyle = 'rgba(5,8,16,.5)'; ctx.fillRect(0, 0, cw, ch); }
+    // ---- crisp overlays in screen space ----
+    const S = clamp(cam.z, 1.2, 3.2);
     const font = (px, w) => `${w || 700} ${Math.max(10, Math.round(px * S * 0.95))}px 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const l of labels) {
+      const [x, y] = toScr(l.x, l.y);
+      if (x < -80 || y < -40 || x > cw + 80 || y > ch + 40) continue;
       ctx.font = font(l.size || 5, l.dim ? 600 : 700);
-      const x = l.x * S, y = l.y * S;
       if (l.plate) {
         const w = ctx.measureText(l.txt).width + 6 * S;
         ctx.fillStyle = '#2b2e3a'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 3.2 * S, w, 6.4 * S, 1.5 * S); ctx.fill();
@@ -594,7 +663,7 @@
         continue;
       }
       if (l.bubble) {
-        const w = ctx.measureText(l.txt).width + 8 * S, bx = clamp(x, w / 2 + 2, BW * S - w / 2 - 2);
+        const w = ctx.measureText(l.txt).width + 8 * S, bx = clamp(x, w / 2 + 2, cw - w / 2 - 2);
         ctx.fillStyle = '#1b1720'; ctx.beginPath(); ctx.roundRect(bx - w / 2 - S, y - 4 * S, w + 2 * S, 8 * S, 2 * S); ctx.fill();
         ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.roundRect(bx - w / 2, y - 3 * S, w, 6 * S, 1.5 * S); ctx.fill();
         ctx.fillStyle = '#1b1720'; ctx.fillText(l.txt, bx, y + S * 0.2);
@@ -606,14 +675,13 @@
     for (let i = floaters.length - 1; i >= 0; i--) {
       const f = floaters[i]; f.life -= dt; if (f.life <= 0) { floaters.splice(i, 1); continue; }
       if (f.p !== tab) continue;
-      const [sx, sy] = HI.px(f.x, f.y);
-      const rise = (1.6 - Math.min(f.life, 1.6)) * 10;
+      const [bx, by] = HI.px(f.x, f.y), rise = (1.6 - Math.min(f.life, 1.6)) * 10, [x, y] = toScr(bx, by - 26 - rise);
       ctx.globalAlpha = clamp(f.life * 2, 0, 1); ctx.font = font(f.big ? 7 : 5);
-      ctx.lineWidth = Math.max(2, S * 0.8); ctx.strokeStyle = '#1b1720'; ctx.strokeText(f.txt, sx * S, (sy - 26 - rise) * S); ctx.fillStyle = f.col; ctx.fillText(f.txt, sx * S, (sy - 26 - rise) * S);
+      ctx.lineWidth = Math.max(2, S * 0.8); ctx.strokeStyle = '#1b1720'; ctx.strokeText(f.txt, x, y); ctx.fillStyle = f.col; ctx.fillText(f.txt, x, y);
       ctx.globalAlpha = 1;
     }
     if (view && view.ph === 'ready') {
-      ctx.font = font(9); ctx.lineWidth = S; ctx.strokeStyle = '#1b1720'; ctx.strokeText('Opening soon', BW * S / 2, BH * S / 2); ctx.fillStyle = '#ffe36b'; ctx.fillText('Opening soon', BW * S / 2, BH * S / 2);
+      ctx.font = font(9); ctx.lineWidth = S; ctx.strokeStyle = '#1b1720'; ctx.strokeText('Opening soon', cw / 2, ch / 2); ctx.fillStyle = '#ffe36b'; ctx.fillText('Opening soon', cw / 2, ch / 2);
     }
     if (decorHint > 0) decorHint -= dt;
   }
@@ -624,7 +692,8 @@
   function frame(now) {
     // rAF timestamps can precede a performance.now() taken earlier, so never let dt go negative
     const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
-    try { render(now / 1000, dt); renderHud(); } catch (err) { console.error(err); }
+    panKeys(dt);
+    try { render(now / 1000, dt); renderHud(); placeStatus(); } catch (err) { console.error(err); }
     requestAnimationFrame(frame);
   }
   if (host) onPhase();
