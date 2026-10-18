@@ -2,6 +2,13 @@
 // To add a game: create games/<id>/index.html and add an entry below.
 window.PT_GAMES = [
   {
+    id: 'kitchen',
+    name: 'Kitchen Rush',
+    blurb: 'Co-op cooking against the clock. Chop, fry, plate and serve orders together before they expire.',
+    icon: '🍳',
+    type: 'Co-op · Real-time',
+  },
+  {
     id: 'mystery',
     name: 'Manor Mystery',
     blurb: 'Lord Blackwood is dead. Search the manor, question eight suspects across eight rooms, and beat your friend to the right accusation.',

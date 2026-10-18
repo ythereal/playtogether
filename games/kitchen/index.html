@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kitchen Rush · PlayTogether</title>
+  <link rel="stylesheet" href="../../shared/style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+  <style>
+    body { overflow: hidden; overscroll-behavior: none; }
+    .kr { position: fixed; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+    .pix { font-family: 'Pixelify Sans', var(--font); }
+
+    /* ---------- HUD ---------- */
+    .hud {
+      display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: center; gap: 8px;
+      padding: 46px 12px 6px; background: var(--bg);
+    }
+    .hud .left { display: flex; flex-direction: column; line-height: 1.05; }
+    .hud .title { font-weight: 700; font-size: 1.15rem; color: var(--accent); letter-spacing: .01em; }
+    .hud .round { color: var(--muted); font-size: .85rem; }
+    .hud .timer { font-size: 1.9rem; font-weight: 700; letter-spacing: .04em; font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
+    .hud .timer.low { color: var(--accent); animation: pulse .5s steps(2) infinite; }
+    @keyframes pulse { 50% { opacity: .55; } }
+    .hud .right { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
+    .hud .score { font-size: 1.25rem; font-weight: 700; }
+    .hud .score small { font-size: .8rem; color: var(--muted); font-weight: 400; }
+    .hud .combo { color: var(--good); font-size: .85rem; font-weight: 600; min-height: 1em; }
+    .help { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-weight: 700; }
+
+    /* ---------- orders ---------- */
+    .orders { display: flex; gap: 8px; padding: 2px 12px 8px; overflow-x: auto; min-height: 58px; scrollbar-width: none; }
+    .orders::-webkit-scrollbar { display: none; }
+    .order {
+      flex: none; display: flex; gap: 8px; align-items: center; min-width: 128px;
+      background: var(--surface); border: 2px solid var(--line); border-radius: 10px; padding: 5px 8px 5px 6px;
+      animation: slidein .25s ease-out; transition: opacity .4s, transform .4s, border-color .2s;
+    }
+    @keyframes slidein { from { opacity: 0; transform: translateY(-8px); } }
+    .order canvas { width: 36px; height: 36px; image-rendering: pixelated; }
+    .order .ob { display: grid; gap: 4px; min-width: 70px; }
+    .order b { font-size: .85rem; line-height: 1; white-space: nowrap; }
+    .order .bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
+    .order .bar i { display: block; height: 100%; background: var(--good); border-radius: 3px; }
+    .order.urgent { border-color: var(--accent); animation: slidein .25s ease-out, wobble .4s ease-in-out infinite; }
+    .order.urgent .bar i { background: var(--accent); }
+    @keyframes wobble { 50% { transform: rotate(1.5deg); } }
+    .order.done { border-color: var(--good); opacity: 0; transform: translateY(-12px) scale(.9); }
+    .order.lost { border-color: var(--accent); opacity: 0; transform: scale(.85); }
+
+    /* ---------- stage ---------- */
+    .stage { position: relative; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+    #view { width: 100%; height: 100%; display: block; touch-action: none; }
+    .status { margin: 0; padding: 4px 12px 6px; text-align: center; color: var(--muted); font-size: .9rem; min-height: 1.5em; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .toasts { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; pointer-events: none; width: calc(100% - 24px); }
+    .toast { background: var(--ink); color: var(--bg); padding: 6px 12px; border-radius: 999px; font-size: .9rem; font-weight: 600; animation: slidein .2s ease-out; transition: opacity .5s, transform .5s; }
+    .toast.good { background: var(--good); color: #fff; }
+    .toast.bad { background: var(--accent); color: #fff; }
+    .toast.out { opacity: 0; transform: translateY(-6px); }
+
+    /* ---------- touch controls ---------- */
+    .touch { display: none; }
+    @media (pointer: coarse) { .touch { display: flex; } .hint-keys { display: none; } }
+    .touch { align-items: center; justify-content: space-between; padding: 6px 18px calc(14px + env(safe-area-inset-bottom)); gap: 12px; }
+    #joy { position: relative; width: 112px; height: 112px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--line); touch-action: none; flex: none; }
+    #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); box-shadow: var(--shadow); }
+    .btns { display: flex; gap: 14px; }
+    .btns button {
+      width: 78px; height: 78px; border-radius: 50%; border: 0; font: 700 1rem 'Pixelify Sans', sans-serif; letter-spacing: .04em;
+      color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 4px 0 rgba(0,0,0,.25);
+    }
+    #btnGrab { background: var(--accent-2); } #btnChop { background: var(--accent); }
+    .btns button.down { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); filter: brightness(1.1); }
+    .hint-keys { text-align: center; color: var(--muted); font-size: .85rem; padding: 0 12px 10px; }
+    .hint-keys kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font: 600 .8rem var(--font); }
+    @media (max-width: 420px) { .hud .timer { font-size: 1.6rem; } .hud .title { font-size: 1rem; } .btns button { width: 70px; height: 70px; } #joy { width: 100px; height: 100px; } }
+
+    /* ---------- panels ---------- */
+    .panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(4px); }
+    .sheet { width: min(560px, 100%); max-height: calc(100% - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
+    .sheet h2 { margin: 0; font-size: 1.6rem; }
+    .sheet .sub { color: var(--muted); margin: 4px 0 0; }
+    .sheet h4 { margin: 16px 0 8px; font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+    .recipe { display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+    .recipe:last-child { border-bottom: 0; }
+    .recipe canvas, .lg canvas { image-rendering: pixelated; vertical-align: middle; }
+    .recipe b { display: block; font-size: .95rem; }
+    .steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; color: var(--muted); font-weight: 700; }
+    .grp { display: inline-flex; gap: 1px; background: var(--surface-2); border-radius: 8px; padding: 2px 4px; }
+    .icons { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .9rem; }
+    .lg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .tips { margin: 0; padding-left: 18px; font-size: .92rem; line-height: 1.5; }
+    .tips li { margin: 2px 0; }
+    .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+    .row .note { color: var(--muted); font-size: .9rem; margin-right: auto; }
+    .stars { font-size: 2.4rem; color: #e6b93c; line-height: 1; margin: 6px 0; letter-spacing: .1em; }
+    .big { font-size: 3rem; font-weight: 700; line-height: 1; }
+    .stat { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); margin-top: 10px; font-size: .95rem; }
+    .stat b { color: var(--ink); }
+    .dishes { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; }
+  </style>
+</head>
+<body class="pix">
+  <div class="kr">
+    <header class="hud">
+      <div class="left"><span class="title">Kitchen Rush</span><span class="round" id="hudRound">Round 1</span></div>
+      <div class="timer" id="hudTimer">3:00</div>
+      <div class="right"><span class="score"><b id="hudScore">0</b> <small>pts</small></span><span class="combo" id="hudCombo"></span></div>
+      <button class="pt-btn pt-btn-small pt-btn-ghost help" id="helpBtn" title="How to play (H)">?</button>
+    </header>
+    <div class="orders" id="orders"></div>
+    <div class="stage">
+      <canvas id="view"></canvas>
+      <div class="toasts" id="toasts"></div>
+      <p class="status"><span id="status">Connecting…</span> <button class="pt-btn pt-btn-small" id="startBtn2" hidden>Start round</button></p>
+    </div>
+    <div class="touch"><div id="joy"><div id="knob"></div></div><div class="btns"><button id="btnChop">CHOP</button><button id="btnGrab">GRAB</button></div></div>
+    <div class="hint-keys"><kbd>WASD</kbd>/<kbd>←↑↓→</kbd> move · <kbd>Space</kbd> grab / drop · <kbd>E</kbd> or <kbd>Shift</kbd> chop (hold) · <kbd>H</kbd> help</div>
+  </div>
+
+  <div class="panel" id="legend" hidden>
+    <div class="sheet">
+      <h2>Kitchen Rush</h2>
+      <p class="sub">Co-op. Three minutes. Serve as many orders as you can, together.</p>
+      <h4>The menu</h4>
+      <div id="recipes"></div>
+      <h4>Stations</h4>
+      <div class="icons" id="legendIcons"></div>
+      <h4>How it works</h4>
+      <ul class="tips">
+        <li>Grab ingredients from the crates (left), chop them on the boards (right).</li>
+        <li>Patties fry in the pan, soup boils in the pot. <b>Take them off before the red bar fills or they burn.</b> Burnt food goes in the bin.</li>
+        <li>Plates are at the bottom. Put food on a plate, then deliver it at the window (top left) before the order's timer runs out.</li>
+        <li>Fast deliveries earn tips, and every delivery in a row multiplies them (up to ×4). A lost order breaks the combo.</li>
+        <li>Split the work: one chef chops and passes food over the island, the other cooks and plates.</li>
+      </ul>
+      <div class="row">
+        <span class="note" id="legendNote"></span>
+        <button class="pt-btn pt-btn-ghost" id="legendClose">Close</button>
+        <button class="pt-btn" id="startBtn" hidden>Start round</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="over" hidden>
+    <div class="sheet">
+      <h2 id="ovTitle"></h2>
+      <div class="stars" id="ovStars"></div>
+      <div class="big"><span id="ovScore">0</span> <small style="font-size:1rem;color:var(--muted)">pts</small></div>
+      <div class="dishes" id="ovDishes"></div>
+      <div class="stat" id="ovStat"></div>
+      <div class="row">
+        <button class="pt-btn pt-btn-ghost" id="ovClose">Look around</button>
+        <button class="pt-btn" id="ovAgain">Play again</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../shared/net.js"></script>
+  <script src="rules.js"></script>
+  <script src="art.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
