@@ -41,6 +41,8 @@
     reverend:  { skin: '#d9a57c', hair: '#8a7a6a', coat: '#26252e', pants: '#26252e', shoes: '#17161c', collar: true, thinHair: true },
     finch:     { skin: '#f7dcc8', hair: '#e0bb6a', coat: '#4a70b8', pants: '#4a70b8', shoes: '#22325a', bun: true, dress: true, pearls: true },
     butler:    { skin: '#e2b48e', hair: '#1e1e1e', coat: '#1b1b22', pants: '#1b1b22', shoes: '#0e0e12', shirt: '#f4f4f4', bowtie: true },
+    professor: { skin: '#eac3a0', hair: '#bdb6ad', coat: '#7a5a3a', pants: '#4a3a2a', shoes: '#2a1e16', shirt: '#e8e0d0', glasses: true, beard: '#bdb6ad', thinHair: true },
+    countess:  { skin: '#f3d6c6', hair: '#141018', coat: '#5a2a72', pants: '#5a2a72', shoes: '#2a1036', bun: true, dress: true, lips: '#7a1a4a', pearls: true },
     inspector: { skin: '#e9bf98', hair: '#3a2a20', coat: '#24365e', pants: '#1a2440', shoes: '#11151f', hat: 'cap', hatCol: '#1a2440', mustache: '#3a2a20', shirt: '#dfe6f0' },
     victim:    { skin: '#dcc4b2', hair: '#9a9a9a', coat: '#4a2f5a', pants: '#222', shoes: '#111', shirt: '#eee' },
   };
@@ -125,6 +127,7 @@
       R(5, 7, 1, 1, '#1d1620');                // eye
       R(3, 7, 1, 2, L.skin);                    // nose
       if (L.mustache) R(3, 9, 3, 1, L.mustache);
+      if (L.beard) { R(3, 9, 5, 2, L.beard); R(4, 8, 1, 1, L.beard); }
       if (L.glasses) { R(4, 6, 3, 1, '#20202a'); R(4, 7, 1, 1, '#20202a'); R(6, 7, 1, 1, '#20202a'); }
       if (L.lips) R(4, 9, 1, 1, L.lips);
     } else {
@@ -137,6 +140,7 @@
       R(6, 7, 1, 1, '#1d1620'); R(9, 7, 1, 1, '#1d1620');            // eyes
       R(5, 8, 1, 1, shade(L.skin, -0.06)); R(10, 8, 1, 1, shade(L.skin, -0.06));
       if (L.mustache) R(6, 9, 4, 1, L.mustache);
+      if (L.beard) { R(5, 8, 1, 2, L.beard); R(10, 8, 1, 2, L.beard); R(5, 10, 6, 1, L.beard); R(6, 9, 4, 1, L.beard); R(7, 9, 2, 1, shade(L.skin, -0.3)); }
       if (L.glasses) { R(5, 6, 3, 1, '#20202a'); R(8, 6, 3, 1, '#20202a'); R(5, 7, 1, 1, '#20202a'); R(10, 7, 1, 1, '#20202a'); R(7, 7, 2, 1, '#20202a'); }
       if (L.lips) R(7, 9, 2, 1, L.lips);
     }
@@ -387,6 +391,51 @@
       x.fillStyle = '#d9a93a'; x.fillRect(2, 16, 2, 2); x.fillRect(28, 16, 2, 2);
       return outline(c);
     },
+    cue_rack() {
+      const [c, x] = canvas(32, 30);
+      box(x, 2, 0, 28, 30, '#4a2e1e', '#5a3a26');
+      x.fillStyle = '#2a1a10'; x.fillRect(4, 4, 24, 22);
+      for (let i = 0; i < 6; i++) { x.fillStyle = '#d9b47a'; x.fillRect(6 + i * 4, 5, 1, 20); x.fillStyle = '#3a2a1a'; x.fillRect(6 + i * 4, 18, 1, 7); x.fillStyle = '#eef'; x.fillRect(6 + i * 4, 5, 1, 1); }
+      x.fillStyle = '#d9a93a'; x.fillRect(4, 26, 24, 1);
+      return outline(c);
+    },
+    billiard() {
+      const [c, x] = canvas(48, 34);
+      x.fillStyle = '#3a2214'; x.fillRect(3, 26, 4, 8); x.fillRect(41, 26, 4, 8); x.fillRect(22, 26, 4, 8);
+      box(x, 0, 2, 48, 26, '#5a3420');
+      x.fillStyle = '#1f6a3e'; x.fillRect(4, 5, 40, 18); x.fillStyle = '#257a48'; x.fillRect(4, 5, 40, 2);
+      x.fillStyle = '#0d0a08'; for (const [px, py] of [[4, 5], [23, 5], [43, 5], [4, 22], [23, 22], [43, 22]]) x.fillRect(px, py, 2, 2);
+      const ball = (X, Y, col) => { x.fillStyle = col; x.fillRect(X, Y, 2, 2); x.fillStyle = 'rgba(255,255,255,.6)'; x.fillRect(X, Y, 1, 1); };
+      ball(12, 12, '#f4f4f0'); ball(30, 10, '#e3b341'); ball(33, 13, '#2a4aa0'); ball(31, 16, '#1a1a1a'); ball(36, 11, '#8a2a9a');
+      x.fillStyle = '#d9b47a'; x.fillRect(6, 15, 14, 1); x.fillStyle = '#3a2a1a'; x.fillRect(6, 15, 4, 1);
+      return outline(c);
+    },
+    trophy() {
+      const [c, x] = canvas(32, 30);
+      box(x, 0, 0, 32, 30, '#4a2e1e', '#5a3a26');
+      x.fillStyle = '#1a1210'; x.fillRect(3, 4, 26, 10); x.fillRect(3, 16, 26, 10);
+      const cup = (X, Y) => { x.fillStyle = '#e3b341'; x.fillRect(X, Y, 4, 3); x.fillRect(X + 1, Y + 3, 2, 2); x.fillRect(X, Y + 5, 4, 1); x.fillStyle = '#fff3b0'; x.fillRect(X, Y, 1, 1); };
+      cup(6, 7); cup(14, 6); cup(22, 7); cup(9, 19); cup(19, 19);
+      x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(3, 4, 2, 22);
+      return outline(c);
+    },
+    wine_rack() {
+      const [c, x] = canvas(32, 32);
+      box(x, 0, 0, 32, 32, '#4a2e1e', '#5a3a26');
+      for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++) {
+        const X = 3 + k * 5, Y = 4 + r * 7;
+        x.fillStyle = '#1a0e08'; x.fillRect(X, Y, 4, 5);
+        x.fillStyle = rnd() < 0.85 ? (rnd() < 0.5 ? '#3a1220' : '#1f3a1a') : '#1a0e08'; x.beginPath(); x.arc(X + 2, Y + 2.5, 1.6, 0, Math.PI * 2); x.fill();
+      }
+      return outline(c);
+    },
+    crates() {
+      const [c, x] = canvas(32, 26);
+      const crate = (X, Y, w, h) => { box(x, X, Y, w, h, '#9a7444'); x.fillStyle = '#7a5630'; x.fillRect(X + 1, Y + 3, w - 2, 1); x.fillRect(X + 1, Y + h - 4, w - 2, 1); x.fillRect(X + w / 2, Y + 1, 1, h - 2); };
+      crate(0, 10, 18, 16); crate(16, 12, 16, 14); crate(4, 0, 14, 11);
+      x.fillStyle = '#e3c87a'; x.fillRect(6, 9, 3, 2); x.fillRect(20, 11, 2, 1);
+      return outline(c);
+    },
     barrel() {
       const [c, x] = canvas(16, 18);
       box(x, 2, 2, 12, 16, '#7a5230'); x.fillStyle = '#3a3a40'; x.fillRect(2, 5, 12, 1); x.fillRect(2, 13, 12, 1);
@@ -428,6 +477,10 @@
     page(x) { R(x, 3, 2, 10, 12, '#efe6cf'); for (let i = 4; i < 12; i += 2) R(x, 5, i, 6, 1, '#7a6a5a'); R(x, 3, 2, 3, 1, '#c0392b'); R(x, 10, 11, 3, 3, '#d8cbb0'); },
     pearl(x) { R(x, 7, 2, 2, 5, '#d9a93a'); x.fillStyle = '#f7f2e8'; x.beginPath(); x.arc(8, 10, 4, 0, Math.PI * 2); x.fill(); R(x, 6, 8, 2, 2, '#ffffff'); },
     cloth(x) { x.fillStyle = '#9aa0a8'; x.beginPath(); x.moveTo(2, 5); x.lineTo(13, 3); x.lineTo(14, 12); x.lineTo(3, 14); x.fill(); R(x, 5, 6, 6, 1, '#c8ccd2'); R(x, 6, 9, 6, 1, '#c8ccd2'); },
+    pen(x) { x.fillStyle = '#1f2a4a'; x.beginPath(); x.moveTo(3, 13); x.lineTo(11, 3); x.lineTo(13, 5); x.lineTo(5, 15); x.fill(); R(x, 11, 2, 2, 2, '#d9a93a'); R(x, 2, 13, 2, 2, '#d9a93a'); R(x, 6, 12, 3, 2, '#2a3a8a'); },
+    locket(x) { x.strokeStyle = '#c9ccd2'; x.lineWidth = 1; x.beginPath(); x.moveTo(3, 1); x.lineTo(8, 6); x.lineTo(13, 1); x.stroke(); x.fillStyle = '#c9ccd2'; x.beginPath(); x.ellipse(8, 10, 4, 4.5, 0, 0, Math.PI * 2); x.fill(); R(x, 7, 8, 2, 2, '#8a8f98'); R(x, 6, 8, 1, 1, '#ffffff'); },
+    cue(x) { x.fillStyle = '#d9b47a'; x.beginPath(); x.moveTo(2, 14); x.lineTo(13, 1); x.lineTo(14, 2); x.lineTo(4, 15); x.fill(); x.fillStyle = '#3a2a1a'; x.beginPath(); x.moveTo(2, 14); x.lineTo(6, 9); x.lineTo(8, 10); x.lineTo(4, 15); x.fill(); R(x, 13, 1, 1, 1, '#2a6aaa'); },
+    bottle(x) { R(x, 7, 1, 2, 4, '#1f3a1a'); R(x, 6, 1, 4, 1, '#c9a24a'); R(x, 5, 5, 6, 10, '#1f3a1a'); R(x, 6, 8, 4, 4, '#efe6cf'); R(x, 6, 6, 1, 7, 'rgba(255,255,255,.3)'); },
     stain(x) { x.fillStyle = '#7a1420'; x.beginPath(); x.ellipse(8, 9, 6, 4, 0.3, 0, Math.PI * 2); x.fill(); R(x, 3, 4, 2, 2, '#7a1420'); R(x, 12, 3, 2, 2, '#7a1420'); R(x, 6, 7, 2, 1, '#a62030'); },
     magnifier(x) { x.strokeStyle = '#c9ccd2'; x.lineWidth = 2; x.beginPath(); x.arc(7, 7, 4, 0, Math.PI * 2); x.stroke(); R(x, 10, 10, 2, 2, '#6a3a22'); R(x, 12, 12, 2, 2, '#6a3a22'); R(x, 5, 5, 2, 1, '#ffffff'); },
     body(x) { R(x, 2, 6, 12, 5, '#4a2f5a'); R(x, 12, 6, 3, 4, '#dcc4b2'); R(x, 4, 11, 7, 2, '#7a1420'); },

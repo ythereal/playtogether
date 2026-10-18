@@ -4,7 +4,7 @@ window.PT_GAMES = [
   {
     id: 'mystery',
     name: 'Manor Mystery',
-    blurb: 'Lord Blackwood is dead. Search the manor, question six suspects, and beat your friend to the right accusation.',
+    blurb: 'Lord Blackwood is dead. Search the manor, question eight suspects across eight rooms, and beat your friend to the right accusation.',
     icon: '🔍',
     type: 'Race · Real-time',
   },

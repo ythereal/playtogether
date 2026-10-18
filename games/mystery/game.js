@@ -6,7 +6,7 @@
   const Wd = window.MM_WORLD, A = window.MM_ART;
   const { T, W, H, ROOMS, HALL, F, SUSPECTS, WEAPONS, BODY, INSPECTOR, SPAWN } = Wd;
   const DIRS = ['down', 'up', 'left', 'right'];
-  const LOOK_OF = ['colonel', 'doctor', 'vane', 'reverend', 'finch', 'butler'];
+  const LOOK_OF = ['colonel', 'doctor', 'vane', 'reverend', 'finch', 'butler', 'professor', 'countess'];
   const SPEED = 72, NPC_SPEED = 26;
 
   // ============================ networking & state ============================
@@ -147,7 +147,7 @@
   const [mapC, mx] = A.canvas(W * T, H * T);
   function hash(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
   const P = (x, y, w, h, c) => { mx.fillStyle = c; mx.fillRect(x, y, w, h); };
-  const styleOf = id => (id === 6 ? HALL : ROOMS[id]);
+  const styleOf = id => (id === Wd.NR ? HALL : ROOMS[id]);
 
   function floorTile(tx, ty, style) {
     const X = tx * T, Y = ty * T, hv = hash(tx, ty);
@@ -164,6 +164,22 @@
       case 'wood_dark': planks('#5b3a26', '#553622', '#3e2618'); break;
       case 'wood_light': planks('#a87a4f', '#a07247', '#7e5634'); break;
       case 'hall': planks('#6b4a32', '#65452e', '#4a3221'); break;
+      case 'parquet':
+        for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+          const X0 = X + i * 8, Y0 = Y + j * 8, vert = (i + j) % 2;
+          P(X0, Y0, 8, 8, '#7a5236');
+          for (let k = 0; k < 4; k++) vert ? P(X0 + k * 2, Y0, 1, 8, '#6a4630') : P(X0, Y0 + k * 2, 8, 1, '#6a4630');
+        }
+        break;
+      case 'stone':
+        P(X, Y, 16, 16, '#4a4650');
+        for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+          const v = hash(tx * 2 + i, ty * 2 + j);
+          P(X + i * 8 + 1, Y + j * 8 + 1, 7, 7, v < 0.33 ? '#5a5560' : v < 0.66 ? '#55505b' : '#605a66');
+          P(X + i * 8 + 1, Y + j * 8 + 1, 7, 1, '#6a6470');
+        }
+        if (hv < 0.12) P(X + 3, Y + 11, 3, 1, '#3a5a3a');
+        break;
       case 'carpet':
         P(X, Y, 16, 16, '#6a1e2a'); P(X + 7, Y + 6, 2, 4, '#8a3a2a'); P(X + 6, Y + 7, 4, 2, '#8a3a2a'); P(X + 7, Y + 7, 2, 2, '#c9a24a');
         P(X, Y, 1, 1, '#5a1824'); P(X + 15, Y + 15, 1, 1, '#5a1824'); break;
@@ -186,6 +202,8 @@
     blue:   { paper: '#2f4c72', alt: '#3a5a84', wains: '#5a3424' },
     gold:   { paper: '#7a5f2a', alt: '#9a7a3a', wains: '#e2dccd', dots: '#c9a24a' },
     panel:  { paper: '#5e3f28', alt: '#4f3421', wains: '#4a3020', panel: true },
+    teal:   { paper: '#24514f', alt: '#1e4543', wains: '#4a2e1e', dots: '#c9a24a' },
+    brick:  { paper: '#6a3a2e', alt: '#4a2a22', wains: '#3a3238', brick: true },
   };
   function wallFace(tx, ty, style) {
     const X = tx * T, Y = ty * T;
@@ -201,7 +219,8 @@
     }
     const s = WALLS[style];
     P(X, Y, 16, 16, s.paper);
-    if (s.tiles) { for (let r = 0; r < 4; r++) { P(X, Y + r * 3 + 2, 16, 1, s.alt); P(X + ((r % 2) ? 4 : 12), Y + r * 3 + 2, 1, 3, s.alt); } }
+    if (s.brick) { for (let r = 0; r < 4; r++) { P(X, Y + r * 4 + 3, 16, 1, s.alt); for (let k = (r % 2) * 4; k < 16; k += 8) P(X + k, Y + r * 4, 1, 3, s.alt); } }
+    else if (s.tiles) { for (let r = 0; r < 4; r++) { P(X, Y + r * 3 + 2, 16, 1, s.alt); P(X + ((r % 2) ? 4 : 12), Y + r * 3 + 2, 1, 3, s.alt); } }
     else if (s.panel) { P(X + 2, Y + 3, 12, 8, s.alt); P(X + 2, Y + 3, 12, 1, shade(s.paper, 0.15)); P(X + 2, Y + 10, 12, 1, shade(s.paper, -0.3)); }
     else { for (let i = 0; i < 16; i += 4) P(X + i, Y + 2, 1, 9, s.alt); if (s.dots) { P(X + 2, Y + 5, 1, 1, s.dots); P(X + 10, Y + 8, 1, 1, s.dots); } }
     P(X, Y, 16, 2, shade(s.paper, 0.18)); P(X, Y + 2, 16, 1, shade(s.paper, -0.25));             // cornice
@@ -244,11 +263,13 @@
     for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, r = i % 2 ? 10 : 26; mx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.75); }
     mx.fill(); mx.fillStyle = '#e6e1d8'; mx.beginPath(); mx.ellipse(cx, cy, 6, 4.5, 0, 0, Math.PI * 2); mx.fill();
     // hall runner
-    P(2 * T, 11 * T + 2, 33 * T, 3 * T + 12, '#c9a24a'); P(2 * T + 2, 11 * T + 4, 33 * T - 4, 3 * T + 8, '#7a1f2a');
-    for (let x = 2 * T + 6; x < 35 * T - 6; x += 10) P(x, 11 * T + 7, 4, 1, '#a8443a'), P(x + 3, 14 * T + 9, 4, 1, '#a8443a');
+    P(2 * T, 11 * T + 2, 45 * T, 3 * T + 12, '#c9a24a'); P(2 * T + 2, 11 * T + 4, 45 * T - 4, 3 * T + 8, '#7a1f2a');
+    for (let x = 2 * T + 6; x < 47 * T - 6; x += 10) P(x, 11 * T + 7, 4, 1, '#a8443a'), P(x + 3, 14 * T + 9, 4, 1, '#a8443a');
     // paintings & windows
-    painting(3, 9, '#2f4a3a'); painting(10, 9, '#5a2a3a'); painting(26, 9, '#2a3a5a'); painting(33, 9, '#4a3a2a');
-    painting(9, 0, '#3a2a4a'); painting(19, 0, '#5a3a2a'); painting(28, 16, '#2a4a4a'); painting(3, 16, '#6a5a3a');
+    painting(3, 9, '#2f4a3a'); painting(10, 9, '#5a2a3a'); painting(15, 9, '#3a3a5a'); painting(22, 9, '#5a4a2a');
+    painting(27, 9, '#2a3a5a'); painting(34, 9, '#4a3a2a'); painting(39, 9, '#3a2a2a'); painting(45, 9, '#2a4a3a');
+    painting(9, 0, '#3a2a4a'); painting(19, 0, '#5a3a2a'); painting(42, 0, '#2a3a2a'); painting(28, 16, '#2a4a4a'); painting(3, 16, '#6a5a3a');
+    rug(39, 3, 5, 4, '#2a3a2a', '#8a6a3a');
     wallFace(6, 0, 'glass');
   }
   drawMap();
@@ -270,9 +291,12 @@
     { x: 18.5 * T, y: 20.3 * T, r: 76, warm: 1, fl: 1 }, // candelabra
     { x: 30.5 * T, y: 20 * T, r: 96, warm: 1 },      // chandelier
     { x: 6.5 * T, y: 21.5 * T, r: 52, warm: 1 },
-    { x: 6 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 }, { x: 14 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 },
-    { x: 23 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 }, { x: 31 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 },
-    { x: 18.5 * T, y: 12.5 * T, r: 44, warm: 0 },     // inspector's lamp on the body
+    { x: 5 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 }, { x: 13 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 },
+    { x: 21 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 }, { x: 29 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 },
+    { x: 37 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 }, { x: 45 * T, y: 10.4 * T, r: 70, warm: 1, fl: 1 },
+    { x: 24.5 * T, y: 12.5 * T, r: 44, warm: 0 },     // inspector's lamp on the body
+    { x: 41.5 * T, y: 4.2 * T, r: 84, warm: 1 },      // billiard lamp
+    { x: 42 * T, y: 18 * T, r: 66, warm: 1, fl: 1 }, { x: 46 * T, y: 24 * T, r: 46, warm: 1, fl: 1 }, // cellar lanterns
   ];
 
   // ============================ movement & collision ============================
