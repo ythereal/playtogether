@@ -47,7 +47,7 @@
     for (const g of window.PT_GAMES || []) {
       const a = document.createElement('a');
       a.className = 'tile';
-      a.href = 'games/' + g.id + '/';
+      a.href = 'games/' + g.id + '/?t=' + Date.now();   // never open a cached copy of a game page from before a deploy
       a.innerHTML = '<div class="icon"></div><h2></h2><p></p><span class="tag"></span>';
       a.querySelector('.icon').textContent = g.icon || '🎮';
       a.querySelector('h2').textContent = g.name;

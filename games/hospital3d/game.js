@@ -8,7 +8,7 @@
   const DIRS = ['down', 'up', 'left', 'right'];
   const TICK = 1 / 60, SNAP_HZ = 10;
   const PROTO = 2;   // snapshot format: bump whenever host and guest stop understanding each other
-  let mismatch = false;
+  let mismatch = '';   // who has the out-of-date copy: 'me' or 'friend'
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const money = v => (v < 0 ? '−$' : '$') + Math.abs(Math.round(v)).toLocaleString('en-US');
@@ -111,8 +111,8 @@
   // guest interpolation: previous snapshot positions by entity id
   let prevPos = new Map(), curPos = new Map(), prevAt = 0, curAt = 0;
   function applySnap(m) {
-    if (m.pv !== PROTO) { versionMismatch(); return; }
-    if (mismatch) { mismatch = false; statusKey = ''; }
+    if (m.pv !== PROTO) { versionMismatch(!(m.pv > PROTO)); return; }
+    if (mismatch) { mismatch = ''; statusKey = ''; }
     prevPos = curPos; prevAt = curAt; curPos = new Map(); curAt = performance.now();
     const old = view;
     view = { ph: m.ph, t: m.tm, month: m.m, winner: m.w, why: m.why, prof: m.pr, pool: m.pool || [], quake: m.qk, h: m.h };
@@ -123,11 +123,14 @@
     onPhase(); refreshSheets();
   }
   const SAVE_EV = new Set(['month', 'over', 'built', 'hired', 'fired', 'razed', 'start', 'profile', 'decor', 'undecor', 'desk', 'extra', 'research', 'boom', 'replaced', 'raise', 'resigned', 'open']);
-  function versionMismatch() {
-    if (mismatch) return;
-    mismatch = true; statusKey = ''; setStatus();
-    toast('You and your friend are running different versions of the game. Both of you reload the page.', 'bad');
+  // friendOld: the other player is running an older copy of the game than this one
+  function versionMismatch(friendOld) {
+    const who = friendOld ? 'friend' : 'me';
+    if (mismatch === who) return;
+    mismatch = who; statusKey = ''; setStatus();
+    toast(mismatchText(), 'bad');
   }
+  const mismatchText = () => (mismatch === 'friend' ? `${nameOf(FRIEND)} is running an old copy of the game. They need to reload their page (hold Shift while reloading).` : 'You\'re running an old copy of the game. Reload this page (hold Shift while reloading).');
   function drainEvents() {
     if (!state.ev.length) return;
     const evs = state.ev.splice(0);
@@ -178,14 +181,14 @@
     if (host) {
       if (!m || typeof m.t !== 'string') return;
       if (m.t === 'start') { hostStart(); return; }
-      if (m.t === 'tab' || m.t === 'profile') { if (m.pv !== PROTO) { versionMismatch(); return; } mismatch = false; }
+      if (m.t === 'tab' || m.t === 'profile') { if (m.pv !== PROTO) { versionMismatch(!(m.pv > PROTO)); return; } if (mismatch) { mismatch = ''; statusKey = ''; } }
       if (m.t === 'tab') { guestTab = m.p === 0 ? 0 : 1; return; }
       if (m.t === 'profile') { RH.setProfile(state, 1, m.nm, m.av); drainEvents(); hudKey = ''; room.save(state); return; }
       if (state.ph !== 'play') return;
       const err = doAct(1, m);
       if (err && err !== 'Unknown') room.send({ t: 'err', m: err });
       drainEvents(); refreshSheets();
-    } else if (m.t === 's') { try { applySnap(m); } catch (err) { console.error(err); versionMismatch(); } }
+    } else if (m.t === 's') { try { applySnap(m); } catch (err) { console.error(err); } }
     else if (m.t === 'err') fail(String(m.m));
   });
   function hostStart() { if (!room.connected || !state) return; if (state.ph === 'play') return; RH.start(state); drainEvents(); onPhase(); room.save(state); }
@@ -325,7 +328,7 @@
   function placeStatus() { const hgt = document.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); } }
   const needWord = k => ({ doc: 'doctor', psy: 'psychiatrist', surg: 'surgeon', res: 'researcher', con: 'consultant to teach', nurse: 'nurse' })[RH.ROOMS[k].staff];
   function advice() {
-    if (mismatch) return ['You and your friend are on different versions of the game. Both of you reload the page (hold Shift while reloading if it keeps happening).', 'warn'];
+    if (mismatch) return [mismatchText(), 'warn'];
     if (!room.connected) return ['Waiting for your friend to join…' + (view && view.ph === 'play' ? ' (paused)' : '')];
     if (!view) return ['Syncing…'];
     if (view.ph === 'ready') return [host ? 'Press “Start the match” when you\'re both ready.' : 'Waiting for the host to start the match…'];
