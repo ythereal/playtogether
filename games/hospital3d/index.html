@@ -14,69 +14,128 @@
     .ui > * { pointer-events: auto; }
 
     /* ---------- bottom bar ---------- */
-    .bar { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 8px 10px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
-    .stat { display: grid; line-height: 1.05; padding: 4px 10px; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
-    .stat small { color: var(--muted); font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; }
-    .stat b { font-size: 1.05rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bar { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 6px; padding: 7px 9px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+    .stat { display: grid; line-height: 1.05; padding: 4px 9px; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+    .stat small { color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; }
+    .stat b { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .stat b.neg { color: var(--accent); }
-    .stat.met { border-color: var(--good); box-shadow: inset 0 0 0 1px var(--good); }
+    .stat .rep { display: block; height: 4px; margin-top: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+    .stat .rep i { display: block; height: 100%; background: var(--good); }
     .cal { background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 3px 10px; text-align: center; line-height: 1.05; font-weight: 800; }
     .cal small { display: block; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; opacity: .85; font-weight: 600; }
     .cal .mp { display: block; height: 4px; margin-top: 3px; background: rgba(255,255,255,.3); border-radius: 2px; overflow: hidden; }
     .cal .mp b { display: block; height: 100%; width: 0; background: #fff; }
     .bar .spacer { flex: 1; }
-    .tab { appearance: none; border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: .35rem .8rem; font: 600 .9rem var(--font); cursor: pointer; white-space: nowrap; }
+    .tab { appearance: none; border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: .32rem .75rem; font: 600 .88rem var(--font); cursor: pointer; white-space: nowrap; }
     .tab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
     .tab small { font-weight: 400; opacity: .8; }
-    .tab.who { display: inline-flex; align-items: center; gap: 6px; padding: .25rem .7rem .25rem .35rem; }
+    .tab.who { display: inline-flex; align-items: center; gap: 6px; padding: .22rem .7rem .22rem .32rem; }
     .tab.who canvas { width: 22px; height: 22px; border-radius: 50%; image-rendering: pixelated; }
-    .pt-btn.bar-btn { padding: .4rem .9rem; font-size: .9rem; }
-    .pt-btn.bar-btn:not(.primary) { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
-    .status { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--barh, 70px) + 16px + env(safe-area-inset-bottom)); margin: 0; padding: 4px 14px; max-width: min(640px, calc(100% - 24px)); text-align: center; font-size: .9rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow); }
+    .menu { display: flex; gap: 4px; flex-wrap: wrap; }
+    .mbtn { appearance: none; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 10px; padding: .32rem .6rem; font: 600 .84rem var(--font); cursor: pointer; white-space: nowrap; position: relative; }
+    .mbtn:hover { border-color: var(--accent-2); }
+    .mbtn kbd { font: 500 .62rem var(--font); color: var(--muted); margin-left: 3px; }
+    .mbtn.flash::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+    .pt-btn.bar-btn { padding: .38rem .85rem; font-size: .88rem; }
+    .status { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--barh, 70px) + 16px + env(safe-area-inset-bottom)); margin: 0; padding: 4px 14px; max-width: min(680px, calc(100% - 24px)); text-align: center; font-size: .88rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow); }
     .status.warn { color: var(--accent); font-weight: 600; border-color: var(--accent); }
-    .foot { display: none; }
+    .status.info { color: var(--ink); border-color: var(--accent-2); }
+    .status[hidden] { display: none; }
     .camctl { position: fixed; right: 12px; top: 56px; display: grid; gap: 6px; }
-    .camctl button { width: 40px; height: 36px; padding: 0; font: 700 .9rem var(--font); font-size: 1rem; line-height: 1; cursor: pointer; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; box-shadow: var(--shadow); }
+    .camctl button { width: 40px; height: 36px; padding: 0; font: 700 1rem var(--font); line-height: 1; cursor: pointer; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; box-shadow: var(--shadow); }
     .camctl button:active { transform: translateY(1px); }
-    @media (max-width: 640px) { .tab .alt, .tab.who span, .stat.score { display: none; } .bar { gap: 5px; padding: 6px 6px; } .stat b { font-size: .95rem; } .status { font-size: .8rem; } }
+    @media (max-width: 640px) { .tab .alt, .tab.who span, .stat.opt, .mbtn kbd { display: none; } .bar { gap: 4px; padding: 6px; } .stat b { font-size: .9rem; } .status { font-size: .78rem; } .mbtn { padding: .3rem .45rem; font-size: .78rem; } }
 
-    .toasts { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 20; display: grid; gap: 4px; pointer-events: none; width: min(420px, calc(100% - 24px)); }
+    /* ---------- fax tray ---------- */
+    .faxes { position: fixed; left: 10px; bottom: calc(var(--barh, 70px) + 52px + env(safe-area-inset-bottom)); display: flex; flex-direction: column-reverse; gap: 6px; max-height: 50vh; }
+    .faxbtn { appearance: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 210px; padding: 6px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font: 600 .8rem var(--font); }
+    .faxbtn .ico { grid-row: span 2; font-size: 1.2rem; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); }
+    .faxbtn small { color: var(--muted); font-weight: 500; }
+    .faxbtn .tm { display: block; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; grid-column: 2; }
+    .faxbtn .tm i { display: block; height: 100%; background: var(--accent); }
+    .faxbtn.urgent { border-color: var(--accent); }
+    @media (max-width: 640px) { .faxbtn { width: 46px; grid-template-columns: auto; padding: 6px; } .faxbtn > span:not(.ico), .faxbtn small { display: none; } .faxbtn .ico { grid-row: auto; } }
+
+    .toasts { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 20; display: grid; gap: 4px; pointer-events: none; width: min(440px, calc(100% - 24px)); }
     .toast { background: var(--ink); color: var(--bg); border-radius: 10px; padding: 4px 10px; font-size: .85rem; font-weight: 600; opacity: .95; transition: opacity .4s, transform .4s; text-align: center; }
     .toast.good { background: var(--good); color: #fff; } .toast.bad { background: var(--accent); color: #fff; } .toast.dim { opacity: .7; font-weight: 500; }
     .toast.out { opacity: 0; transform: translateY(-6px); }
 
     /* ---------- panels ---------- */
     .panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(4px); }
-    .sheet { width: min(560px, 100%); max-height: calc(100% - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
-    .sheet h2 { margin: 0; font-size: 1.5rem; }
-    .sheet .sub { color: var(--muted); margin: 4px 0 0; }
-    .sheet h4 { margin: 16px 0 8px; font-size: .8rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+    .panel[hidden] { display: none; }
+    .sheet { width: min(600px, 100%); max-height: calc(100% - 30px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 18px; }
+    .sheet.wide { width: min(780px, 100%); }
+    .sheet h2 { margin: 0; font-size: 1.4rem; }
+    .sheet .sub { color: var(--muted); margin: 4px 0 0; font-size: .92rem; }
+    .sheet h4 { margin: 14px 0 8px; font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
     .list { display: grid; gap: 6px; }
-    .item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); text-align: left; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+    .item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 7px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); text-align: left; }
     .item canvas { image-rendering: pixelated; }
-    .item b { display: block; font-size: .95rem; }
-    .item small { color: var(--muted); font-size: .8rem; display: block; line-height: 1.3; }
+    .item b { display: block; font-size: .93rem; }
+    .item small { color: var(--muted); font-size: .78rem; display: block; line-height: 1.3; }
     .item .price { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .item .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .item.locked { opacity: .55; }
     button.item { appearance: none; cursor: pointer; font: inherit; color: inherit; width: 100%; }
     button.item:hover:not(:disabled) { border-color: var(--accent-2); }
     button.item:disabled { opacity: .5; cursor: not-allowed; }
     .item.room { grid-template-columns: 1fr auto; }
-    .skill { color: #e6b93c; letter-spacing: .05em; }
-    .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; align-items: center; }
-    .row .note { color: var(--muted); font-size: .9rem; margin-right: auto; }
-    .tips { margin: 0; padding-left: 18px; font-size: .92rem; line-height: 1.5; }
+    .skill { color: #c99a1c; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .q { display: inline-block; font-size: .66rem; font-weight: 700; padding: 0 5px; border-radius: 6px; margin-left: 3px; background: var(--accent-2); color: #fff; vertical-align: 1px; }
+    .q.p { background: #8e5bd6; } .q.s { background: #2f9e5b; } .q.c { background: #c99a1c; }
+    .meter { display: inline-block; width: 46px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; vertical-align: middle; margin: 0 4px 0 2px; }
+    .meter i { display: block; height: 100%; background: var(--good); }
+    .meter.bad i { background: var(--accent); } .meter.warn i { background: #e5a62a; }
+    .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+    .row .note { color: var(--muted); font-size: .88rem; margin-right: auto; }
+    .tips { margin: 0; padding-left: 18px; font-size: .9rem; line-height: 1.5; }
     .tips li { margin: 2px 0; }
-    table.dis { width: 100%; border-collapse: collapse; font-size: .88rem; }
-    table.dis td { padding: 3px 4px; border-bottom: 1px dashed var(--line); vertical-align: middle; }
-    table.dis td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    table.dis canvas { image-rendering: pixelated; vertical-align: middle; }
+    .seg { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0 4px; }
+    .seg button { appearance: none; border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: .25rem .7rem; font: 600 .82rem var(--font); cursor: pointer; }
+    .seg button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    table.t { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    table.t th { text-align: left; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 4px; border-bottom: 1px solid var(--line); position: sticky; top: -18px; background: var(--surface); }
+    table.t td { padding: 4px; border-bottom: 1px dashed var(--line); vertical-align: middle; }
+    table.t td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    table.t canvas { image-rendering: pixelated; vertical-align: middle; }
+    table.t tr.sel td { background: color-mix(in srgb, var(--accent-2) 14%, transparent); }
+    .step { display: inline-flex; align-items: center; gap: 2px; }
+    .step button { appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 6px; width: 22px; height: 22px; padding: 0; cursor: pointer; font: 700 .85rem var(--font); line-height: 1; }
+    .step b { min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+    .ok { color: var(--good); font-weight: 700; } .bad { color: var(--accent); font-weight: 700; }
+    .slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; margin: 8px 0; }
+    .slider label { font-weight: 600; font-size: .9rem; }
+    .slider small { color: var(--muted); font-size: .78rem; grid-column: 1 / -1; }
+    .slider input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent-2); }
+    .slider output { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .bars { display: grid; gap: 8px; }
+    .tbar { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: center; font-size: .86rem; }
+    .tbar .track { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+    .tbar .track i { display: block; height: 100%; background: var(--good); }
+    .tbar.lose .track i { background: var(--accent); }
+    .tbar b { font-variant-numeric: tabular-nums; }
+    .pie { display: flex; gap: 14px; align-items: center; }
+    .money { font-variant-numeric: tabular-nums; }
+    .big { font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
     .verdict { font-size: 2rem; font-weight: 700; margin: 6px 0; line-height: 1.1; }
     .cmp { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px 10px; align-items: center; font-variant-numeric: tabular-nums; margin-top: 10px; }
     .cmp .k { text-align: center; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
     .cmp .a { text-align: right; font-weight: 700; } .cmp .b { text-align: left; font-weight: 700; }
     .cmp .hd { font-weight: 700; color: var(--accent); } .cmp .hd.b { color: var(--accent-2); }
     .err { color: var(--accent); font-size: .9rem; min-height: 1.2em; margin: 8px 0 0; }
-    @media (max-width: 420px) { .hud .title { font-size: 1rem; } .stat b { font-size: .95rem; } }
+    .fax { background: #fffdf4; color: #2b2a26; border-radius: 14px; padding: 16px; border: 1px solid #e3dcc6; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .9rem; line-height: 1.45; background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(0,0,0,.04) 23px 24px); }
+    .fax h3 { margin: 0 0 6px; font-family: var(--font); font-size: 1.15rem; }
+    .fax .opts { display: grid; gap: 6px; margin-top: 12px; }
+    .fax .opts button { font-family: var(--font); }
+    .avatars { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+    .avatar { appearance: none; cursor: pointer; display: grid; justify-items: center; gap: 4px; padding: 10px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; }
+    .avatar.on { border-color: var(--accent-2); }
+    .avatar canvas { width: 72px; height: 72px; border-radius: 12px; image-rendering: pixelated; }
+    .avatar small { color: var(--muted); font-size: .78rem; text-align: center; }
+    .field { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; }
+    .field input { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); }
   </style>
 </head>
 <body>
@@ -91,29 +150,36 @@
       <button id="camFit" title="Fit the whole hospital (F)">⌂</button>
       <button id="camFlat" title="Aerial view (V)">2D</button>
     </div>
+    <div class="faxes" id="faxes"></div>
     <p class="status" id="status">Connecting…</p>
     <div class="bar">
-      <span class="stat" id="stCash"><small>Cash</small><b id="hudCash">$0</b></span>
-      <span class="stat" id="stRep"><small>Reputation</small><b id="hudRep">500</b></span>
-      <span class="stat" id="stCured"><small>Cured</small><b id="hudCured">0</b></span>
-      <span class="stat score"><small>Value</small><b id="hudScore">0</b></span>
+      <span class="stat" id="stCash" title="Bank balance (F1 statement, F7 bank manager)"><small>Balance</small><b id="hudCash">$0</b></span>
+      <span class="stat" id="stRep" title="Reputation, 0–1000"><small>Reputation</small><b id="hudRep">500</b><i class="rep"><i id="hudRepBar"></i></i></span>
+      <span class="stat opt" id="stCured"><small>Cured</small><b id="hudCured">0</b></span>
       <span class="cal" id="hudDate"></span>
       <span class="spacer"></span>
       <button class="tab on" id="tabMine">My hospital</button>
       <button class="tab" id="tabRival">Rival <small id="rivalMini"></small></button>
       <button class="tab who" id="profBtn" title="Change your name or character"><canvas id="profMini" width="18" height="18"></canvas><span id="profName2">You</span></button>
-      <button class="pt-btn bar-btn primary" id="startBtn" hidden>Open the hospital</button>
-      <button class="pt-btn bar-btn" id="decorBtn">Decorate</button>
-      <button class="pt-btn bar-btn" id="staffBtn">Staff</button>
-      <button class="pt-btn bar-btn" id="helpBtn" title="How to play">?</button>
+      <button class="pt-btn bar-btn primary" id="startBtn" hidden>Start the match</button>
+      <button class="pt-btn bar-btn primary" id="openBtn" hidden>Open the doors</button>
+      <span class="menu">
+        <button class="mbtn" id="decorBtn" title="Place corridor objects">Corridor</button>
+        <button class="mbtn" id="staffBtn" title="Hire and manage staff (F6)">Staff<kbd>F6</kbd></button>
+        <button class="mbtn" id="caseBtn" title="Drug Casebook: diseases and prices (F2)">Casebook<kbd>F2</kbd></button>
+        <button class="mbtn" id="resBtn" title="Research (F4)">Research<kbd>F4</kbd></button>
+        <button class="mbtn" id="polBtn" title="Hospital Policy (F3)">Policy<kbd>F3</kbd></button>
+        <button class="mbtn" id="bankBtn" title="Bank Manager and Statement (F7 / F1)">Bank<kbd>F7</kbd></button>
+        <button class="mbtn" id="statBtn" title="Status: targets and league (F8)">Status<kbd>F8</kbd></button>
+        <button class="mbtn" id="helpBtn" title="How to play (H)">?</button>
+      </span>
     </div>
-    <div class="foot" id="foot"></div>
   </div>
 
   <div class="panel" id="profile" hidden>
     <div class="sheet" style="width:min(440px,100%)">
       <h2>Who's running your hospital?</h2>
-      <p class="sub">Pick your manager and a name. Your friend sees them walking your corridor.</p>
+      <p class="sub">Pick your administrator and a name. Your friend sees them walking your corridor.</p>
       <div class="avatars" id="avatars"></div>
       <label class="field"><span>Your name</span><input class="name-input" id="profInput" maxlength="12" autocomplete="off" spellcheck="false"></label>
       <div class="row"><button class="pt-btn" id="profSave">That's me</button></div>
@@ -121,24 +187,39 @@
   </div>
 
   <div class="panel" id="legend" hidden>
-    <div class="sheet">
+    <div class="sheet wide">
       <h2>Rival Hospital 3D</h2>
-      <p class="sub">Two hospitals, one town. The patients go wherever the reputation is higher.</p>
-      <h4>How it works</h4>
+      <p class="sub">Two hospitals, one town. Patients pick the hospital with the better reputation and fairer prices.</p>
+      <h4>Getting started</h4>
       <ul class="tips">
-        <li><b>Tap an empty lot</b> to build a room. Every patient sees a <b>GP's Office</b> first to be diagnosed, then needs the room that cures their disease. No room for it? They're sent home and your reputation dips.</li>
-        <li>Rooms need staff: <b>Staff</b> hires doctors and nurses. Skilled staff treat faster and lose fewer patients, but cost more each month.</li>
-        <li>Patients queue in the corridor. Keep queues short or they storm off angry. A crowded reception turns people away.</li>
-        <li>Cures earn the fee and reputation. Deaths cost a lot of reputation. Salaries are paid at the end of each month.</li>
-        <li>Tap a room to see who's working there, or to demolish it (half refund). Twenty lots on two corridors, so choose your specialities.</li>
-        <li><b>Decorate</b> the corridors with plants, benches and radiators: comfort makes queues more patient. A drinks machine earns a little cash, but the cans end up on the floor.</li>
-        <li>Sick patients sometimes throw up, and mess spreads to anyone nearby. Hire a <b>handyman</b> to mop up, or the monthly inspection costs you reputation.</li>
-        <li>Drag to pan, pinch or scroll to zoom, <b>Q</b>/<b>E</b> or the ↺↻ buttons to rotate the view, <b>F</b> to fit, <b>V</b> or the 2D button for a flat aerial view.</li>
+        <li>Tap the dashed outline by the entrance to buy a <b>reception desk</b>, then hire a <b>receptionist</b>. Without both, no patients come.</li>
+        <li>Tap an empty lot to build. Every patient starts at a <b>GP's Office</b>. If the GP isn't sure, they visit diagnosis rooms (General Diagnosis, Ward, Cardiogram…), each adding to their <b>diagnosis %</b>, then return to a GP. The higher the %, the better their chance of surviving the cure.</li>
+        <li>Cures happen in the <b>Pharmacy</b> (drugs, with an effectiveness %), <b>Psychiatric</b> room (needs a psychiatrist), single-disease <b>clinics</b>, and the <b>Operating Theatre</b> (two surgeons; patients stay in a Ward first).</li>
+        <li>You have a few minutes to build before patients arrive. Press <b>Open the doors</b> to start early.</li>
+      </ul>
+      <h4>Staff</h4>
+      <ul class="tips">
+        <li>Doctors are Juniors (skill below 250), Doctors (250–799) or Consultants (800+), and can hold Researcher, Psychiatrist and Surgeon qualifications. Both hospitals hire from the same pool, which refreshes on the 1st of every month.</li>
+        <li>Staff get tired. Build a <b>Staff Room</b> so they can rest (Policy sets when). Pay at least the fair wage or morale drops every month; unhappy staff ask for a raise and walk out a month later if you ignore them. A bonus is a cheap fix.</li>
+        <li>A <b>Training Room</b> with a consultant teaches students skill and copies the teacher's qualifications. <b>Handymen</b> clean up, water plants and repair machines.</li>
+      </ul>
+      <h4>Machines, research, money</h4>
+      <ul class="tips">
+        <li>Every machine has a <b>Strength</b>. Each use wears it; past its strength it smokes and can <b>explode</b>, killing everyone inside and wrecking the room for good. Handymen repair it; Replace restores it. Fire extinguishers lower the odds.</li>
+        <li>The <b>Research Dept.</b> (researcher doctors) splits points across Cure and Diagnosis equipment (new rooms), Drugs, Improvements (machine strength, then cheaper rooms) and Specialisation.</li>
+        <li>The <b>Casebook</b> sets each charge as a % of a recommended price that grows with reputation. Overcharging drives patients to your rival; some cured patients refuse to pay. Insured patients pay at month end. The bank lends in $5,000 steps.</li>
+        <li>Corridor objects: benches, plants, radiators (warmth: heat level is in Policy), fire extinguishers and drinks machines. Patients need toilets, or they wet themselves.</li>
+      </ul>
+      <h4>Events</h4>
+      <ul class="tips">
+        <li>Faxes pop up at the bottom left: emergencies, VIP visits, raise demands, patients you need to decide about, epidemics (declare it, or cover it up by tapping infected patients for vaccination before the inspector arrives). Earthquakes wear out every machine. Litter brings rats: tap to shoot them.</li>
       </ul>
       <h4>Winning</h4>
       <p class="tips" style="padding:0" id="legendWin"></p>
+      <h4>Controls</h4>
+      <p class="tips" style="padding:0">Drag to pan, pinch or scroll to zoom, Q/E or ↺↻ to rotate, F to fit, V for the flat aerial view. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
       <h4>Diseases</h4>
-      <table class="dis" id="disTable"></table>
+      <table class="t" id="disTable"></table>
       <div class="row">
         <span class="note" id="legendNote"></span>
         <button class="pt-btn" id="legendClose">Close</button>
@@ -150,6 +231,7 @@
     <div class="sheet">
       <h2>Build a room</h2>
       <p class="sub" id="buildSub"></p>
+      <div class="seg" id="buildCats"></div>
       <div class="list" id="buildList"></div>
       <p class="err" id="buildErr"></p>
       <div class="row"><button class="pt-btn pt-btn-ghost" id="buildClose">Cancel</button></div>
@@ -158,7 +240,7 @@
 
   <div class="panel" id="decorSheet" hidden>
     <div class="sheet">
-      <h2>Decorate the corridor</h2>
+      <h2 id="decorTitle">Corridor objects</h2>
       <p class="sub" id="decorSub"></p>
       <div class="list" id="decorList"></div>
       <p class="err" id="decorErr"></p>
@@ -171,6 +253,9 @@
       <h2 id="roomTitle"></h2>
       <p class="sub" id="roomSub"></p>
       <div class="list" id="roomInfo"></div>
+      <div id="roomExtrasWrap"><h4>Extras</h4><div class="grid2" id="roomExtras"></div></div>
+      <div id="roomAssignWrap"><h4>Move staff in</h4><div class="list" id="roomAssign"></div></div>
+      <p class="err" id="roomErr"></p>
       <div class="row">
         <span class="note" id="roomNote"></span>
         <button class="pt-btn pt-btn-ghost" id="roomClose">Close</button>
@@ -180,15 +265,69 @@
   </div>
 
   <div class="panel" id="staffSheet" hidden>
-    <div class="sheet">
+    <div class="sheet wide">
       <h2>Staff</h2>
-      <p class="sub">Salaries are paid monthly. New candidates turn up every month.</p>
-      <h4>Hire</h4>
+      <p class="sub" id="staffSub">New candidates turn up on the 1st of every month. Your rival hires from the same pool.</p>
+      <div class="seg" id="staffTabs"></div>
       <div class="list" id="hireList"></div>
-      <h4>On the payroll <span id="payroll"></span></h4>
       <div class="list" id="staffList"></div>
       <p class="err" id="staffErr"></p>
-      <div class="row"><button class="pt-btn pt-btn-ghost" id="staffClose">Close</button></div>
+      <div class="row"><span class="note" id="payroll"></span><button class="pt-btn pt-btn-ghost" id="staffClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="caseSheet" hidden>
+    <div class="sheet wide">
+      <h2>Drug Casebook</h2>
+      <p class="sub" id="caseSub">Diseases your hospital has discovered. Charges are a % of the recommended price, which rises with reputation.</p>
+      <div id="caseBody"></div>
+      <p class="err" id="caseErr"></p>
+      <div class="row"><span class="note" id="caseNote"></span><button class="pt-btn pt-btn-ghost" id="caseClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="polSheet" hidden>
+    <div class="sheet">
+      <h2>Hospital Policy</h2>
+      <p class="sub">How doctors handle uncertain diagnoses, and when staff take a break.</p>
+      <div id="polBody"></div>
+      <div class="row"><button class="pt-btn pt-btn-ghost" id="polClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="resSheet" hidden>
+    <div class="sheet">
+      <h2>Research</h2>
+      <p class="sub" id="resSub"></p>
+      <div id="resBody"></div>
+      <p class="err" id="resErr"></p>
+      <div class="row"><button class="pt-btn pt-btn-ghost" id="resClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="bankSheet" hidden>
+    <div class="sheet">
+      <h2>Bank</h2>
+      <div class="seg" id="bankTabs"></div>
+      <div id="bankBody"></div>
+      <p class="err" id="bankErr"></p>
+      <div class="row"><button class="pt-btn pt-btn-ghost" id="bankClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="statSheet" hidden>
+    <div class="sheet wide">
+      <h2>Status</h2>
+      <p class="sub" id="statSub"></p>
+      <div id="statBody"></div>
+      <div class="row"><button class="pt-btn pt-btn-ghost" id="statClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="faxSheet" hidden>
+    <div class="sheet" style="width:min(460px,100%)">
+      <div class="fax" id="faxBody"></div>
+      <div class="row"><button class="pt-btn pt-btn-ghost" id="faxClose">Later</button></div>
     </div>
   </div>
 

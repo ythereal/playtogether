@@ -68,12 +68,18 @@
     const [c, x] = canvas(16, 24);
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     const d = o.dis || '', side = dir === 'left', back = dir === 'up';
-    const fur = d === 'fur', invis = d === 'invis', green = d === 'gut', big = d === 'balloon', tv = d === 'tv';
-    const skin = fur ? '#8a5a2e' : green ? '#8fc46a' : o.skin, skinD = shade(skin, -0.18);
-    const hair = fur ? '#5a3418' : o.hair, hairD = shade(hair, -0.3);
+    const fur = d === 'fur', invis = d === 'invis', green = d === 'gut' || d === 'green', big = d === 'balloon', tv = d === 'tv';
+    const transp = d === 'transp', jelly = d === 'jelly', rad = d === 'rad', alien = d === 'alien', king = d === 'king', burns = d === 'burns';
+    const skin = fur ? '#8a5a2e' : green ? '#8fc46a' : transp ? '#d6eef6' : jelly ? '#7fd66e' : rad ? '#b4f06a' : alien ? '#7fb069' : o.skin, skinD = shade(skin, -0.18);
+    const hair = fur ? '#5a3418' : king ? '#141418' : o.hair, hairD = shade(hair, -0.3);
     let shirt = o.shirt, pants = o.pants, shoes = '#17181f';
     let dress = o.dress;
     if (o.coat === 'doctor') { shirt = '#f4f4f0'; pants = '#2b2e3a'; dress = false; }
+    if (o.coat === 'surgeon') { shirt = '#5fae8a'; pants = '#5fae8a'; dress = false; shoes = '#f4f4f0'; }
+    if (o.coat === 'vip') { shirt = '#26283a'; pants = '#1d1f2c'; dress = false; }
+    if (o.coat === 'insp') { shirt = '#6a6f7a'; pants = '#4a4f5a'; dress = false; }
+    if (king) { shirt = '#f4f4f0'; pants = '#f4f4f0'; dress = false; }
+    if (jelly) { shirt = shade(shirt, 0.15); }
     if (o.coat === 'nurse') { shirt = '#6fa9e0'; pants = '#6fa9e0'; dress = true; shoes = '#f4f4f0'; }
     if (o.coat === 'recep') { shirt = '#d9579a'; pants = '#3a3f5c'; dress = false; }
     if (o.coat === 'handy') { shirt = '#3c6fb0'; pants = '#3c6fb0'; dress = false; }
@@ -116,6 +122,10 @@
       else if (o.coat === 'recep') { R(7, 11, 2, 2, '#f4f4f0'); R(4, 11, 1, 3, '#2b2e3a'); R(3, 11, 2, 1, '#2b2e3a'); }
       else if (o.coat === 'handy') { R(6, 11, 4, 2, '#f4f0e6'); R(5, 13, 1, 4, '#f4f0e6'); R(10, 13, 1, 4, '#f4f0e6'); R(6, 15, 4, 3, '#2f5a90'); }
       else if (o.coat === 'mgr') { R(6, 11, 4, 4, '#f4f4f0'); R(5, 11, 1, 6, coatL); R(10, 11, 1, 6, coatL); if (o.notie) { R(7, 12, 2, 1, '#e3b341'); } else { R(7, 11, 2, 1, '#2b2e3a'); R(7, 12, 1, 4, o.tie || '#c43c2c'); } R(4, 17, 1, 1, '#e3b341'); }
+      else if (o.coat === 'surgeon') { R(6, 11, 4, 2, '#4a9474'); R(7, 13, 2, 1, '#4a9474'); }
+      else if (o.coat === 'vip') { R(6, 11, 4, 4, '#f4f4f0'); R(7, 11, 2, 1, '#c43c2c'); R(7, 12, 2, 3, '#c43c2c'); R(4, 12, 1, 6, '#e3b341'); R(5, 13, 1, 1, '#e3b341'); R(6, 14, 1, 1, '#e3b341'); R(10, 12, 1, 1, '#e3b341'); }
+      else if (o.coat === 'insp') { R(6, 11, 4, 3, '#f4f4f0'); R(7, 11, 2, 4, '#2b2e3a'); R(10, 13, 1, 2, '#e3b341'); }
+      else if (king) { R(5, 11, 6, 2, '#e3b341'); R(7, 13, 2, 5, '#e3b341'); R(4, 17, 8, 1, '#e3b341'); R(7, 18, 2, 1, '#ffd23f'); }
       else if (d === 'ribs') { for (let j = 12; j < 18; j += 2) R(5, j, 6, 1, '#f4f0e6'); R(7, 11, 2, 7, '#f4f0e6'); }
       else if (!fur) { R(7, 11, 2, 2, coatL); R(7, 14, 1, 1, coatD); R(7, 16, 1, 1, coatD); }
     }
@@ -145,6 +155,12 @@
         else { R(5, 5, 1, 1, OUT); R(10, 5, 1, 1, OUT); R(6, 8, 4, 1, '#c0604a'); R(4, 7, 1, 1, '#e8a090'); R(11, 7, 1, 1, '#e8a090'); }
         R(6, 1, 2, 1, shade(skin, 0.5));
       } else { R(4, 1, 8, 3, hair); }
+    } else if (alien) {
+      blob(x, 8, 5, 5.6, 5.4, skin, { light: shade(skin, 0.3) }); R(6, 9, 4, 2, skin); R(7, 10, 2, 1, skinD);
+      if (!back) {
+        if (side) { R(4, 4, 2, 3, OUT); R(4, 4, 1, 1, '#6fd3ff'); }
+        else { R(4, 4, 3, 3, OUT); R(9, 4, 3, 3, OUT); R(4, 4, 1, 1, '#9fffa0'); R(9, 4, 1, 1, '#9fffa0'); R(7, 8, 2, 1, OUT); }
+      }
     } else if (!invis) {
       R(4, 3, 8, 8, skin); R(11, 4, 1, 6, skinD);
       x.clearRect(4, 3, 1, 1); x.clearRect(11, 3, 1, 1); x.clearRect(4, 10, 1, 1); x.clearRect(11, 10, 1, 1);
@@ -181,6 +197,12 @@
         if (d === 'bones') { R(4, 3, 8, 2, '#ffffff'); R(4, 5, 1, 2, '#ffffff'); R(6, 4, 1, 1, '#e8e8e8'); }
       }
       if (fur) { for (let i = 4; i < 12; i += 2) R(i, 2 + (i % 4 ? 0 : -1), 1, 1, skin); R(3, 5, 1, 3, skin); R(12, 5, 1, 3, skin); }
+      if (transp && !back) { if (side) { R(4, 6, 2, 2, '#7a8ca0'); R(4, 9, 3, 1, '#9fb4c6'); } else { R(5, 6, 2, 2, '#7a8ca0'); R(9, 6, 2, 2, '#7a8ca0'); R(6, 9, 4, 1, '#9fb4c6'); R(7, 8, 2, 1, '#9fb4c6'); } }
+      if (jelly) { R(5, 4, 2, 1, '#d6ffc8'); R(5, 5, 1, 1, '#d6ffc8'); R(10, 9, 1, 1, shade(skin, -0.3)); }
+      if (rad && !back) { R(5, 4, 1, 1, '#f4ffd0'); R(10, 9, 1, 1, '#f4ffd0'); }
+      if ((burns || king) && !back) { const sb = king ? hair : hair; if (side) { R(8, 5, 2, 5, sb); } else { R(4, 5, 2, 5, sb); R(10, 5, 2, 5, sb); R(4, 9, 1, 1, sb); R(11, 9, 1, 1, sb); } }
+      if (king && !back) { if (side) { R(2, 1, 8, 2, hair); R(3, 0, 5, 1, hair); R(3, 6, 3, 1, '#e3b341'); } else { R(4, 0, 8, 3, hair); R(5, -1, 5, 1, hair); R(5, 6, 6, 1, '#e3b341'); R(5, 7, 2, 1, '#e3b341'); R(9, 7, 2, 1, '#e3b341'); } }
+      if (burns && !side && !back) { R(4, 11, 2, 2, coatL); R(10, 11, 2, 2, coatL); }
       if (o.quiff && !bald && !back) { if (side) { R(3, 1, 6, 1, hair); R(4, 0, 4, 1, hair); } else { R(5, 1, 5, 1, hair); R(6, 0, 3, 1, hair); R(10, 2, 1, 1, shade(hair, 0.25)); } }
       if (o.earrings && !back) { if (side) R(9, 8, 1, 2, '#e3b341'); else { R(4, 8, 1, 2, '#e3b341'); R(11, 8, 1, 2, '#e3b341'); } }
       if (o.cap && !bald && !back) { R(4, 1, 8, 3, '#2a4a7a'); R(4, 4, 8, 1, '#1a2a4a'); if (!side) R(3, 4, 10, 1, '#1a2a4a'); else R(2, 4, 8, 1, '#1a2a4a'); }
@@ -191,6 +213,9 @@
     }
     if (d === 'royal') { R(5, 0, 6, 2, '#ffd23f'); R(5, -1, 1, 1, '#ffd23f'); R(8, -1, 1, 1, '#ffd23f'); R(10, -1, 1, 1, '#ffd23f'); R(7, 0, 1, 1, '#e8533f'); R(8, 1, 1, 1, '#3c7bd6'); }
     if (o.coat === 'nurse' && !big && !tv) { R(5, 1, 6, 2, '#ffffff'); R(7, 1, 2, 1, '#e8533f'); }
+    if (o.coat === 'surgeon') { R(4, 2, 8, 2, '#5fae8a'); R(4, 1, 8, 1, '#4a9474'); if (!back && !side) R(5, 8, 6, 3, '#9fd4bc'); }
+    if (o.tophat) { R(3, 2, 10, 1, '#1d1f2c'); R(5, -1, 6, 3, '#26283a'); R(5, 1, 6, 1, '#c43c2c'); R(6, -1, 2, 1, '#4a4f6a'); }
+    if (o.coat === 'insp' && !o.tophat) { R(3, 2, 10, 1, '#3a3f48'); R(5, 0, 6, 2, '#4a4f5a'); }
     if (o.coat === 'recep' && !side) { R(3, 6, 1, 3, '#2b2e3a'); R(3, 9, 2, 1, '#2b2e3a'); }
     return outline(c);
   }
@@ -203,7 +228,10 @@
     return (personCache[key] = sh);
   }
   const patientSheet = (lookIdx, dis) => personSheet('p' + lookIdx + ':' + (dis || ''), Object.assign(look(lookIdx), { dis }));
-  const staffSheet = (lookIdx, kind) => personSheet('s' + lookIdx + ':' + kind, Object.assign(look(lookIdx), { longHair: false, bun: kind === 'n' && lookIdx % 2 === 0, cap: false, dress: false, coat: kind === 'd' ? 'doctor' : kind === 'n' ? 'nurse' : kind === 'h' ? 'handy' : 'recep', cap: kind === 'h' }));
+  // kind 'd' doctor, 's' doctor with the surgeon qualification (scrubs), 'n' nurse, 'h' handyman, 'r' receptionist
+  const staffSheet = (lookIdx, kind) => personSheet('s' + lookIdx + ':' + kind, Object.assign(look(lookIdx), { longHair: false, bun: kind === 'n' && lookIdx % 2 === 0, dress: false, coat: kind === 'd' ? 'doctor' : kind === 's' ? 'surgeon' : kind === 'n' ? 'nurse' : kind === 'h' ? 'handy' : 'recep', cap: kind === 'h' }));
+  const vipSheet = () => personSheet('vip', { skin: '#e0b088', hair: '#6a6a70', shirt: '#26283a', pants: '#1d1f2c', coat: 'vip', tophat: true, mustache: true });
+  const inspSheet = () => personSheet('insp', { skin: '#f0c4a0', hair: '#2a1a12', shirt: '#6a6f7a', pants: '#4a4f5a', coat: 'insp', glasses: true, clip: true });
   // the two playable hospital managers
   const AVATARS = [
     { id: 'max', name: 'Max', skin: '#e0b088', hair: '#4a2e1e', shirt: '#2a3a6a', pants: '#1d2029', quiff: true, tie: '#c43c2c', coat: 'mgr', clip: true },
@@ -249,6 +277,13 @@
     },
     bush() { const [c, x] = canvas(18, 12); const leaf = (X, Y, r, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(X, Y, r, r * 0.75, 0, 0, Math.PI * 2); x.fill(); }; leaf(9, 7, 8, '#2e6b3a'); leaf(5, 5, 4, '#3a8a48'); leaf(12, 4, 4, '#4aa45a'); rect(x, 4, 3, 1, 1, '#7acb7a'); rect(x, 13, 7, 1, 1, '#7acb7a'); return outline(c); },
     sign() { const [c, x] = canvas(24, 16); rect(x, 11, 10, 2, 6, '#6b7280'); box(x, 0, 0, 24, 11, '#f4f4f0', '#ffffff'); rect(x, 3, 2, 18, 7, '#3c7bd6'); rect(x, 10, 3, 4, 5, '#ffffff'); rect(x, 8, 4, 8, 3, '#ffffff'); rect(x, 11, 4, 2, 3, '#e8533f'); rect(x, 10, 5, 4, 1, '#e8533f'); return outline(c); },
+    deadplant() {
+      const [c, x] = canvas(16, 26);
+      box(x, 4, 18, 8, 8, '#b5643c'); rect(x, 4, 18, 8, 2, '#8f4a2a');
+      rect(x, 7, 8, 2, 10, '#7a5a2a'); rect(x, 4, 10, 3, 1, '#9a7a3a'); rect(x, 9, 12, 4, 1, '#9a7a3a'); rect(x, 3, 11, 1, 3, '#a88a4a'); rect(x, 12, 13, 1, 3, '#a88a4a');
+      rect(x, 5, 16, 2, 2, '#b89a5a'); rect(x, 10, 17, 2, 1, '#b89a5a');
+      return outline(c);
+    },
     mop() { const [c, x] = canvas(8, 22); rect(x, 3, 0, 2, 16, '#c8a05a'); rect(x, 1, 15, 6, 5, '#e8e0d0'); rect(x, 0, 17, 8, 3, '#d6cdbc'); return outline(c); },
   };
   const furnCache = {};
@@ -281,7 +316,21 @@
     hair:   { floor: ['plank', '#f0e0c4', '#dcc8a4'], wall: ['#e4c7a0', 'stripe'] },
     elec:   { floor: ['lino', '#cfd4e0', '#bfc5d4'], wall: ['#8e97ad', 'tiles'] },
     op:     { floor: ['tile', '#cfe8d8', '#bedbc8'], wall: ['#9fcbb2', 'tiles'] },
+    gendiag: { floor: ['lino', '#e6dcc8', '#d8ccb4'], wall: ['#c9b48a', 'stripe'] },
+    cardio: { floor: ['tile', '#f0d8d8', '#e4c8c8'], wall: ['#d89a9a', 'dots'] },
+    xray:   { floor: ['tile', '#c8ccd8', '#b8bcca'], wall: ['#7a8498', 'tiles'] },
+    scanner: { floor: ['lino', '#dfe6f0', '#cfd8e6'], wall: ['#a8b8d0', 'tiles'] },
+    blood:  { floor: ['tile', '#f2e0e0', '#e6cfcf'], wall: ['#c46a6a', 'stripe'] },
+    ultra:  { floor: ['lino', '#d8eef4', '#c6e2ea'], wall: ['#7ab8c8', 'dots'] },
+    fracture: { floor: ['tile', '#e8e4dc', '#d8d2c6'], wall: ['#b8aa92', 'tiles'] },
+    jelly:  { floor: ['tile', '#dcefd2', '#cae4bc'], wall: ['#7ab86a', 'dots'] },
+    decon:  { floor: ['tile', '#e6e6c8', '#d6d6b0'], wall: ['#a8a86a', 'tiles'] },
+    dna:    { floor: ['lino', '#d6d2ea', '#c4bede'], wall: ['#4a4a7a', 'stripe'] },
+    staff:  { floor: ['carpet', '#4a6a8a', '#3e5c7a'], wall: ['#d9b46a', 'stripe'] },
+    toilet: { floor: ['tile', '#f4f4f8', '#dfe4f2'], wall: ['#b8d0e6', 'tiles'] },
+    research: { floor: ['lino', '#e2e2d6', '#d2d2c4'], wall: ['#8a9a7a', 'stripe'] },
+    training: { floor: ['plank', '#b88a58', '#a07848'], wall: ['#c9b08a', 'stripe'] },
   };
 
-  window.HA = { T, W, H, OUT, canvas, shade, outline, flipH, hash, rect, box, blob, look, patientSheet, staffSheet, AVATARS, managerSheet, portrait, ghost, furniture, floor, ROOM_STYLE, C };
+  window.HA = { T, W, H, OUT, canvas, shade, outline, flipH, hash, rect, box, blob, look, patientSheet, staffSheet, vipSheet, inspSheet, AVATARS, managerSheet, portrait, ghost, furniture, floor, ROOM_STYLE, C };
 })();
