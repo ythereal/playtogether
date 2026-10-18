@@ -454,7 +454,7 @@
   function resize() {
     DPR = devicePixelRatio || 1; cw = innerWidth; ch = innerHeight;
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
-    fitZ = Math.min(cw / BW, (ch - 110) / BH) * 0.96;
+    const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
     clampCam();
   }
   const minZ = () => Math.max(0.6, Math.min(fitZ, 1.5)), maxZ = () => 4;
@@ -465,7 +465,8 @@
     cam.y = clamp(cam.y, Math.min(hh - 40, BH / 2), Math.max(BH - hh + 60, BH / 2));
   }
   function fitView() {
-    cam.z = Math.max(fitZ, 0.6); cam.x = BW / 2; cam.y = BH / 2 - 10;
+    const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
+    cam.z = Math.max(fitZ, 0.6); cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10;
     if (cw < 700) { cam.z = Math.max(cam.z, 1.4); const [ex, ey] = HI.px(120, 100); cam.x = ex; cam.y = ey; }   // phones: start zoomed in on the entrance
     clampCam();
   }
@@ -475,6 +476,8 @@
     cam.z = z1; cam.x = bx - (px - cw / 2) / z1; cam.y = by - (py - ch / 2) / z1; clampCam();
   }
   function rotate(dir) { HI.setRot(HI.getRot() + dir); hudKey = ''; }
+  function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (V)' : 'Aerial view (V)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
+  try { if (localStorage.getItem('rh3d_flat') === '1') setFlat(true); } catch (e) {}
   addEventListener('resize', resize); resize(); fitView(); setTimeout(() => { resize(); fitView(); }, 300);
   const toBuf = (px, py) => [cam.x + (px - cw / 2) / cam.z, cam.y + (py - ch / 2) / cam.z];
   const toScr = (bx, by) => [(bx - cam.x) * cam.z + cw / 2, (by - cam.y) * cam.z + ch / 2];
@@ -511,12 +514,13 @@
   cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
   cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); else { cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); } }, { passive: false });
   $('camRotL').addEventListener('click', () => rotate(-1)); $('camRotR').addEventListener('click', () => rotate(1));
+  $('camFlat').addEventListener('click', () => setFlat(!HI.getFlat()));
   $('camIn').addEventListener('click', () => zoomAt(1.3, cw / 2, ch / 2)); $('camOut').addEventListener('click', () => zoomAt(1 / 1.3, cw / 2, ch / 2)); $('camFit').addEventListener('click', fitView);
   const keysDown = new Set();
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || !$('profile').hidden || panelOpen()) return;
     const k = e.key.toLowerCase();
-    if (k === 'q') rotate(-1); else if (k === 'e') rotate(1); else if (k === 'f') fitView();
+    if (k === 'q') rotate(-1); else if (k === 'e') rotate(1); else if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
     else if (k === '+' || k === '=') zoomAt(1.25, cw / 2, ch / 2); else if (k === '-' || k === '_') zoomAt(0.8, cw / 2, ch / 2);
     else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 'd'].includes(k) || (k === 's' && !e.repeat && false)) { keysDown.add(k); e.preventDefault(); }
   });

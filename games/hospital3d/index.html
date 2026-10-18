@@ -36,7 +36,7 @@
     .status.warn { color: var(--accent); font-weight: 600; border-color: var(--accent); }
     .foot { display: none; }
     .camctl { position: fixed; right: 12px; top: 56px; display: grid; gap: 6px; }
-    .camctl button { width: 40px; height: 36px; padding: 0; font-size: 1.1rem; line-height: 1; cursor: pointer; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; box-shadow: var(--shadow); }
+    .camctl button { width: 40px; height: 36px; padding: 0; font: 700 .9rem var(--font); font-size: 1rem; line-height: 1; cursor: pointer; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; box-shadow: var(--shadow); }
     .camctl button:active { transform: translateY(1px); }
     @media (max-width: 640px) { .tab .alt, .tab.who span, .stat.score { display: none; } .bar { gap: 5px; padding: 6px 6px; } .stat b { font-size: .95rem; } .status { font-size: .8rem; } }
 
@@ -89,6 +89,7 @@
       <button id="camIn" title="Zoom in (+)">+</button>
       <button id="camOut" title="Zoom out (−)">−</button>
       <button id="camFit" title="Fit the whole hospital (F)">⌂</button>
+      <button id="camFlat" title="Aerial view (V)">2D</button>
     </div>
     <p class="status" id="status">Connecting…</p>
     <div class="bar">
@@ -132,7 +133,7 @@
         <li>Tap a room to see who's working there, or to demolish it (half refund). Twenty lots on two corridors, so choose your specialities.</li>
         <li><b>Decorate</b> the corridors with plants, benches and radiators: comfort makes queues more patient. A drinks machine earns a little cash, but the cans end up on the floor.</li>
         <li>Sick patients sometimes throw up, and mess spreads to anyone nearby. Hire a <b>handyman</b> to mop up, or the monthly inspection costs you reputation.</li>
-        <li>Drag to pan, pinch or scroll to zoom, <b>Q</b>/<b>E</b> or the ↺↻ buttons to rotate the view, <b>F</b> to fit.</li>
+        <li>Drag to pan, pinch or scroll to zoom, <b>Q</b>/<b>E</b> or the ↺↻ buttons to rotate the view, <b>F</b> to fit, <b>V</b> or the 2D button for a flat aerial view.</li>
       </ul>
       <h4>Winning</h4>
       <p class="tips" style="padding:0" id="legendWin"></p>

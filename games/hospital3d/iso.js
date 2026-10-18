@@ -8,11 +8,17 @@
   const K = 0.75, KX = K, KY = K / 2;             // world px → screen px along the two floor axes
   const L = Math.max(W, H) * T, CXW = W * T / 2, CYW = H * T / 2;   // rotation centre and bounding square
   const OX = Math.ceil(L * KX) + 8, OY = 54;
-  const BW = OX * 2, BH = Math.ceil(L * K) + OY + 30;
+  const OXF = 8, OYF = 60;                          // flat (aerial) view origin
+  const BW = Math.max(OX * 2, L + 16), BH = Math.max(Math.ceil(L * K) + OY + 30, L + OYF + 40);
   const WALL_H = 34, LOW_H = 9;
   let rot = 0;                                      // 0..3, quarter turns clockwise
+  let flat = false;                                 // aerial view: plain top-down instead of isometric
   const setRot = r => { rot = ((r % 4) + 4) % 4; };
   const getRot = () => rot;
+  const setFlat = f => { flat = !!f; };
+  const getFlat = () => flat;
+  // the area of the buffer the current view occupies (for fitting the camera)
+  const extent = () => (flat ? { x: 0, y: OYF - 36, w: L + 16, h: L + 40 } : { x: 0, y: 0, w: OX * 2, h: Math.ceil(L * K) + OY + 30 });
   // world → rotated world (about the map centre)
   function rw(x, y) {
     const dx = x - CXW, dy = y - CYW;
@@ -22,10 +28,11 @@
     const dx = x - CXW, dy = y - CYW;
     switch (rot) { case 1: return [CXW + dy, CYW - dx]; case 2: return [CXW - dx, CYW - dy]; case 3: return [CXW - dy, CYW + dx]; default: return [x, y]; }
   }
-  const pxr = (x, y) => [OX + (x - y) * KX, OY + (x + y) * KY];                 // rotated world → screen
+  const pxr = (x, y) => (flat ? [OXF + x, OYF + y] : [OX + (x - y) * KX, OY + (x + y) * KY]);   // rotated world → screen
   const px = (x, y) => { const [a, b] = rw(x, y); return pxr(a, b); };          // world → screen
-  const depth = (x, y) => { const [a, b] = rw(x, y); return a + b; };
-  function unproj(sx, sy) { const u = (sx - OX) / KX, v = (sy - OY) / KY; return unrw((u + v) / 2, (v - u) / 2); }
+  const dsum = (a, b) => (flat ? b + a * 0.001 : a + b);          // draw order: y-major when aerial, x+y when isometric
+  const depth = (x, y) => { const [a, b] = rw(x, y); return dsum(a, b); };
+  function unproj(sx, sy) { if (flat) return unrw(sx - OXF, sy - OYF); const u = (sx - OX) / KX, v = (sy - OY) / KY; return unrw((u + v) / 2, (v - u) / 2); }
   // sprite facing (0 down, 1 up, 2 left, 3 right) seen from the rotated view
   const ROTF = [[0, 1, 2, 3], [2, 3, 1, 0], [1, 0, 3, 2], [3, 2, 0, 1]];
   const facing = f => ROTF[rot][f] == null ? 0 : ROTF[rot][f];
@@ -38,9 +45,10 @@
   function floorAt(ctx, img, x, y) {
     const [a, b] = rw(x, y);
     // world +x and +y map to these screen vectors for each quarter turn
-    const m = [[KX, KY, -KX, KY], [-KX, KY, -KX, -KY], [-KX, -KY, KX, -KY], [KX, -KY, KX, KY]][rot];
+    const m = (flat ? [[1, 0, 0, 1], [0, 1, -1, 0], [-1, 0, 0, -1], [0, -1, 1, 0]] : [[KX, KY, -KX, KY], [-KX, KY, -KX, -KY], [-KX, -KY, KX, -KY], [KX, -KY, KX, KY]])[rot];
     // the image's u axis is world +x and v axis is world +y; both rotate with the view
-    ctx.setTransform(m[0], m[1], m[2], m[3], OX + (a - b) * KX, OY + (a + b) * KY);
+    const [ox, oy] = pxr(a, b);
+    ctx.setTransform(m[0], m[1], m[2], m[3], ox, oy);
     ctx.drawImage(img, 0, 0); reset(ctx);
   }
   // a vertical wall image standing on the floor from world A to world B (left edge of the image at A)
@@ -51,25 +59,30 @@
   }
   function bill(ctx, img, x, y, lift) { const [sx, sy] = px(x, y); ctx.drawImage(img, Math.round(sx - img.width / 2), Math.round(sy - img.height + (lift || 0))); }
   function shadow(ctx, x, y, rx) { const [sx, sy] = px(x, y); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(sx, sy, rx, rx / 2, 0, 0, Math.PI * 2); ctx.fill(); }
-  function decal(ctx, x, y, fn) { const [a, b] = rw(x, y); ctx.setTransform(KX, KY, -KX, KY, OX + (a - b) * KX, OY + (a + b) * KY); fn(ctx); reset(ctx); }
+  const topM = () => (flat ? [1, 0, 0, 1] : [KX, KY, -KX, KY]);
+  function decal(ctx, x, y, fn) { const [a, b] = rw(x, y), [ox, oy] = pxr(a, b), m = topM(); ctx.setTransform(m[0], m[1], m[2], m[3], ox, oy); fn(ctx); reset(ctx); }
 
   // ---------- iso box: footprint (x, y, w, d) in world units, height h in screen px ----------
   function box(ctx, x, y, w, d, h, col, faces) {
+    h = h | 0;
     // rotate the footprint into view space (axis-aligned again, w/d may swap)
     const c = [rw(x, y), rw(x + w, y), rw(x + w, y + d), rw(x, y + d)];
     const x0 = Math.min(...c.map(p => p[0])), y0 = Math.min(...c.map(p => p[1])), x1 = Math.max(...c.map(p => p[0])), y1 = Math.max(...c.map(p => p[1]));
     const vw = x1 - x0, vd = y1 - y0;
     const p00 = pxr(x0, y0), p10 = pxr(x1, y0), p11 = pxr(x1, y1), p01 = pxr(x0, y1);
     const poly = (pts, fill) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = 'rgba(27,23,32,.75)'; ctx.lineWidth = 1; ctx.stroke(); };
+    if (flat) h = 0;
     const up = p => [p[0], p[1] - h];
-    poly([up(p01), up(p11), p11, p01], col);                      // south face (view space)
-    poly([up(p10), up(p11), p11, p10], shade(col, -0.32));        // east face
-    poly([up(p00), up(p10), up(p11), up(p01)], shade(col, 0.18)); // top
+    if (!flat) {
+      poly([up(p01), up(p11), p11, p01], col);                      // south face (view space)
+      poly([up(p10), up(p11), p11, p10], shade(col, -0.32));        // east face
+    }
+    poly([up(p00), up(p10), up(p11), up(p01)], shade(col, flat ? 0.08 : 0.18)); // top
     if (!faces) return;
     ctx.save();
-    if (faces.top) { ctx.setTransform(KX, KY, -KX, KY, p00[0], p00[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, vd); ctx.clip(); faces.top(ctx, vw, vd); reset(ctx); }
-    if (faces.south) { ctx.setTransform(KX, KY, 0, 1, p01[0], p01[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, h); ctx.clip(); faces.south(ctx, vw, h); reset(ctx); }
-    if (faces.east) { ctx.setTransform(-KX, KY, 0, 1, p10[0], p10[1] - h); ctx.beginPath(); ctx.rect(0, 0, vd, h); ctx.clip(); faces.east(ctx, vd, h); reset(ctx); }
+    if (faces.top) { const m = topM(); ctx.setTransform(m[0], m[1], m[2], m[3], p00[0], p00[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, vd); ctx.clip(); faces.top(ctx, vw, vd); reset(ctx); }
+    if (faces.south && !flat) { ctx.setTransform(KX, KY, 0, 1, p01[0], p01[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, h); ctx.clip(); faces.south(ctx, vw, h); reset(ctx); }
+    if (faces.east && !flat) { ctx.setTransform(-KX, KY, 0, 1, p10[0], p10[1] - h); ctx.beginPath(); ctx.rect(0, 0, vd, h); ctx.clip(); faces.east(ctx, vd, h); reset(ctx); }
     ctx.restore();
   }
   // small decal painters (local units)
@@ -206,8 +219,8 @@
     const [a1, a2] = rw(ax, ay), [b1, b2] = rw(bx, by), [n1, n2] = (() => { const o = rw(0, 0), n = rw(nx, ny); return [n[0] - o[0], n[1] - o[1]]; })();
     const alongX = Math.abs(a2 - b2) < 0.5;
     const far = alongX ? n2 > 0 : n1 > 0;
-    const h = far ? WALL_H : LOW_H;
-    const img = wallImg(key + (far ? 'T' : 'L'), Math.round(Math.hypot(bx - ax, by - ay)), h, col, style, decal, gap);
+    const h = flat ? 4 : far ? WALL_H : LOW_H;
+    const img = wallImg(key + (flat ? 'F' : far ? 'T' : 'L'), Math.round(Math.hypot(bx - ax, by - ay)), h, col, style, decal, gap);
     // orient the image so its left edge sits at the end that is drawn first in view space
     const flip = alongX ? a1 > b1 : a2 > b2;
     const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
@@ -217,7 +230,7 @@
       const t0 = i / n, t1 = (i + 1) / n;
       const p0 = [sx + (ex - sx) * t0, sy + (ey - sy) * t0], p1 = [sx + (ex - sx) * t1, sy + (ey - sy) * t1];
       const q0 = rw(p0[0], p0[1]), q1 = rw(p1[0], p1[1]);
-      items.push({ d: Math.max(q0[0] + q0[1], q1[0] + q1[1]) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
+      items.push({ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
     }
     return items;
   }
@@ -266,5 +279,5 @@
     return { d: depth(m.x, m.y), draw: c => { const [sx, sy] = px(m.x, m.y); R(c, sx - 2, sy - 4, 4, 4, '#e8533f'); R(c, sx - 2, sy - 5, 4, 1, '#c8ccd4'); R(c, sx - 1, sy - 3, 1, 2, '#ffd23f'); } };
   }
 
-  window.HI = { K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, roomWalls, lotWalls, buildingWalls, scaffoldItems, outside, messItem, roomItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, roomWalls, lotWalls, buildingWalls, scaffoldItems, outside, messItem, roomItems, DECOR_DRAW, DECOR_FOOT };
 })();
