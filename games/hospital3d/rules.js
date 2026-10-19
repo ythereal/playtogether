@@ -925,7 +925,8 @@
     const h = s.h[p], cands = roomsOf(h, kind);
     if (!cands.length) return false;
     const staffed = r => (r.sts.length ? 0 : 1);
-    cands.sort((a, b) => staffed(a) - staffed(b) || a.q.length - b.q.length || Math.hypot(roomCenter(a)[0] - pt.x, roomCenter(a)[1] - pt.y) - Math.hypot(roomCenter(b)[0] - pt.x, roomCenter(b)[1] - pt.y));
+    const full = r => (r.qmax != null && r.q.length >= r.qmax ? 1 : 0);
+    cands.sort((a, b) => staffed(a) - staffed(b) || full(a) - full(b) || a.q.length - b.q.length || Math.hypot(roomCenter(a)[0] - pt.x, roomCenter(a)[1] - pt.y) - Math.hypot(roomCenter(b)[0] - pt.x, roomCenter(b)[1] - pt.y));
     const r = cands[0];
     if (pt.em) { const firstNonEm = r.q.findIndex(id => { const o = patById(h, id); return !o || !o.em; }); r.q.splice(firstNonEm < 0 ? r.q.length : firstNonEm, 0, pt.id); }
     else r.q.push(pt.id);
@@ -1425,7 +1426,7 @@
     const cost = Math.round(objCost(h, ROOMS[r.k].p) * 0.5);
     if (h.cash < cost) return 'Not enough cash';
     book(h, 'Machines', -cost);
-    r.used = 0; r.str = machStr(h, r.k);
+    r.used = 0; r.call = 0; r.str = machStr(h, r.k);
     s.ev.push({ k: 'replaced', p, room: id, kind: r.k });
     return null;
   }
@@ -1487,7 +1488,90 @@
     if (!on && st.mode === 'train') { leaveFacility(h, st); st.mode = 'idle'; assign(h); }
     return null;
   }
-  function setPri(s, p, id, pri) { const st = staffById(s.h[p], id); if (!st || st.k !== 'h') return 'Not a handyman'; st.pri = ['all', 'clean', 'repair', 'water'].includes(pri) ? pri : 'all'; return null; }
+  function setPri(s, p, id, pri) { const st = staffById(s.h[p], id); if (!st || st.k !== 'h') return 'Not a handyman'; st.pri = ['all', 'clean', 'repair', 'water'].includes(pri) ? pri : 'all'; st.pw = null; return null; }
+  // ---------- what the in-world info windows can do ----------
+  // a handyman's effort split between litter, plants and machines: each press moves 10% to one task from the other two
+  const TASKS = ['clean', 'water', 'repair'];
+  function setTask(s, p, id, task) {
+    const st = staffById(s.h[p], id);
+    if (!st || st.k !== 'h' || st.gone) return 'Not a handyman';
+    if (!TASKS.includes(task)) return 'Unknown';
+    const w = st.pw ? Object.assign({}, st.pw) : { clean: 0.34, water: 0.33, repair: 0.33 };
+    const others = TASKS.filter(k => k !== task), rest = others.reduce((a, k) => a + w[k], 0), take = Math.min(0.1, rest);
+    if (take <= 0) return null;
+    for (const k of others) w[k] = r2(Math.max(0, w[k] - take * w[k] / rest));
+    w[task] = r2(1 - others.reduce((a, k) => a + w[k], 0));
+    st.pw = w; st.pri = 'all';
+    return null;
+  }
+  // the machine window's call: the next free handyman comes to service it, however worn it is
+  function callFix(s, p, id) {
+    const r = s.h[p].rooms[id];
+    if (!r || !isBuilt(r) || !ROOMS[r.k].mach) return 'No machine there';
+    if (!r.used) return 'It hasn\'t been used yet';
+    r.call = 1;
+    return null;
+  }
+  // the patient window: send someone home, or straight to treatment on the current best guess
+  function patHome(s, p, id) {
+    const h = s.h[p], pt = patById(h, id);
+    if (!pt) return 'They\'ve already gone';
+    if (pt.st === 'leave') return 'They\'re already leaving';
+    if (pt.incar) return 'Not now';
+    leaveFacility(h, pt);
+    sendHome(s, p, pt, 'you');
+    return null;
+  }
+  function patGuess(s, p, id) {
+    const h = s.h[p], pt = patById(h, id);
+    if (!pt || pt.st === 'leave' || pt.st === 'enter') return 'Not now';
+    if (pt.dx) return 'Already diagnosed';
+    const r = pt.slot != null ? h.rooms[pt.slot] : null;
+    if (r && r.p === pt.id) return 'Wait till they come out';
+    unqueue(h, pt); leaveFacility(h, pt); dropFax(h, f => f.pid === pt.id);
+    goCure(s, p, pt);
+    return null;
+  }
+  // the queue window: back to reception, move up or down a queue, the most that may queue for a room
+  function patRecep(s, p, id) {
+    const h = s.h[p], pt = patById(h, id);
+    if (!pt || pt.st === 'leave' || pt.st === 'enter') return 'Not now';
+    const r = pt.slot != null ? h.rooms[pt.slot] : null;
+    if (r && r.p === pt.id) return 'Wait till they come out';
+    unqueue(h, pt); leaveFacility(h, pt);
+    pt.st = 'recep'; pt.t = 1.4;
+    route(h, pt, RECEP[0] + (rnd() - 0.5) * 6, RECEP[1] + (rnd() - 0.5) * 8);
+    return null;
+  }
+  function qMove(s, p, rid, id, to) {
+    const h = s.h[p], r = h.rooms[rid];
+    if (!r || !isBuilt(r)) return 'No queue there';
+    const i = r.q.indexOf(id); if (i < 0) return 'Not in this queue';
+    r.q.splice(i, 1); r.q.splice(clamp(to, 0, r.q.length), 0, id);
+    reQueue(h, r);
+    return null;
+  }
+  function qMax(s, p, rid, n) {
+    const r = s.h[p].rooms[rid];
+    if (!r || !isBuilt(r)) return 'No queue there';
+    r.qmax = clamp(n | 0, 0, 30);
+    return null;
+  }
+  const qCap = r => (r.qmax == null ? QMAX : r.qmax);
+  // pick up a member of staff and put them down: in a room they work there, in a corridor they wander from there
+  function dropStaff(s, p, id, x, y) {
+    if (s.ph !== 'play') return 'Not now';
+    const h = s.h[p], st = staffById(h, id);
+    if (!st || st.gone || st.incar) return 'Can\'t do that';
+    const tx = tileOf(x), ty = tileOf(y), r = roomList(h).find(q => tx >= q.rect.x && ty >= q.rect.y && tx < q.rect.x + q.rect.w && ty < q.rect.y + q.rect.h);
+    if (r) return place(s, p, id, r.id);
+    if (!indoor(tx, ty) || layout(h).block[idx(tx, ty)]) return 'Put them down in a corridor or a room';
+    leaveFacility(h, st); unslot(h, st);
+    st.desk = false; st.train = false; st.job = null; st.work = 0; st.mode = 'idle'; st.pin = false;
+    st.x = r2(x); st.y = r2(y); st.path = []; st.mv = 0; st.idle = 0; st.wt = 3;
+    assign(h);
+    return null;
+  }
   function pay(s, p, id, kind) {
     if (s.ph !== 'play') return 'Not now';
     const h = s.h[p], st = staffById(h, id);
@@ -1901,7 +1985,7 @@
         st.work += dt / (time * (1.4 - 0.6 * st.sk));
         if (st.work >= 1) {
           if (j[0] === 'm') { const m = h.mess.find(x => 'm' + x.id === j); if (m) { h.mess.splice(h.mess.indexOf(m), 1); s.ev.push({ k: 'cleaned', p, x: m.x, y: m.y, kind: m.k }); } }
-          else if (j[0] === 'r') { const r = h.rooms[+j.slice(1)]; const late = r.used > r.str; if (rnd() < (late ? 0.6 : 0.25)) r.str = Math.max(3, r.str - 1); r.used = 0; s.ev.push({ k: 'repaired', p, room: r.id, str: r.str }); }
+          else if (j[0] === 'r') { const r = h.rooms[+j.slice(1)]; const late = r.used > r.str; if (rnd() < (late ? 0.6 : 0.25)) r.str = Math.max(3, r.str - 1); r.used = 0; r.call = 0; s.ev.push({ k: 'repaired', p, room: r.id, str: r.str }); }
           else if (j[0] === 'o') { const [rid, oid] = j.slice(1).split(':').map(Number); const ob = h.rooms[rid].objs.find(x => x.id === oid); if (ob) { ob.w = 1; computeSpots(h, h.rooms[rid]); } }
           else if (j[0] === 'w') h.water[j.slice(1)] = 1;
           st.job = null; st.work = 0; st.wt = 0.4;
@@ -1912,17 +1996,18 @@
       const jobs = [];
       for (const r of roomList(h)) {
         if (!isBuilt(r)) continue;
-        if (ROOMS[r.k].mach && !taken.has('r' + r.id) && r.used >= r.str - 2 && r.used > 0) jobs.push({ id: 'r' + r.id, kind: 'repair', urgent: r.used > r.str, x: r.sp.p[0], y: r.sp.p[1] });
+        if (ROOMS[r.k].mach && !taken.has('r' + r.id) && (r.used >= r.str - 2 || r.call) && r.used > 0) jobs.push({ id: 'r' + r.id, kind: 'repair', urgent: r.used > r.str || !!r.call, x: r.sp.p[0], y: r.sp.p[1] });
         for (const ob of r.objs) if (ob.o === 'plant' && ob.w < 0.35 && !taken.has('o' + r.id + ':' + ob.id)) { const [x, y] = standBy(h, ob.x, ob.y); jobs.push({ id: 'o' + r.id + ':' + ob.id, kind: 'water', x, y }); }
       }
       for (const key in h.decor) if (h.decor[key] === 'plant' && (h.water[key] || 0) < 0.35 && !taken.has('w' + key)) { const [c, r] = key.split(',').map(Number); const [x, y] = standBy(h, c, r); jobs.push({ id: 'w' + key, kind: 'water', x, y }); }
       for (const m of h.mess) if (!taken.has('m' + m.id)) jobs.push({ id: 'm' + m.id, kind: 'clean', x: m.x, y: m.y });
       const pri = st.pri || 'all';
-      const okJob = j => pri === 'all' || j.kind === pri || j.urgent;
+      const pw = st.pw;   // the staff window's split between tasks: none for a task with no share, more for a bigger share
+      const okJob = j => (pw ? pw[j.kind] > 0 : pri === 'all' || j.kind === pri) || j.urgent;
       let best = null, bd = 1e9;
       for (const j of jobs) {
         if (!okJob(j)) continue;
-        const d = Math.abs(j.x - st.x) + Math.abs(j.y - st.y) - (j.urgent ? 2000 : 0) - (j.kind === pri ? 300 : 0);
+        const d = Math.abs(j.x - st.x) + Math.abs(j.y - st.y) - (j.urgent ? 2000 : 0) - (j.kind === pri ? 300 : 0) - (pw ? 900 * (pw[j.kind] - 1 / 3) : 0);
         if (d < bd) { bd = d; best = j; }
       }
       if (best) { st.job = best.id; st.work = 0; taken.add(best.id); route(h, st, best.x, best.y); }
@@ -1933,7 +2018,7 @@
   }
 
   // reception turns people away once every GP queue is full (max queue size 6 each)
-  function gpQueue(h) { const g = roomsOf(h, 'gp'); if (!g.length) return 0; return Math.min(...g.map(r => r.q.length)) - QMAX + CROWD; }
+  function gpQueue(h) { const g = roomsOf(h, 'gp'); if (!g.length) return 0; return Math.min(...g.map(r => r.q.length - qCap(r))) + CROWD; }
   function stepPatients(s, p, dt) {
     const h = s.h[p];
     const crowd = h.pats.filter(x => x.st === 'queue' || x.st === 'recep').length;
@@ -2239,7 +2324,7 @@
     score, progress, metTargets, value, curePct, arrivals, unlocked, hasUpgrade, machStr, cureFee, diagFee, priceFactor, loanLimit, researchCost, cureType, hasTag,
     rank, isCon, hasQ, fairWage, typeName, eligible, capacity, seatsOf, countObj,
     newState, start, step, bpPlace, doorPlace, winToggle, winsDone, objPlace, objPick, objSell, objBuy, autoPlace, finishBuild, buildBack, deleteRoom, editRoom, clearWreck,
-    replaceMachine, hire, fire, place, setTrain, setPri, pay, setPolicy, setPrice, setResearch, loan, openDoors,
+    replaceMachine, hire, fire, place, setTrain, setPri, pay, setTask, callFix, patHome, patGuess, patRecep, qMove, qMax, qCap, dropStaff, QMAX, setPolicy, setPrice, setResearch, loan, openDoors,
     addExtra, placeDecor, removeDecor, buyDesk, shoot, vax, answerFax, setProfile, staffById, patById, findSite, quickBuild, stepAuto };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RH = api;
 })(typeof window !== 'undefined' ? window : globalThis);

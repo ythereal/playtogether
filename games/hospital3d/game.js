@@ -7,12 +7,13 @@
   const { T } = HA;
   const DIRS = ['down', 'up', 'left', 'right'];
   const TICK = 1 / 60, SNAP_HZ = 10;
-  const PROTO = 4;   // snapshot format: bump whenever host and guest stop understanding each other
+  const PROTO = 5;   // snapshot format: bump whenever host and guest stop understanding each other
   let mismatch = '';   // who has the out-of-date copy: 'me' or 'friend'
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const money = v => (v < 0 ? '−$' : '$') + Math.abs(Math.round(v)).toLocaleString('en-US');
   const qn = r => (Array.isArray(r.q) ? r.q.length : r.q);
+  const qids = r => (Array.isArray(r.q) ? r.q : r.qi || []);   // who is queueing, in order (the guest gets them as qi)
   const un = r => (Array.isArray(r.users) ? r.users.length : r.users || 0);
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const btn = (txt, cls, fn, dis) => { const b = el('button', cls || 'pt-btn pt-btn-small', txt); if (dis) b.disabled = true; b.addEventListener('click', fn); return b; };
@@ -175,7 +176,7 @@
     for (const k in h.rooms) {
       const r = h.rooms[k];
       rm[k] = { id: r.id, k: r.k, phase: r.phase, rect: r.rect, door: r.door, wins: r.wins, objs: r.objs.map(ob => ({ id: ob.id, o: ob.o, x: ob.x, y: ob.y, r: ob.r, w: r2(ob.w == null ? 1 : ob.w) })), list: r.list, paid: r.paid,
-        sts: r.sts, p: r.p, prog: r2(r.prog), n: r.n, q: r.q.length, dis: r.dis, str: r.str, used: r.used, users: r.users.length, sp: r.sp && { p: r.sp.p, s: r.sp.s, seats: r.sp.seats.length } };
+        sts: r.sts, p: r.p, prog: r2(r.prog), n: r.n, q: r.q.length, qi: r.q, qmax: r.qmax, call: r.call ? 1 : 0, dis: r.dis, str: r.str, used: r.used, users: r.users.length, sp: r.sp && { p: r.sp.p, s: r.sp.s, seats: r.sp.seats.length } };
     }
     const dry = []; for (const k in h.decor) if (h.decor[k] === 'plant' && (h.water[k] || 0) <= 0) dry.push(k);
     const ps = patStat(h.pats);
@@ -183,11 +184,11 @@
       comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, dry, mess: h.mess,
       em: h.em ? { dis: h.em.dis, n: h.em.n, saved: h.em.saved, end: r1(h.em.end) } : null, epi: h.epi ? { phase: h.epi.phase, t: r1(h.epi.t), dis: h.epi.dis } : null, pstat: ps,
       staff: h.staff.map(s => ({ id: s.id, k: s.k, nm: s.nm, sk: s.sk, q: s.q, sal: s.sal, slot: s.slot, desk: s.desk, room: s.room, x: r1(s.x), y: r1(s.y), f: s.f, mv: s.mv, gone: s.gone ? 1 : 0, look: s.look,
-        cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, quit: s.quit, incar: s.incar ? 1 : 0 })), res: undefined,
+        cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, pw: s.pw || null, quit: s.quit, incar: s.incar ? 1 : 0 })), res: undefined,
       cars: (h.cars || []).map(c => ({ id: c.id, bay: c.bay, ph: c.ph, t: r2(c.t), col: c.col })) };
     if (ents) {
       o.pats = h.pats.map(q => ({ id: q.id, nm: q.nm, dis: q.dis, dx: q.dx, x: r1(q.x), y: r1(q.y), f: q.f, mv: q.mv, st: q.st, slot: q.slot, pat: Math.round(q.pat), look: q.look, why: q.why,
-        hp: r2(q.hp), dg: r2(q.dg), em: q.em, inf: q.inf, vax: q.vax, mk: q.mk, incar: q.incar ? 1 : 0 }));
+        hp: r2(q.hp), dg: r2(q.dg), th: r1(q.th), been: q.been, em: q.em, inf: q.inf, vax: q.vax, mk: q.mk, incar: q.incar ? 1 : 0 }));
       o.vis = h.vis.map(v => ({ id: v.id, k: v.k, x: r1(v.x), y: r1(v.y), f: v.f, mv: v.mv, incar: v.incar ? 1 : 0 }));
       o.rats = h.rats.map(v => ({ id: v.id, x: r1(v.x), y: r1(v.y), f: v.f }));
     }
@@ -352,6 +353,14 @@
       case 'shoot': return RH.shoot(s, p, n(m.id));
       case 'vax': return RH.vax(s, p, n(m.id));
       case 'fax': return RH.answerFax(s, p, n(m.id), String(m.c));
+      case 'task': return RH.setTask(s, p, n(m.id), String(m.task));
+      case 'call': return RH.callFix(s, p, n(m.id));
+      case 'phome': return RH.patHome(s, p, n(m.id));
+      case 'guess': return RH.patGuess(s, p, n(m.id));
+      case 'precep': return RH.patRecep(s, p, n(m.id));
+      case 'qmove': return RH.qMove(s, p, n(m.room), n(m.id), n(m.to));
+      case 'qmax': return RH.qMax(s, p, n(m.room), n(m.n));
+      case 'drop': return RH.dropStaff(s, p, n(m.id), +m.x || 0, +m.y || 0);
     }
     return 'Unknown';
   }
@@ -432,7 +441,7 @@
       case 'angry':
         if (mine) toast(`${e.nm} stormed out after waiting too long · reputation −3`, 'bad');
         floaters.push({ p: e.p, x: e.x, y: e.y, txt: '!!', col: '#ff6b57', life: 1.2 }); break;
-      case 'home': if (mine) toast(e.why === 'diag' ? `${e.nm} sent home: diagnosis too uncertain` : e.why === 'nocure' ? `${e.nm} sent home: no ${rname(RH.DISEASES[e.dis].room)} for ${dname(e.dis)}` : `${e.nm} went home`, 'dim'); break;
+      case 'home': if (mine) toast(e.why === 'diag' ? `${e.nm} sent home: diagnosis too uncertain` : e.why === 'nocure' ? `${e.nm} sent home: no ${rname(RH.DISEASES[e.dis].room)} for ${dname(e.dis)}` : e.why === 'you' ? `${e.nm} sent home` : `${e.nm} went home`, 'dim'); break;
       case 'nogp': if (mine) toast(`${e.nm} left: there's no GP's Office!`, 'bad'); break;
       case 'crowd': if (mine) toast(`${e.nm} turned away: every GP queue is full`, 'dim'); break;
       case 'diag': { const pos = curPosOf('p' + e.id); if (pos) floaters.push({ p: e.p, x: pos[0], y: pos[1], txt: dname(e.dis), col: '#fff6e0', life: 1.4 }); break; }
@@ -979,6 +988,368 @@
   }
   $('infoClose').addEventListener('click', () => { $('infoSheet').hidden = true; });
 
+  // ============================ in-world info windows ============================
+  // Clicking a person or a machine opens Theme Hospital's little window docked at the top right. Staff, patient and
+  // machine windows share the one slot, so opening one replaces the other. They never pause the game; each action
+  // is an ordinary intent the host checks. Clicking a door or the reception desk opens the queue window instead.
+  let iw = null;            // { kind: 's' | 'p' | 'm', id, ...the controls to update }
+  let follow = false;       // the live-view circle is held down: the camera stays on the person
+  let carry = null;         // a member of staff picked up, waiting to be put down: { id, nm }
+  const hpHist = new Map(); // patient id → recent health samples, for the health graph
+  let hpAt = 0;
+  const QUAL_ICON = { s: '🔪', p: '🧠', r: '🔬' };
+  const TASK_ICON = { clean: '🧹', water: '🪴', repair: '🔧' }, TASK_NAME = { clean: 'Litter', water: 'Plants', repair: 'Machines' };
+  const ivBar = cls => { const b = el('span', 'iw-bar' + (cls ? ' ' + cls : '')), i = el('i'); b.append(i); b.set = v => { i.style.width = Math.round(clamp(v, 0, 1) * 100) + '%'; }; return b; };
+  const barRow = (label, bar) => { const r = el('div', 'iw-row'); r.append(el('span', null, label), bar); return r; };
+  const iwHosp = () => (view ? view.h[tab] : null);
+  function iwTarget() {
+    const h = iwHosp(); if (!iw || !h) return null;
+    if (iw.kind === 's') return h.staff.find(s => s.id === iw.id && !s.gone) || null;
+    if (iw.kind === 'p') return (h.pats || []).find(p => p.id === iw.id) || null;
+    const r = h.rooms[iw.id]; return r && r.phase === 'built' && RH.ROOMS[r.k].mach ? r : null;
+  }
+  // the docked window and the queue window can overlap: the one opened last sits on top
+  const toFront = id => { $('iwin').style.zIndex = id === 'iwin' ? 47 : 46; $('qwin').style.zIndex = id === 'qwin' ? 47 : 46; };
+  function closeIW() { iw = null; follow = false; $('iwin').hidden = true; }
+  // the person's pending message opens instead of their window, as in the original
+  function pendingFax(kind, id) { const h = view && view.h[ME]; return tab === ME && h && h.fax ? h.fax.find(f => (kind === 'p' ? f.pid === id : f.sid === id)) : null; }
+  function openIW(kind, id) {
+    const f = kind !== 'm' && pendingFax(kind, id); if (f) { showFax(f.id); return; }
+    iw = { kind, id }; follow = false; fireArmed = null;
+    const body = $('iwBody'); body.replaceChildren();
+    const win = $('iwin'); win.className = 'iw iw-' + kind; win.hidden = false; toFront('iwin');
+    const t = iwTarget(); if (!t) { closeIW(); return; }
+    if (kind === 's') buildStaffIW(body, t); else if (kind === 'p') buildPatIW(body, t); else buildMachIW(body, t);
+    iw.key = ''; iwUpdate(true);
+  }
+  const mineNow = () => tab === ME && view && view.ph === 'play';
+  function liveView(kind) {
+    const c = el('canvas', 'iw-live'); c.width = c.height = 150; c.title = 'Hold to follow · right-click: next ' + (kind === 'p' ? 'patient' : 'of the same kind');
+    const stop = () => { follow = false; };
+    c.addEventListener('pointerdown', e => { if (e.button === 2) return; e.preventDefault(); follow = true; try { c.setPointerCapture(e.pointerId); } catch (err) {} });
+    c.addEventListener('pointerup', stop); c.addEventListener('pointercancel', stop); c.addEventListener('lostpointercapture', stop);
+    c.addEventListener('contextmenu', e => { e.preventDefault(); iwNext(); });
+    iw.live = c;
+    return c;
+  }
+  function buildStaffIW(body, s) {
+    const top = el('div', 'iw-top');
+    const por = el('button', 'iw-portrait'); por.title = 'Staff management'; por.append(spriteCanvas(HA.staffSheet(s.look, staffKind(s)), 66));
+    por.addEventListener('click', () => { if (tab !== ME) return; closeSheets(); openStaff('pay'); });
+    const bars = el('div', 'iw-bars');
+    iw.hap = ivBar(); iw.tired = ivBar(); iw.ab = ivBar('ab');
+    bars.append(barRow('Happiness', iw.hap)); if (s.k !== 'r') bars.append(barRow('Energy', iw.tired)); bars.append(barRow('Ability', iw.ab));
+    top.append(por, bars); body.append(top);
+    if (s.k === 'd') {
+      const sen = el('div', 'iw-sen'); iw.sen = [];
+      for (const r of ['Junior', 'Doctor', 'Consultant']) { const b = el('span', null, r); iw.sen.push(b); sen.append(b); }
+      iw.quals = el('div', 'iw-quals');
+      body.append(sen, iw.quals);
+    } else if (s.k === 'h') {
+      const tasks = el('div', 'iw-tasks'); iw.task = {};
+      for (const k of ['clean', 'water', 'repair']) {
+        const b = el('button', 'iw-task'); b.title = `More time on ${TASK_NAME[k].toLowerCase()}`;
+        const bar = ivBar(); b.append(el('span', 'ico', TASK_ICON[k]), el('small', null, TASK_NAME[k]), bar);
+        b.addEventListener('click', () => act('task', { id: iw.id, task: k }));
+        iw.task[k] = { b, bar }; tasks.append(b);
+      }
+      body.append(tasks);
+    } else body.append(el('div', 'iw-blank'));
+    iw.wage = el('div', 'iw-wage'); body.append(iw.wage);
+    const foot = el('div', 'iw-foot');
+    iw.sack = btn('Sack', 'pt-btn iw-act bad', () => {
+      if (fireArmed && fireArmed.id === iw.id) { fireArmed = null; act('fire', { id: iw.id }); closeIW(); return; }
+      fireArmed = { id: iw.id, at: performance.now() }; iw.key = '';
+    });
+    iw.pick = btn('Pick up', 'pt-btn iw-act', () => { const t = iwTarget(); if (!t) return; carry = { id: t.id, nm: t.nm, look: t.look, k: staffKind(t) }; showCarry(); closeIW(); toast(`Click a room or a corridor to put ${t.nm} down (Esc cancels)`, 'dim'); });
+    foot.append(liveView('s'), iw.sack, iw.pick); body.append(foot);
+  }
+  function buildPatIW(body, p) {
+    const top = el('div', 'iw-top');
+    const g = el('button', 'iw-graph'); g.title = 'Health · click for the rooms visited';
+    iw.graph = el('canvas'); iw.graph.width = 200; iw.graph.height = 120; iw.visits = el('div', 'iw-visits'); iw.visits.hidden = true;
+    g.append(iw.graph, iw.visits); g.addEventListener('click', () => { iw.visits.hidden = !iw.visits.hidden; iw.graph.hidden = !iw.visits.hidden; iw.key = ''; });
+    iw.queue = btn('Queue', 'pt-btn iw-act sm', () => { const t = iwTarget(); if (!t) return; const h = iwHosp(); if (t.st === 'recep' || t.st === 'enter') openQW('desk'); else if (t.slot != null && h.rooms[t.slot] && qids(h.rooms[t.slot]).includes(t.id)) openQW(t.slot); else fail(`${t.nm} isn't in a queue`); });
+    iw.queue.title = 'The queue they are in';
+    top.append(g, iw.queue); body.append(top);
+    iw.dx = el('div', 'iw-dx'); body.append(iw.dx);
+    const mid = el('div', 'iw-mid'), bars = el('div', 'iw-bars');
+    iw.hap = ivBar(); iw.th = ivBar(); iw.warm = ivBar('warm');
+    bars.append(barRow('Happiness', iw.hap), barRow('Thirst', iw.th), barRow('Warmth', iw.warm));
+    iw.guess = btn('Guess cure', 'pt-btn iw-act sm', () => act('guess', { id: iw.id })); iw.guess.title = 'Send them for treatment on the best guess so far';
+    iw.book = btn('Casebook', 'pt-btn iw-act sm', () => { const t = iwTarget(); if (t && tab === ME) caseAt(t.dis); }); iw.book.title = 'Open the casebook at this disease';
+    const side = el('div', 'iw-side'); side.append(iw.guess, iw.book);
+    mid.append(bars, side); body.append(mid);
+    const foot = el('div', 'iw-foot');
+    iw.home = btn('Send home', 'pt-btn iw-act bad', () => { act('phome', { id: iw.id }); closeIW(); });
+    foot.append(liveView('p'), iw.home); body.append(foot);
+  }
+  function buildMachIW(body, r) {
+    const st = el('div', 'iw-mstats'); iw.used = el('b'); iw.str = ivBar();
+    const a = el('div', 'iw-row'); a.append(el('span', null, 'Times used'), iw.used);
+    st.append(a, barRow('Strength', iw.str)); body.append(st);
+    const foot = el('div', 'iw-foot m');
+    iw.call = btn('Call handyman', 'pt-btn iw-act', () => act('call', { id: iw.id }));
+    iw.repl = btn('Replace', 'pt-btn iw-act', () => {
+      const h = iwHosp(), t = iwTarget(); if (!t) return;
+      const cost = RH.replaceCost(h, t.k);
+      if (h.cash < cost) { fail(`You can't afford a new ${RH.OBJ[RH.ROOMS[t.k].p].name.toLowerCase()} (${money(cost)})`); return; }
+      if (fireArmed && fireArmed.id === 'm' + iw.id) { fireArmed = null; act('replace', { id: iw.id }); iw.key = ''; return; }
+      fireArmed = { id: 'm' + iw.id, at: performance.now() }; iw.key = '';
+    });
+    foot.append(iw.call, iw.repl); body.append(foot);
+  }
+  // the next person of the same kind (or the next machine), with the camera moved onto them
+  function iwNext() {
+    const h = iwHosp(), t = iwTarget(); if (!h || !t) return;
+    let list;
+    if (iw.kind === 's') list = h.staff.filter(s => !s.gone && !s.incar && s.k === t.k);
+    else if (iw.kind === 'p') list = (h.pats || []).filter(p => !p.incar);
+    else list = Object.values(h.rooms).filter(r => r.phase === 'built' && RH.ROOMS[r.k].mach);
+    const i = list.findIndex(e => e.id === t.id), nx = list[(i + 1) % list.length];
+    if (!nx) return;
+    lookAt(iw.kind, nx);
+    if (nx.id !== t.id) openIW(iw.kind, nx.id);
+  }
+  function lookAt(kind, e) {
+    let x, y;
+    if (kind === 'm') [x, y] = RH.roomCenter(e); else [x, y] = posOf(kind, e);
+    const [bx, by] = HI.px(x, y); cam.x = bx; cam.y = by - 10; clampCam();
+  }
+  $('iwClose').addEventListener('click', closeIW);
+  $('iwNext').addEventListener('click', iwNext);
+  $('iwName').addEventListener('contextmenu', e => { e.preventDefault(); iwNext(); });
+  // what each window shows, refreshed a few times a second (bars, counts) and its live view every frame
+  function iwUpdate(force) {
+    const t = iwTarget();
+    if (!t) { if (iw) closeIW(); return; }
+    const h = iwHosp(), mine = mineNow();
+    if (fireArmed && performance.now() - fireArmed.at > FIRE_ARM_MS) { fireArmed = null; iw.key = ''; }
+    const armed = id => !!fireArmed && fireArmed.id === id;
+    if (iw.kind === 's') {
+      $('iwName').textContent = t.nm;
+      iw.hap.set(t.hap); iw.tired.set(1 - (t.tired || 0)); iw.ab.set(t.sk);
+      const key = [t.sk, JSON.stringify(t.q), t.sal, JSON.stringify(t.pw), t.pri, mine, armed(t.id)].join('|');
+      if (key === iw.key && !force) return; iw.key = key;
+      if (iw.sen) {
+        const rk = RH.rank(t); iw.sen.forEach(b => b.classList.toggle('on', b.textContent === rk));
+        iw.quals.replaceChildren();
+        for (const q of ['s', 'p', 'r']) if (RH.hasQ(t, q)) { const b = el('span', 'iw-q', QUAL_ICON[q]); b.title = RH.QUAL_NAME[q]; iw.quals.append(b); }
+      }
+      if (iw.task) {
+        const pw = t.pw || (t.pri && t.pri !== 'all' ? { clean: 0.2, water: 0.2, repair: 0.2, [t.pri]: 0.6 } : { clean: 1 / 3, water: 1 / 3, repair: 1 / 3 });
+        for (const k in iw.task) { iw.task[k].bar.set(pw[k]); iw.task[k].b.disabled = !mine; iw.task[k].b.title = `${TASK_NAME[k]}: ${Math.round(pw[k] * 100)}% of the time` + (mine ? ' · click for 10% more' : ''); }
+      }
+      iw.wage.replaceChildren(el('span', null, RH.typeName(t.k)), el('b', null, `${money(t.sal)}/month`));
+      iw.sack.textContent = armed(t.id) ? 'Sure?' : 'Sack'; iw.sack.disabled = !mine; iw.pick.disabled = !mine || !!t.incar;
+    } else if (iw.kind === 'p') {
+      $('iwName').textContent = t.nm + (t.em ? ' (emergency)' : '');
+      iw.hap.set(Math.min(1, t.pat / 150)); iw.th.set(1 - (t.th || 0)); iw.warm.set(((h.warm || 0) - 0.2) / 1.8);
+      iw.warm.classList.toggle('cold', (h.warm || 0) < 0.6); iw.warm.classList.toggle('hot', (h.warm || 0) > 1.6);
+      drawGraph(t);
+      const rm = t.slot != null ? h.rooms[t.slot] : null;
+      const key = [t.dx, Math.round((t.dg || 0) * 100), t.st, JSON.stringify(t.been || []), mine, t.inf, t.vax, rm ? rm.k : '', iw.visits.hidden].join('|');
+      if (key === iw.key && !force) return; iw.key = key;
+      iw.dx.replaceChildren(t.dx ? el('b', null, dname(t.dis)) : el('span', null, `Diagnosis ${Math.round((t.dg || 0) * 100)}%`), el('small', null, t.st === 'leave' ? (t.why === 'cured' ? 'Going home cured' : 'Leaving') : t.st === 'queue' && rm ? `Queueing for the ${rname(rm.k)}` : t.st === 'in' && rm ? `In the ${rname(rm.k)}` : t.st === 'recep' ? 'At reception' : t.st === 'wait' ? 'Waiting for you to decide' : t.st === 'wc' ? 'In the toilet' : t.st === 'trip' ? 'Buying a drink' : 'Arriving'));
+      const busy = t.st === 'leave' || t.st === 'enter' || (rm && rm.p === t.id);
+      iw.guess.hidden = !!t.dx; iw.guess.disabled = !mine || busy;
+      iw.book.hidden = !t.dx; iw.book.disabled = tab !== ME;
+      iw.home.hidden = t.st === 'leave'; iw.home.disabled = !mine || !!t.incar;
+      iw.queue.disabled = !(t.st === 'queue' || t.st === 'recep' || t.st === 'wc' || t.st === 'trip');
+      iw.visits.replaceChildren(el('b', null, 'Rooms visited'));
+      const seen = ['GP\'s Office'].concat((t.been || []).map(k => rname(k)));
+      for (const n of t.st === 'recep' || t.st === 'enter' ? [] : seen) iw.visits.append(el('div', null, n));
+    } else {
+      const R = RH.ROOMS[t.k], nm = RH.OBJ[R.p].name, broken = t.used > t.str;
+      $('iwName').textContent = broken ? `[${nm}]` : nm;
+      iw.used.textContent = t.used; iw.str.set((t.str - t.used) / Math.max(1, t.str)); iw.str.classList.toggle('bad', t.str - t.used <= 2);
+      const cost = RH.replaceCost(h, t.k);
+      const key = [t.used, t.call, mine, armed('m' + t.id), Math.floor(h.cash / 100)].join('|');
+      if (key === iw.key && !force) return; iw.key = key;
+      iw.call.disabled = !mine || !t.used || !!t.call; iw.call.textContent = t.call ? 'Handyman called' : 'Call handyman';
+      iw.repl.disabled = !mine; iw.repl.textContent = armed('m' + t.id) ? `Replace for ${money(cost)}?` : 'Replace';
+    }
+  }
+  function drawGraph(p) {
+    if (!iw.graph || iw.graph.hidden) return;
+    const c = iw.graph, x = c.getContext('2d'), W = c.width, H = c.height, hs = hpHist.get(p.id) || [p.hp];
+    x.fillStyle = '#0d4c58'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#2b8797'; x.lineWidth = 1;
+    for (let i = 1; i < 4; i++) { x.beginPath(); x.moveTo(0, i * H / 4 + .5); x.lineTo(W, i * H / 4 + .5); x.stroke(); }
+    x.strokeStyle = '#ff4a3d'; x.lineWidth = 3; x.beginPath();
+    const n = Math.max(2, hs.length), Y = v => 10 + (1 - v) * (H - 20);
+    hs.forEach((v, i) => { const px = hs.length < 2 ? (i ? W : 0) : i * (W - 4) / (n - 1) + 2, py = Y(v); i ? x.lineTo(px, py) : x.moveTo(px, py); });
+    if (hs.length < 2) x.lineTo(W - 2, Y(hs[0]));
+    x.stroke();
+    x.fillStyle = '#c8eef4'; x.font = 'bold 18px sans-serif'; x.fillText('Health', 6, H - 8);
+  }
+  // the live view: the part of the map round the person (or a plain backdrop when they're off screen)
+  function drawLive() {
+    const c = iw && iw.live; if (!c) return;
+    const t = iwTarget(); if (!t) return;
+    const x = c.getContext('2d'), W = c.width;
+    const [wx, wy] = posOf(iw.kind, t), [bx, by] = HI.px(wx, wy), [sx, sy] = toScr(bx, by - 12);
+    const half = 34 * DPR;
+    x.imageSmoothingEnabled = false;
+    if (!t.incar && sx > 0 && sy > 0 && sx < cw && sy < ch) {
+      x.fillStyle = '#0d4c58'; x.fillRect(0, 0, W, W);
+      x.drawImage(cv, sx * DPR - half, sy * DPR - half, half * 2, half * 2, 0, 0, W, W);
+    } else {
+      x.fillStyle = '#0d4c58'; x.fillRect(0, 0, W, W);
+      const sh = iw.kind === 's' ? HA.staffSheet(t.look, staffKind(t)) : HA.patientSheet(t.look, patVis(t.dis));
+      x.drawImage(sh.down[0], W / 2 - 32, W / 2 - 48, 64, 96);
+    }
+  }
+  function iwTick(now) {
+    if (view && now - hpAt > 2000) {   // sample everyone's health for the graphs
+      hpAt = now;
+      const pats = (view.h[tab] && view.h[tab].pats) || [], ids = new Set();
+      for (const p of pats) { ids.add(p.id); let a = hpHist.get(p.id); if (!a) hpHist.set(p.id, a = []); a.push(p.hp); if (a.length > 90) a.shift(); }
+      for (const id of hpHist.keys()) if (!ids.has(id)) hpHist.delete(id);
+    }
+    if (iw) {
+      if (follow) { const t = iwTarget(); if (t) lookAt(iw.kind, t); }
+      iwUpdate(); if (iw) drawLive();
+    }
+    if (qw) qwUpdate();
+    if (carry) moveCarry();
+  }
+  // carrying someone picked up: their sprite follows the mouse until a click puts them down
+  function showCarry() {
+    const c = $('carry'); c.replaceChildren(spriteCanvas(HA.staffSheet(carry.look, carry.k), 48)); c.hidden = false; moveCarry();
+  }
+  function moveCarry() { const c = $('carry'); if (!mouse) { c.style.left = '-99px'; return; } c.style.left = mouse.x - 16 + 'px'; c.style.top = mouse.y - 44 + 'px'; }
+  function dropCarry(wx, wy) { if (!carry) return; act('drop', { id: carry.id, x: Math.round(wx * 10) / 10, y: Math.round(wy * 10) / 10 }); carry = null; $('carry').hidden = true; }
+  function cancelCarry() { carry = null; $('carry').hidden = true; }
+  // the casebook, scrolled to one disease
+  function caseAt(dis) {
+    closeSheets(); openCase();
+    const row = document.querySelector(`#caseBody tr[data-dis="${dis}"]`);
+    if (row) { row.scrollIntoView({ block: 'center' }); row.classList.add('flashrow'); setTimeout(() => row.classList.remove('flashrow'), 1800); }
+  }
+
+  // ---- the queue window ----
+  let qw = null;   // { id: room id | 'desk', ... }
+  let qDrag = null;
+  function openQW(id) {
+    qw = { id, key: '' };
+    $('qwin').hidden = false; toFront('qwin');
+    qwUpdate(true);
+  }
+  function closeQW() { qw = null; qDrag = null; $('qwin').hidden = true; $('qPop').hidden = true; }
+  $('qwClose').addEventListener('click', closeQW);
+  function qwData() {
+    const h = iwHosp(); if (!h || !qw) return null;
+    const pats = h.pats || [], byId = new Map(pats.map(p => [p.id, p]));
+    if (qw.id === 'desk') {
+      if (!h.desk) return null;
+      const list = pats.filter(p => p.st === 'recep');
+      return { title: 'Reception', list, size: list.length, exp: pats.filter(p => p.st === 'enter').length, seen: h.visits || 0, max: null };
+    }
+    const r = h.rooms[qw.id]; if (!r || r.phase !== 'built') return null;
+    const list = qids(r).map(id => byId.get(id)).filter(Boolean);
+    const here = list.filter(p => p.st === 'queue' && (Array.isArray(p.path) ? !p.path.length : !p.mv)).length;   // the rest are still on their way
+    return { title: rname(r.k), r, list, size: here, exp: list.length - here, seen: r.n || 0, max: r.qmax == null ? RH.QMAX : r.qmax };
+  }
+  const mood = p => (p.pat < 20 ? '😠' : p.pat < 60 ? '😐' : '🙂');
+  function qwUpdate(force) {
+    const d = qwData(); if (!d) { closeQW(); return; }
+    const mine = mineNow();
+    const key = [d.title, d.size, d.exp, d.seen, d.max, mine, d.list.map(p => `${p.id}:${mood(p)}`).join(',')].join('|');
+    if (qDrag || (key === qw.key && !force)) return; qw.key = key;
+    $('qwTitle').textContent = d.title;
+    $('qwSize').textContent = d.size; $('qwExp').textContent = d.exp; $('qwSeen').textContent = d.seen;
+    $('qwMaxRow').hidden = d.max == null; $('qwMax').textContent = d.max == null ? '' : d.max;
+    $('qwMinus').disabled = $('qwPlus').disabled = !mine;
+    const strip = $('qwStrip'); strip.replaceChildren();
+    strip.classList.toggle('fixed', !d.r || !mine);
+    d.list.forEach((p, i) => {
+      const b = el('div', 'qp'); b.dataset.id = p.id; b.dataset.i = i; b.title = `${p.nm}${p.dx ? ' · ' + dname(p.dis) : ''}`;
+      b.append(el('span', 'mood', mood(p)), spriteCanvas(HA.patientSheet(p.look, patVis(p.dis)), 40));
+      strip.append(b);
+    });
+    if (!d.list.length) strip.append(el('small', 'qempty', 'Nobody waiting'));
+  }
+  function qMaxBy(e, dir) {
+    const d = qwData(); if (!d || d.max == null) return;
+    const step = e.ctrlKey || e.metaKey ? 10 : e.shiftKey ? 5 : 1;
+    act('qmax', { room: qw.id, n: clamp(d.max + dir * step, 0, 30) });
+  }
+  $('qwMinus').addEventListener('click', e => qMaxBy(e, -1));
+  $('qwPlus').addEventListener('click', e => qMaxBy(e, 1));
+  // dragging a patient: onto the door to the front, onto the exit sign to the back, between two others to go there
+  const qStrip = $('qwStrip');
+  qStrip.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.qp'); if (!b || e.button === 2) return;
+    e.preventDefault(); $('qPop').hidden = true;
+    qDrag = { b, id: +b.dataset.id, x0: e.clientX, moved: false };
+    try { qStrip.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  qStrip.addEventListener('pointermove', e => {
+    if (!qDrag) return;
+    const dx = e.clientX - qDrag.x0;
+    if (Math.abs(dx) > 5 && !qStrip.classList.contains('fixed')) qDrag.moved = true;
+    if (qDrag.moved) { qDrag.b.style.transform = `translate(${dx}px, -10px)`; qDrag.b.classList.add('drag'); }
+  });
+  const qEnd = e => {
+    if (!qDrag) return;
+    const g = qDrag; qDrag = null; g.b.style.transform = ''; g.b.classList.remove('drag');
+    if (!g.moved) { qPopup(g.id, e.clientX, e.clientY); return; }
+    const d = qwData(); if (!d || !d.r) return;
+    const door = $('qwDoor').getBoundingClientRect(), exit = $('qwExit').getBoundingClientRect(), x = e.clientX;
+    let to;
+    if (x <= door.right) to = 0;
+    else if (x >= exit.left) to = qids(d.r).length - 1;
+    else {   // between others: count the ones whose middle is left of the drop
+      to = 0; for (const o of qStrip.querySelectorAll('.qp')) { if (+o.dataset.id === g.id) continue; const rc = o.getBoundingClientRect(); if (rc.left + rc.width / 2 < x) to++; }
+      const ids = d.list.map(p => p.id).filter(id => id !== g.id), at = ids[to];   // position among the queue's full list
+      to = at == null ? qids(d.r).length - 1 : qids(d.r).filter(id => id !== g.id).indexOf(at);
+    }
+    act('qmove', { room: qw.id, id: g.id, to }); qw.key = '';
+  };
+  qStrip.addEventListener('pointerup', qEnd); qStrip.addEventListener('pointercancel', () => { if (qDrag) { qDrag.b.style.transform = ''; qDrag = null; } });
+  qStrip.addEventListener('contextmenu', e => { e.preventDefault(); const b = e.target.closest('.qp'); if (b) qPopup(+b.dataset.id, e.clientX, e.clientY); });
+  // clicking (or right-clicking) a patient in the strip: send them back to reception, or home
+  function qPopup(id, x, y) {
+    const h = iwHosp(), p = h && (h.pats || []).find(q => q.id === id); if (!p) return;
+    const pop = $('qPop'); pop.replaceChildren(el('b', null, p.nm));
+    const mine = mineNow();
+    pop.append(btn('Send to reception', 'pt-btn pt-btn-small', () => { act('precep', { id }); pop.hidden = true; }, !mine || qw.id === 'desk'),
+      btn('Send home', 'pt-btn pt-btn-small iw-act bad', () => { act('phome', { id }); pop.hidden = true; }, !mine),
+      btn('Details', 'pt-btn pt-btn-small pt-btn-ghost', () => { pop.hidden = true; openIW('p', id); }));
+    pop.hidden = false;
+    const w = pop.offsetWidth, hh = pop.offsetHeight;
+    pop.style.left = clamp(x - w / 2, 6, innerWidth - w - 6) + 'px'; pop.style.top = clamp(y - hh - 10, 6, innerHeight - hh - 6) + 'px';
+  }
+  addEventListener('pointerdown', e => { const pop = $('qPop'); if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('.qp')) pop.hidden = true; }, true);
+  // what's under a tap: a person (with the projected sprite box), a machine, a room's door
+  function personAt(list, kind, tx, ty) {
+    let best = null, bd = 1e9;
+    for (const e of list || []) { if (e.incar || e.gone) continue; const [x, y] = posOf(kind, e), [sx, sy] = HI.px(x, y); if (Math.abs(tx - sx) <= 8 && ty <= sy + 2 && ty >= sy - 24) { const d = Math.abs(tx - sx) + Math.abs(ty - (sy - 12)); if (d < bd) { bd = d; best = e; } } }
+    return best;
+  }
+  // a machine: its floor tiles, or the box its sprite stands up into on screen
+  function machineAt(h, c, r, tx, ty) {
+    for (const k in h.rooms) {
+      const rm = h.rooms[k], R = RH.ROOMS[rm.k]; if (rm.phase !== 'built' || !R.mach) continue;
+      for (const ob of rm.objs) {
+        if (ob.o !== R.p) continue;
+        const foot = RH.objTiles(ob.o, ob.x, ob.y, ob.r).foot;
+        if (foot.some(([x, y]) => x === c && y === r)) return rm;
+        const pts = foot.map(([x, y]) => HI.px(x * T + T / 2, y * T + T / 2)), xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+        if (tx >= Math.min(...xs) - 10 && tx <= Math.max(...xs) + 10 && ty >= Math.min(...ys) - 26 && ty <= Math.max(...ys)) return rm;
+      }
+    }
+    return null;
+  }
+  function doorAt(h, c, r) {
+    for (const k in h.rooms) {
+      const rm = h.rooms[k]; if (rm.phase !== 'built' || !rm.door) continue;
+      if (RH.doorTiles(rm).concat(RH.doorOut(rm)).some(([x, y]) => x === c && y === r)) return rm;
+    }
+    return null;
+  }
+
   // ============================ the building editor ============================
   // Building a room: draw a blueprint (client side until confirmed), then the host walks it through the door,
   // windows, site clearing and furniture steps. One room is edited at a time; its state lives in the snapshot.
@@ -1306,7 +1677,7 @@
       }
     } else {
       if (fireArmed && performance.now() - fireArmed.at > FIRE_ARM_MS) fireArmed = null;
-      const key = [view.ph, fireArmed ? fireArmed.id : '', Math.floor(h.cash / 200)].concat(live.map(s => `${s.id}:${s.slot}:${s.sal}:${s.mode}:${s.train}:${s.pri}:${Math.round(s.hap * 10)}:${Math.round(s.tired * 10)}:${Math.round(s.sk * 1000)}:${s.desk}`)).join('|');
+      const key = [view.ph, fireArmed ? fireArmed.id : '', Math.floor(h.cash / 200)].concat(live.map(s => `${s.id}:${s.slot}:${s.sal}:${s.mode}:${s.train}:${s.pri}:${s.pw ? JSON.stringify(s.pw) : ''}:${Math.round(s.hap * 10)}:${Math.round(s.tired * 10)}:${Math.round(s.sk * 1000)}:${s.desk}`)).join('|');
       if (sl.dataset.key !== key) {
         sl.dataset.key = key; sl.replaceChildren();
         const order = { d: 0, n: 1, h: 2, r: 3 };
@@ -1323,7 +1694,7 @@
           acts.append(btn(`Bonus ${money(Math.max(10, Math.round(s.sal * 1.2)))}`, 'pt-btn pt-btn-small pt-btn-ghost', () => act('pay', { id: s.id, kind: 'bonus' }), dis || h.cash < s.sal * 1.2));
           acts.append(btn('Raise 10%', 'pt-btn pt-btn-small pt-btn-ghost', () => act('pay', { id: s.id, kind: 'raise' }), dis));
           if (s.k === 'd' && !RH.isCon(s)) acts.append(btn(s.train ? 'Stop training' : 'Train', 'pt-btn pt-btn-small' + (s.train ? '' : ' pt-btn-ghost'), () => act('train', { id: s.id, on: !s.train }), dis));
-          if (s.k === 'h') { const P = ['all', 'clean', 'repair', 'water'], L = { all: 'Does everything', clean: 'Mostly cleaning', repair: 'Mostly repairs', water: 'Mostly watering' }; acts.append(btn(L[s.pri || 'all'], 'pt-btn pt-btn-small pt-btn-ghost', () => act('pri', { id: s.id, pri: P[(P.indexOf(s.pri || 'all') + 1) % 4] }), dis)); }
+          if (s.k === 'h') { const P = ['all', 'clean', 'repair', 'water'], L = { all: 'Does everything', clean: 'Mostly cleaning', repair: 'Mostly repairs', water: 'Mostly watering' }; acts.append(btn(s.pw ? 'Own mix' : L[s.pri || 'all'], 'pt-btn pt-btn-small pt-btn-ghost', () => act('pri', { id: s.id, pri: P[(P.indexOf(s.pri || 'all') + 1) % 4] }), dis)); }
           const armed = !!fireArmed && fireArmed.id === s.id;
           acts.append(btn(armed ? 'Sure?' : 'Fire', 'pt-btn pt-btn-small' + (armed ? '' : ' pt-btn-ghost'), () => {
             if (fireArmed && fireArmed.id === s.id) { fireArmed = null; act('fire', { id: s.id }); }
@@ -1356,7 +1727,7 @@
     for (const c of ['', 'Disease', 'Cure', 'Effect.', 'Charge', 'Fee', 'Cured / died', 'Earned', 'Improve']) hd.append(el('th', null, c));
     tb.append(hd);
     for (const i of known) {
-      const d = RH.DISEASES[i], tr = el('tr', h.res.spec === i ? 'sel' : '');
+      const d = RH.DISEASES[i], tr = el('tr', h.res.spec === i ? 'sel' : ''); tr.dataset.dis = i;
       const td = (x, cls) => { const c = el('td', cls); if (x instanceof Node) c.append(x); else c.textContent = x; tr.append(c); return c; };
       td(spriteCanvas(HA.patientSheet(i % 8, d.vis), 24));
       const nm = el('div'); nm.append(el('b', null, d.name), el('br'), el('small', null, d.cause)); td(nm);
@@ -1596,7 +1967,7 @@
     if (carry) RH.carryOver(state, carry);
     try { localStorage.removeItem(CARRY_KEY); } catch (e) {}
     floaters.length = ghosts.length = sparks.length = 0;
-    lastPhase = 'ready'; hudKey = ''; statusKey = ''; selected = null; ed = null;
+    lastPhase = 'ready'; hudKey = ''; statusKey = ''; closeIW(); closeQW(); cancelCarry(); ed = null;
     closeSheets(); $('over').hidden = true; briefing(); $('legend').hidden = false;
     room.save(state); setStatus(); renderEdit(); fitView();
   }
@@ -1676,7 +2047,7 @@
   $('ovClose').addEventListener('click', () => { $('over').hidden = true; });
   $('ovStay').addEventListener('click', () => { if (!RH.stayOn(state)) { try { localStorage.removeItem(CARRY_KEY); } catch (e) {} drainEvents(); onPhase(); $('over').hidden = true; room.save(state); } });
   $('ovAgain').addEventListener('click', () => { if (SOLO) { const n = view.solo.lvl, up = view.winner === 0 && n < RH.LEVELS.length; soloLevel(up ? n + 1 : n, up ? RH.carrySnapshot(state) : view.solo.carry); return; } if (host) { RH.start(state); drainEvents(); onPhase(); room.save(state); } else { requestStart(); $('ovAgain').textContent = 'Asked the host…'; setTimeout(() => ($('ovAgain').textContent = 'Play again'), 2000); } });
-  function setTab(p) { tab = p; $('tabMine').classList.toggle('on', p === ME); $('tabRival').classList.toggle('on', p !== ME); selected = null; closeSheets(); hudKey = ''; statusKey = ''; setStatus(); if (!host && room.connected) room.send({ t: 'tab', p }); }
+  function setTab(p) { tab = p; $('tabMine').classList.toggle('on', p === ME); $('tabRival').classList.toggle('on', p !== ME); closeIW(); closeQW(); cancelCarry(); closeSheets(); hudKey = ''; statusKey = ''; setStatus(); if (!host && room.connected) room.send({ t: 'tab', p }); }
   if (LOCAL) {
     if (SOLO) { $('tabRival').hidden = true; $('startBtn').textContent = 'Start level'; }
     $('speedBox').hidden = false;
@@ -1692,7 +2063,7 @@
     const k = e.key.toLowerCase();
     // Theme Hospital's keys: Escape or Q closes, F/G/V/B are the four build buttons, F1-F9 the management screens
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey;
-    if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); setStatus(); return; }
+    if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); closeIW(); closeQW(); cancelCarry(); setStatus(); return; }
     if ((k === 'r' || k === ' ') && plain && myEdit() && myEdit().phase === 'furnish') { e.preventDefault(); edRot = (edRot + 1) & 3; return; }
     if (plain && !e.shiftKey) { const B = { f: 'buildBtn', g: 'decorBtn', v: 'editBtn', b: 'staffBtn' }; if (B[k]) { $(B[k]).click(); return; } }
     if (k === 'm' && plain && view && (view.h[ME].fax || []).length) { showFax(view.h[ME].fax[0].id); return; }
@@ -1854,28 +2225,31 @@
       if (rm.phase !== 'built') { toast(`The ${rname(rm.k)} isn't finished yet`, 'dim'); return; }
       editPick = false; act('edit', { id: rm.id }); ed = null; edLi = 0; setStatus(); return;
     }
+    if (carry) { if (tab === ME) dropCarry(bx, by); else cancelCarry(); return; }
     const [tx, ty] = HI.px(bx, by);
     // rats first: tap to shoot
     if (tab === ME && view.ph === 'play') for (const rt of h.rats || []) {
       const [x, y] = posOf('r', rt), [sx, sy] = HI.px(x, y);
       if (Math.abs(tx - sx) <= 9 && Math.abs(ty - (sy - 4)) <= 8) { act('shoot', { id: rt.id }); burst(tab, x, y, '#ffd23f', 5, 4); return; }
     }
-    // people: hit test against the projected sprite box
-    let best = null, bd = 1e9;
-    for (const pt of h.pats || []) { const [x, y] = posOf('p', pt); const [sx, sy] = HI.px(x, y); if (Math.abs(tx - sx) <= 8 && ty <= sy + 2 && ty >= sy - 24) { const d = Math.abs(tx - sx) + Math.abs(ty - (sy - 12)); if (d < bd) { bd = d; best = pt; } } }
+    // people: hit test against the projected sprite box; a patient or member of staff opens their window
+    const best = personAt(h.pats, 'p', tx, ty);
     if (best) {
-      selected = { id: best.id, until: performance.now() + 4000 };
-      if (tab === ME && h.epi && h.epi.phase === 'cover' && best.inf && !best.mk) act('vax', { id: best.id });
-      return;
+      if (tab === ME && h.epi && h.epi.phase === 'cover' && best.inf && !best.mk) { act('vax', { id: best.id }); return; }
+      openIW('p', best.id); return;
     }
-    selected = null;
-    if (tab === ME && bx >= RH.DESK_TILES[0][0] * T - 4 && bx <= RH.DESK_TILES[0][0] * T + 16 && by >= RH.DESK_TILES[0][1] * T - 4 && by <= RH.DESK_TILES[0][1] * T + 32) { openDesk(); return; }
+    const sb = personAt(h.staff, 's', tx, ty);
+    if (sb) { openIW('s', sb.id); return; }
+    if (bx >= RH.DESK_TILES[0][0] * T - 4 && bx <= RH.DESK_TILES[0][0] * T + 16 && by >= RH.DESK_TILES[0][1] * T - 4 && by <= RH.DESK_TILES[0][1] * T + 32) { if (h.desk) openQW('desk'); else if (tab === ME) openDesk(); return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
+    const mach = machineAt(h, c, r, tx, ty);
+    if (mach) { openIW('m', mach.id); return; }
+    const dr = doorAt(h, c, r);
+    if (dr) { openQW(dr.id); return; }
     const rm = roomAt(h, c, r);
     if (rm) { openRoom(rm.id); return; }
     if (tab === ME && h.decor[RH.decorKey(c, r)]) openDecorInfo(c, r);
   }
-  let selected = null;
   // the info bar: what's under the mouse; also where building previews follow the cursor
   let edHoverW = null;
   cv.addEventListener('pointermove', e => {
@@ -2114,6 +2488,7 @@
       for (const st of h.staff) { if (st.incar) continue; const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, seat = atDesk ? { x: st.x, y: st.y, f: 3, d: HI.depth(st.x, st.y) } : seatOf(h, st, true); objs.push({ d: seat ? seat.d : HI.depth(st.x, st.y), b: pbox(st.x, st.y), draw: () => {
         const [x, y] = seat ? [seat.x, seat.y] : posOf('s', st);   // behind the counter, at a desk, on a sofa, in a lecture
         const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, seat ? seat.f : null);
+        if (iw && iw.kind === 's' && iw.id === st.id) labels.push({ x: sx, y: sy - 30 - Math.abs(Math.sin(t * 4)) * 2, txt: '▼', col: '#ffd05c', size: 5 });
         if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
         if (st.mode === 'rest' && Math.floor(t * 1.5) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'z', col: '#9fd8ff', size: 4.5 });
         else if (st.tired > 0.85 && Math.floor(t * 2) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'zz', col: '#ff9a7a', size: 3.6 });
@@ -2147,11 +2522,7 @@
         if (pt.st === 'queue' && pt.pat < 20 && Math.floor(t * 4) % 2) icon('angry', sx + 7, sy - 26, t);
         if (dis.id === 'sleep' && shown && Math.floor(t * 2) % 2) labels.push({ x: sx + 7, y: sy - 28, txt: 'z', col: '#9fd8ff', size: 5 });
         if (pt.why === 'cured' && Math.floor(t * 3) % 2) { P(sx + 7, sy - 27, 1, 3, '#ffe36b'); P(sx + 6, sy - 26, 3, 1, '#ffe36b'); }
-        if (selected && selected.id === pt.id && performance.now() < selected.until) {
-          const what = pt.dx ? dis.name : `diagnosis ${Math.round(pt.dg * 100)}%`;
-          const doing = pt.st === 'queue' ? ` · patience ${Math.max(0, Math.round(pt.pat))}s` : pt.st === 'in' ? ' · in treatment' : pt.st === 'wait' ? ' · waiting for you' : pt.st === 'wc' ? ' · in the loo' : pt.st === 'trip' ? ' · buying a drink' : pt.why === 'cured' ? ' · cured!' : '';
-          labels.push({ x: sx, y: sy - 34, txt: `${pt.nm} · ${what} · health ${Math.round(pt.hp * 100)}%${doing}${pt.em ? ' · EMERGENCY' : ''}${pt.inf && !pt.vax ? ' · infected' : ''}`, col: '#fff6e0', bubble: true, size: 4.6 });
-        }
+        if (iw && iw.kind === 'p' && iw.id === pt.id) labels.push({ x: sx, y: sy - 30 - Math.abs(Math.sin(t * 4)) * 2, txt: '▼', col: '#ffd05c', size: 5 });
       } }); }
       for (const v of (h.vis || []).filter(v => !v.incar)) objs.push({ d: HI.depth(v.x, v.y), b: pbox(v.x, v.y), draw: () => {
         const [x, y] = posOf('v', v);
@@ -2272,7 +2643,7 @@
     const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
     panKeys(dt); edgePan(dt);
     try {
-      render(now / 1000, dt); renderHud(); placeStatus(); advisorTick(now); monthBar(now); litButtons();
+      render(now / 1000, dt); iwTick(now); renderHud(); placeStatus(); advisorTick(now); monthBar(now); litButtons();
       if ((slow += dt) > 0.5) { slow = 0; setStatus(); renderFaxes(); if (host) refreshSheets(); }
     } catch (err) { console.error(err); }
     requestAnimationFrame(frame);

@@ -322,6 +322,91 @@
       .cures { top: 6px; right: 6px; font-size: .9rem; padding: 2px 8px 1px; }
       .watch { left: 10px; bottom: calc(var(--barh, 70px) + var(--advh, 0px) + 22px + env(safe-area-inset-bottom)); }
     }
+
+    /* ---------- in-world info windows (staff, patient, machine) and the queue window ---------- */
+    .iw, .qw { --ink: #effbfd; --muted: #a8dbe3; color: var(--ink); position: fixed; z-index: 46; pointer-events: auto; background: #1b8395; border: 6px ridge #bfc5cb; outline: 1px solid #23282d; border-radius: 2px; box-shadow: 0 10px 28px rgba(0,0,0,.45); text-shadow: 0 1px 0 rgba(4,40,48,.55); font: 600 .8rem/1.25 var(--font); }
+    .iw[hidden], .qw[hidden], .qpop[hidden], .carry[hidden] { display: none; }
+    .iw { top: 40px; right: 58px; width: 228px; z-index: 47; }
+    .iw.iw-p { width: 220px; } .iw.iw-m { width: 204px; }
+    .iw-head { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 8px; background: linear-gradient(#167b8b, #0f5f6d); border-bottom: 2px solid #0a3e48; }
+    .iw-head b { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+    .iw-hbtn { flex: none; width: 24px; height: 24px; padding: 0; cursor: pointer; font: 800 1rem/1 var(--font); color: #fff; border-radius: 2px; border: 2px solid; border-color: #9fd8e2 #0a3e48 #0a3e48 #9fd8e2; background: linear-gradient(#2a9bb0, #17717f); }
+    #iwClose, #qwClose { background: linear-gradient(#d65a4a, #a8352a); border-color: #ffb4a8 #5a1610 #5a1610 #ffb4a8; }
+    .iw-body { padding: 8px; display: grid; gap: 8px; }
+    .iw-top { display: flex; gap: 8px; align-items: stretch; }
+    .iw-portrait { flex: none; width: 76px; height: 86px; padding: 0; cursor: pointer; display: grid; place-items: center; background: radial-gradient(#3fa6b8, #0d4c58); border: 3px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; border-radius: 2px; }
+    .iw-portrait canvas { image-rendering: pixelated; }
+    .iw-bars { flex: 1; display: grid; gap: 5px; align-content: center; min-width: 0; }
+    .iw-row > span:first-child { flex: none; }
+    .iw-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: .74rem; color: var(--muted); }
+    .iw-row b { color: #fff; font-size: .95rem; }
+    .iw-bar { flex: 1 1 auto; min-width: 28px; max-width: 64px; height: 9px; background: #0d4c58; border: 1px solid #0a3e48; box-shadow: inset 0 1px 0 rgba(0,0,0,.4); }
+    .iw-bar i { display: block; height: 100%; width: 0; background: linear-gradient(#b4f7a8, #4cbf5a); }
+    .iw-bar.ab i { background: linear-gradient(#ffe48a, #e0a52a); }
+    .iw-bar.bad i { background: linear-gradient(#ffb0a0, #d8402e); }
+    .iw-bar.warm i { background: linear-gradient(#ffd08a, #f08a2a); } .iw-bar.warm.cold i { background: linear-gradient(#bfe6ff, #4a9ae0); } .iw-bar.warm.hot i { background: linear-gradient(#ffb0a0, #d8402e); }
+    .iw-sen { display: grid; grid-template-columns: repeat(3, 1fr); background: #0d4c58; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; }
+    .iw-sen span { padding: 3px 0; text-align: center; font-size: .7rem; color: #6fb3bf; }
+    .iw-sen span.on { color: #fff; background: #d0602a; }
+    .iw-quals, .iw-blank { min-height: 30px; display: flex; gap: 6px; align-items: center; justify-content: flex-end; padding: 0 4px; background: #166e7e; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; }
+    .iw-q { font-size: 1.1rem; cursor: help; text-shadow: none; }
+    .iw-tasks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .iw-task { display: grid; justify-items: center; gap: 2px; padding: 4px 2px; cursor: pointer; color: var(--ink); font: 600 .68rem var(--font); background: #166e7e; border: 2px solid; border-color: #5cc0cf #0a3e48 #0a3e48 #5cc0cf; border-radius: 2px; }
+    .iw-task:hover:not(:disabled) { background: #d0602a; } .iw-task:disabled { cursor: default; }
+    .iw-task .ico { font-size: 1.25rem; line-height: 1; text-shadow: none; }
+    .iw-task .iw-bar { flex: none; width: 90%; max-width: none; height: 6px; }
+    .iw-wage { display: flex; justify-content: space-between; align-items: baseline; color: var(--muted); font-size: .76rem; }
+    .iw-wage b { color: #ffd36a; font-size: .95rem; }
+    .iw-foot { display: flex; gap: 6px; align-items: center; }
+    .iw-live { flex: none; width: 75px; height: 75px; border-radius: 50%; cursor: grab; touch-action: none; border: 3px solid; border-color: #0a3e48 #9fd8e2 #9fd8e2 #0a3e48; box-shadow: 0 0 0 1px #23282d; image-rendering: pixelated; background: #0d4c58; }
+    .iw-live:active { cursor: grabbing; }
+    .iw-act { flex: 1; min-width: 0; min-height: 44px; padding: 4px; font-size: .78rem; line-height: 1.1; }
+    .iw-act.sm { min-height: 34px; flex: none; }
+    .iw-act:disabled, .iw-task:disabled { opacity: .45; filter: grayscale(.7); cursor: default; }
+    .iw-act.bad { background: linear-gradient(#e0644f, #a8352a); border-color: #ffb4a8 #5a1610 #5a1610 #ffb4a8; }
+    .iw-foot.m .iw-act { min-height: 52px; }
+    .iw-graph { flex: none; width: 122px; padding: 0; height: 70px; cursor: pointer; background: #0d4c58; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; color: var(--ink); overflow: hidden; }
+    .iw-graph canvas { display: block; width: 100%; height: 100%; }
+    .iw-visits { height: 100%; overflow: auto; padding: 3px 6px; text-align: left; font: 600 .72rem/1.3 var(--font); }
+    .iw-visits b { color: #ffd98a; }
+    .iw-top > .iw-act { align-self: center; flex: 1; min-width: 0; }
+    .iw-dx { display: grid; padding: 4px 6px; background: #166e7e; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; }
+    .iw-dx b, .iw-dx span { font-size: .85rem; } .iw-dx small { color: var(--muted); font-size: .72rem; }
+    .iw-mid { display: flex; gap: 6px; align-items: center; } .iw-mid .iw-bars { min-width: 0; }
+    .iw-side { display: grid; gap: 4px; } .iw-side .iw-act { width: 68px; }
+    .iw-mstats { display: grid; gap: 6px; padding: 6px 8px; background: #166e7e; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; }
+    .qw { left: 50%; top: 38%; transform: translateX(-50%); width: min(604px, calc(100vw - 12px)); }
+    .qw-body { display: flex; gap: 8px; padding: 8px; align-items: stretch; }
+    .qw-counts { flex: none; width: 168px; display: grid; gap: 3px; align-content: start; font-size: .76rem; color: var(--muted); }
+    .qw-counts > div { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .qw-counts b { color: #fff; font-size: .9rem; }
+    .qw-step { display: flex; align-items: center; gap: 4px; }
+    .qw-step button { width: 22px; height: 22px; padding: 0; cursor: pointer; font: 800 .95rem/1 var(--font); color: #fff; border-radius: 2px; border: 2px solid; border-color: #9fd8e2 #0a3e48 #0a3e48 #9fd8e2; background: linear-gradient(#2a9bb0, #17717f); }
+    .qw-step button:disabled { opacity: .5; cursor: default; }
+    .qw-step b { min-width: 1.6em; text-align: center; }
+    .qw-line { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 4px; background: #0d4c58; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; padding: 4px; }
+    .qw-door { flex: none; width: 34px; height: 62px; background: linear-gradient(90deg, #8b5a2b, #a8743d 45%, #7a4c22); border: 2px solid #3c2410; border-bottom: 0; position: relative; }
+    .qw-door i { position: absolute; right: 5px; top: 30px; width: 4px; height: 4px; border-radius: 50%; background: #ffd05c; }
+    .qw-exit { flex: none; align-self: center; padding: 2px 5px; font: 800 .7rem var(--font); letter-spacing: .06em; color: #fff; background: #2f9a45; border: 2px solid #0f3f18; text-shadow: none; }
+    .qw-strip { flex: 1; min-width: 0; height: 70px; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; padding-top: 10px; }
+    .qw-strip:not(.fixed) { touch-action: none; }
+    .qp { flex: none; position: relative; display: grid; justify-items: center; cursor: grab; transition: transform .12s; user-select: none; }
+    .qw-strip.fixed .qp { cursor: pointer; }
+    .qp canvas { image-rendering: pixelated; pointer-events: none; }
+    .qp .mood { font-size: .8rem; line-height: 1; text-shadow: none; pointer-events: none; }
+    .qp:hover { transform: translateY(-10px); } .qp:hover + .qp { transform: translateX(4px); }
+    .qp.drag { z-index: 3; transition: none; cursor: grabbing; filter: drop-shadow(0 4px 3px rgba(0,0,0,.5)); }
+    .qempty { align-self: center; margin: auto; color: var(--muted); }
+    .qpop { position: fixed; z-index: 48; display: grid; gap: 4px; padding: 6px; width: 188px; background: #1b8395; color: #effbfd; border: 4px ridge #bfc5cb; outline: 1px solid #23282d; box-shadow: 0 8px 20px rgba(0,0,0,.45); font: 600 .8rem var(--font); }
+    .carry { position: fixed; z-index: 49; pointer-events: none; filter: drop-shadow(0 6px 4px rgba(0,0,0,.45)); }
+    .carry canvas { image-rendering: pixelated; }
+    tr.flashrow td { background: #d0602a; transition: background .4s; }
+    @media (max-width: 640px) {
+      .iw { top: 38px; right: 52px; }
+      .qw { top: 34%; }
+      .qw-body { flex-direction: column; }
+      .qw-counts { width: auto; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+    }
   </style>
 </head>
 <body>
@@ -390,6 +475,31 @@
     <!-- the cures counter in the top corner -->
     <div class="cures" id="curesBox" title="Patients cured">Cures <b id="hudCured">0</b></div>
   </div>
+
+  <!-- the in-world info windows: staff, patient or machine share the slot docked at the top right -->
+  <div class="iw" id="iwin" hidden>
+    <div class="iw-head"><b id="iwName" title="Right-click: the next one of the same kind"></b><button class="iw-hbtn" id="iwNext" title="Next of the same kind" aria-label="Next of the same kind">›</button><button class="iw-hbtn" id="iwClose" title="Close (Esc)" aria-label="Close">×</button></div>
+    <div class="iw-body" id="iwBody"></div>
+  </div>
+  <!-- the queue window: a room's door or the reception desk -->
+  <div class="qw" id="qwin" hidden>
+    <div class="iw-head"><b id="qwTitle"></b><button class="iw-hbtn" id="qwClose" title="Close (Esc)" aria-label="Close">×</button></div>
+    <div class="qw-body">
+      <div class="qw-counts">
+        <div><span>Queue size</span><b id="qwSize"></b></div>
+        <div><span>Queue expected</span><b id="qwExp"></b></div>
+        <div><span>Patients seen</span><b id="qwSeen"></b></div>
+        <div id="qwMaxRow"><span>Max queue</span><span class="qw-step"><button id="qwMinus" title="One fewer (Shift: 5, Ctrl: 10)" aria-label="Smaller">−</button><b id="qwMax"></b><button id="qwPlus" title="One more (Shift: 5, Ctrl: 10)" aria-label="Bigger">+</button></span></div>
+      </div>
+      <div class="qw-line">
+        <div class="qw-door" id="qwDoor" title="Drop a patient here to move them to the front"><i></i></div>
+        <div class="qw-strip" id="qwStrip"></div>
+        <div class="qw-exit" id="qwExit" title="Drop a patient here to move them to the back">EXIT</div>
+      </div>
+    </div>
+  </div>
+  <div class="qpop" id="qPop" hidden></div>
+  <div class="carry" id="carry" hidden></div>
 
   <div class="panel" id="profile" hidden>
     <div class="sheet" style="width:min(440px,100%)">
