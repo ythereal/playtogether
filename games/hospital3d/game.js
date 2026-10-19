@@ -1640,13 +1640,14 @@
   }
   const animT = new Map();
   // draws an upright sprite at its projected feet; returns the screen (buffer) position of the feet
-  function drawPerson(sheet, e, kind, t, dt, wx, wy) {
+  function drawPerson(sheet, e, kind, t, dt, wx, wy, sink) {
     const key = kind + e.id;
     const a = (animT.get(key) || 0) + (e.mv ? dt : 0); animT.set(key, e.mv ? a : 0);
     const frame = e.mv ? [1, 0, 2, 0][Math.floor(a * 8) % 4] : 0;
     const dir = sheet[DIRS[HI.facing(e.f)]] || sheet.down, sh = dir[frame] || dir[0];
     const [sx, sy] = HI.px(wx, wy);
     bctx.fillStyle = 'rgba(0,0,0,.28)'; bctx.beginPath(); bctx.ellipse(sx, sy, 6, 3, 0, 0, Math.PI * 2); bctx.fill();
+    if (sink) { bctx.drawImage(sh, 0, 0, sh.width, sh.height * (24 - sink) / 24, Math.round(sx) - 8, Math.round(sy) - 23 + sink, 16, 24 - sink); return [Math.round(sx), Math.round(sy)]; }
     bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23, 16, 24);
     return [Math.round(sx), Math.round(sy)];
   }
@@ -1733,13 +1734,14 @@
       if (prev) objs.push(HI.objItem(prev.o, prev.x, prev.y, prev.r, prev.k, false, prev.ok ? 0.75 : 0.4));
     }
     if (h) {
-      objs.push(HI.deskItem(h.desk, t));
+      objs.push(...HI.deskItem(h.desk, t));
       for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], [fw, fd] = HI.DECOR_FOOT[kind] || [8, 8], x = c * T + 8, y = r * T + 8, dry = kind === 'plant' && h.dry && h.dry.includes(key); objs.push({ d: HI.depth(x + fw / 2, y + fd / 2), draw: cx => HI.DECOR_DRAW[kind] && HI.DECOR_DRAW[kind](cx, x, y, dry) }); }
       for (const m of h.mess) objs.push(HI.messItem(m));
       for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
       for (const st of h.staff) objs.push({ d: HI.depth(st.x, st.y), draw: () => {
         const [x, y] = posOf('s', st);
-        const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y);
+        const seated = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3;   // in the chair behind the counter
+        const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, seated ? 4 : 0);
         if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
         if (st.mode === 'rest' && Math.floor(t * 1.5) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'z', col: '#9fd8ff', size: 4.5 });
         else if (st.tired > 0.85 && Math.floor(t * 2) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'zz', col: '#ff9a7a', size: 3.6 });
