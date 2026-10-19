@@ -335,7 +335,7 @@
       case 'clear': return RH.clearWreck(s, p, n(m.id));
       case 'extra': return RH.addExtra(s, p, n(m.id), String(m.o));
       case 'replace': return RH.replaceMachine(s, p, n(m.id));
-      case 'hire': return RH.hire(s, p, n(m.id));
+      case 'hire': return m.x == null ? RH.hire(s, p, n(m.id)) : RH.hire(s, p, n(m.id), n(m.x), n(m.y));
       case 'fire': return RH.fire(s, p, n(m.id));
       case 'place': return RH.place(s, p, n(m.id), n(m.room));
       case 'train': return RH.setTrain(s, p, n(m.id), !!m.on);
@@ -459,8 +459,8 @@
       case 'qual': if (mine) toast(`${e.nm} qualified as a ${RH.QUAL_NAME[e.q]}`, 'good'); break;
       case 'decor': if (!mine) toast(`${nameOf(e.p)} added a ${RH.DECOR[e.kind].name.toLowerCase()}`, 'dim'); break;
       case 'month': if (mine) { const f = e.fin || {}; let inc = 0, out = 0; for (const k in f) { if (f[k] > 0) inc += f[k]; else out -= f[k]; } toast(`${RH.MONTH_NAMES[(e.m - 1) % 12]}: in ${money(inc)} · out ${money(out)}`, inc >= out ? 'dim' : 'bad'); } break;
-      case 'pool': if (staffTab !== 'pay') lastPoolKey = ''; break;
-      case 'poached': if (staffTab !== 'pay') lastPoolKey = ''; if (e.type === 'd') toast(`${e.nm} snapped up ${e.who} from the hiring pool`, 'dim'); break;
+      case 'pool': hireKey = ''; break;
+      case 'poached': hireKey = ''; if (e.type === 'd') toast(`${e.nm} snapped up ${e.who} from the hiring pool`, 'dim'); break;
       case 'rivalOpen': toast(`${e.nm} has opened its doors`, 'dim'); break;
       case 'stay': toast('You stayed on. The board will ask again at the half-year checks.', 'dim'); break;
       case 'built':
@@ -664,9 +664,9 @@
   }
   // the lit buttons: each management button (and the bank's dollar) is lit exactly while its screen is open
   function litButtons() {
-    const open = id => !$(id).hidden, staffOpen = open('staffSheet');
+    const open = id => !$(id).hidden;
     const lit = { bankBtn: open('bankSheet'), buildBtn: open('buildSheet'), decorBtn: open('decorSheet') || open('shopSheet'), editBtn: editPick,
-      staffBtn: staffOpen && staffTab !== 'pay', mgrBtn: staffOpen && staffTab === 'pay', mapBtn: HI.getFlat(), caseBtn: open('caseSheet'), resBtn: open('resSheet'), statBtn: open('statSheet'), polBtn: open('polSheet') };
+      staffBtn: open('hireSheet') || !!hiring, mgrBtn: open('staffSheet'), mapBtn: HI.getFlat(), caseBtn: open('caseSheet'), resBtn: open('resSheet'), statBtn: open('statSheet'), polBtn: open('polSheet') };
     for (const id in lit) $(id).classList.toggle('on', !!lit[id]);
   }
   function setStatus() {
@@ -775,7 +775,7 @@
   $('faxClose').addEventListener('click', () => { $('faxSheet').hidden = true; openFax = null; });
 
   // ============================ sheets ============================
-  const sheets = ['legend', 'buildSheet', 'roomSheet', 'staffSheet', 'over', 'profile', 'decorSheet', 'caseSheet', 'polSheet', 'resSheet', 'bankSheet', 'statSheet', 'faxSheet', 'shopSheet', 'infoSheet'];
+  const sheets = ['legend', 'buildSheet', 'roomSheet', 'staffSheet', 'over', 'profile', 'decorSheet', 'caseSheet', 'polSheet', 'resSheet', 'bankSheet', 'statSheet', 'faxSheet', 'shopSheet', 'infoSheet', 'hireSheet'];
   const panelOpen = () => sheets.some(id => !$(id).hidden);
   // the intro, briefing and game-over screens take over the screen; every other window floats over the live map
   const modalOpen = () => ['legend', 'over', 'profile'].some(id => !$(id).hidden);
@@ -1008,111 +1008,193 @@
     const tg = edTarget(); if (!tg) return ed && ed.mode === 'decor' ? ['Tap a corridor tile to place an object there. Press Done when you\'re finished.', 'info'] : null;
     return null;
   }
+  // the place-objects panel (it doubles as the edit-room panel), docked top right as in the original: title, help text,
+  // the Cancel · Buy/Sell · Pick up · Confirm row, then one row per object still to place with its count
+  const EBI = {
+    cancel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    shop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2.5l2.2 11h10.6L20.5 8H7"/><circle cx="9.5" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>',
+    pick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v7c0 4-2.5 7-6 7-2.5 0-4-1.2-5.5-3.5L3.8 13.6a1.5 1.5 0 0 1 2.5-1.6L8 14"/></svg>',
+    ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>',
+  };
+  const EB_TITLE = { cancel: 'Cancel', shop: 'Buy or sell objects', pick: 'Pick up an object', ok: 'Confirm' };
+  let pickMode = false;
   function renderEdit() {
     const bar = $('editbar');
-    if (!view || tab !== ME || view.ph !== 'play') { bar.hidden = true; $('advisor').style.visibility = ''; return; }
-    const tg = edTarget();
-    if (!tg && !(ed && ed.mode === 'decor')) { bar.hidden = true; edKey = ''; $('advisor').style.visibility = ''; return; }
-    $('advisor').style.visibility = 'hidden';   // the edit bar says what to do
+    const hide = () => { bar.hidden = true; edKey = ''; $('advisor').style.visibility = ''; };
+    if (!view || view.ph !== 'play') { hiring = null; pickMode = false; hide(); return; }
+    if (tab !== ME) { hide(); return; }
+    const tg = edTarget(), decor = ed && ed.mode === 'decor' && !tg;
+    if (!tg && !decor && !hiring) { pickMode = false; hide(); return; }
+    $('advisor').style.visibility = 'hidden';   // the panel says what to do
     const h = view.h[ME];
-    let title, hint, chips = [], btns = [];
-    if (ed && ed.mode === 'decor' && !tg) {
-      // placing what was ordered: one chip per item still to place; tap a chip to switch
+    // B[name] = [onClick, disabled, title, lit]; a missing entry is greyed out
+    let title, hint, rows = [], extra = [];
+    const B = {};
+    if (hiring) {
+      const c = hiring.c;
+      title = `Place ${c.nm}`;
+      hint = c.k === 'r' ? 'Click by the reception desk to put them on it, or on any free floor inside. Right-click or Escape cancels.' : `Click a free tile inside your hospital${c.k === 'h' ? '' : ', or inside a room they can work in'}. Right-click or Escape cancels.`;
+      B.cancel = [cancelHire, false, 'Cancel (Esc)'];
+    } else if (decor) {
+      // placing what was ordered: one row per item still to place; click a row to switch
       const bag = ed.bag || {}, left = RH.DECOR_ORDER.filter(k => bag[k] > 0);
       if (!bag[ed.cur]) ed.cur = left[0];
-      title = 'Corridor objects';
-      hint = ed.cur ? `Tap free corridor floor to put down a ${RH.DECOR[ed.cur].name.toLowerCase()} (${money(RH.DECOR[ed.cur].cost)}). Tap one of your items to switch; anything left unplaced isn't charged.` : 'Everything is placed.';
-      chips = left.map(k => ({ decor: k, n: bag[k], o: k, i: k }));
-      btns = [['Order more', 'pt-btn pt-btn-ghost', openOrder], ['Done ✓', 'pt-btn', () => { ed = null; renderEdit(); }]];
+      title = 'Corridor Objects';
+      hint = ed.cur ? `Place the objects down in a corridor: free floor, not the lobby or a doorway. Each is paid for as it goes down (${RH.DECOR[ed.cur].name.toLowerCase()} ${money(RH.DECOR[ed.cur].cost)}).` : 'Everything is placed.';
+      rows = left.map(k => ({ key: k, name: RH.DECOR[k].name, n: bag[k], on: k === ed.cur, click: () => { ed.cur = k; edKey = ''; renderEdit(); } }));
+      B.cancel = [() => { ed = null; renderEdit(); }, false, 'Close: anything not yet placed isn\'t charged'];
     } else {
       const R = RH.ROOMS[tg.kind], step = STEP[tg.phase];
-      title = `${R.name} · step ${step} of 5`;
+      title = R.name;
       if (tg.phase === 'new' || tg.phase === 'bp') {
         const v = bpValid(tg);
-        hint = tg.rect ? `${tg.rect.w}×${tg.rect.h} (min ${R.min}×${R.min}). ` + (v.ok ? 'Looks good: place it, or drag inside to move it and on its edge to resize.' : v.why + '.') : `Drag on the floor to draw the room, at least ${R.min}×${R.min}. It can't cut off any part of the hospital.`;
-        btns.push([tg.phase === 'bp' ? (edArm ? 'Really delete?' : 'Delete') : 'Cancel', 'pt-btn pt-btn-ghost', () => {
+        hint = (tg.rect ? `${tg.rect.w}×${tg.rect.h} (min ${R.min}×${R.min}). ` + (v.ok ? 'Drag inside to move it, on an edge to resize. Confirm when it\'s right.' : v.why + '.') : `Drag out the room on the floor, at least ${R.min}×${R.min}. It can't cut off any part of the hospital.`) + ` Step ${step} of 5.`;
+        B.cancel = [() => {
           if (tg.phase === 'new') { ed = null; renderEdit(); return; }
-          if (!edArm) { edArm = true; edKey = ''; renderEdit(); setTimeout(() => { edArm = false; edKey = ''; renderEdit(); }, 2500); return; }
+          if (!edArm) { edArm = true; edKey = ''; renderEdit(); toast('Click Cancel again to delete the blueprint', 'dim'); setTimeout(() => { edArm = false; edKey = ''; renderEdit(); }, 2500); return; }
           act('back', { id: tg.room.id }); ed = null; edArm = false;
-        }]);
-        btns.push(['Place blueprint ✓', 'pt-btn', () => { if (!v.ok) { fail(v.why); return; } act('bp', { id: tg.room ? tg.room.id : null, kind: tg.kind, rect: tg.rect }); if (tg.phase === 'new') ed = null; }, !v.ok]);
+        }, false, tg.phase === 'bp' ? (edArm ? 'Really delete?' : 'Delete the blueprint') : 'Cancel', edArm];
+        B.ok = [() => { if (!v.ok) { fail(v.why); return; } act('bp', { id: tg.room ? tg.room.id : null, kind: tg.kind, rect: tg.rect }); if (tg.phase === 'new') ed = null; }, !v.ok, 'Place the blueprint'];
       } else if (tg.phase === 'door') {
-        hint = R.swing ? 'Tap a wall for the double doors (three tiles wide). They need clear corridor outside.' : 'Tap one of the new walls to put the door there. It needs clear corridor outside.';
-        btns.push(['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: tg.room.id })]);
+        hint = (R.swing ? 'Place the double doors (three tiles wide) on a wall.' : 'Place the door on one of the new walls.') + ' It needs clear corridor outside. Step 2 of 5.';
+        B.cancel = [() => act('back', { id: tg.room.id }), false, 'Back to the blueprint'];
       } else if (tg.phase === 'win') {
-        hint = `Tap walls to add or remove windows (${tg.room.wins.length} so far). Windows make staff a little happier. Tap a wall right by the door to move the door.`;
-        btns.push(['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: tg.room.id })], ['Done ✓', 'pt-btn', () => act('wdone', { id: tg.room.id })]);
+        hint = `Add windows (optional): click walls to add or remove them (${tg.room.wins.length} so far). Windows make staff a little happier. Click by the door to move it. Step 3 of 5.`;
+        B.cancel = [() => act('back', { id: tg.room.id }), false, 'Back to the blueprint'];
+        B.ok = [() => act('wdone', { id: tg.room.id }), false, 'Done with windows'];
       } else if (tg.phase === 'wait') {
-        hint = 'Waiting for everyone to clear the site, then the walls go up…';
-        btns.push(['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: tg.room.id })]);
+        hint = 'Waiting for everyone to clear the site, then the walls go up… Step 4 of 5.';
+        B.cancel = [() => act('back', { id: tg.room.id }), false, 'Back to the blueprint'];
       } else if (tg.phase === 'emptying') {
         hint = 'The room has stopped taking patients. Waiting for everyone inside to leave…';
       } else if (tg.phase === 'furnish') {
         const r = tg.room, miss = RH.missingReq(r);
         if (edLi >= r.list.length) edLi = Math.max(0, r.list.length - 1);
-        hint = r.list.length ? `Tap the floor to place the ${RH.OBJ[r.list[edLi]].name.toLowerCase()}${HI ? '' : ''}. Rotate turns it (or right-click). Tap something already placed to pick it up.` : miss.length ? 'Still needed: ' + miss.map(o => RH.OBJ[o].name).join(', ') : 'Everything is placed. Finish to open the room' + (r.paid ? '.' : ` (the shell costs ${money(RH.shellCost(h, r.k))}).`);
-        chips = r.list.map((o, i) => ({ o, i }));
-        btns.push(['⟳ Rotate', 'pt-btn pt-btn-ghost', () => { edRot = (edRot + 1) & 3; }], ['Place for me', 'pt-btn pt-btn-ghost', () => act('oauto', { id: r.id }), !r.list.length], ['Shop', 'pt-btn pt-btn-ghost', () => openShop(r.id)],
-          ['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: r.id })], ['Finish ✓', 'pt-btn', () => act('finish', { id: r.id }), miss.length > 0]);
+        const cur = r.list[edLi];
+        hint = pickMode ? 'Click an object in the room to put it back on the list.' : r.list.length ? `Place the ${RH.OBJ[cur].name.toLowerCase()}. Click its row again (or right-click, Space) to turn it.` : miss.length ? 'Still needed: ' + miss.map(o => RH.OBJ[o].name).join(', ') + '.' : 'Everything is placed. Confirm to open the room' + (r.paid ? '.' : ` (the shell costs ${money(RH.shellCost(h, r.k))}).`);
+        // one row per kind of object, in list order
+        const seen = new Map();
+        r.list.forEach((o, i) => { if (seen.has(o)) seen.get(o).n++; else seen.set(o, { o, i, n: 1, last: i }); seen.get(o).last = i; });
+        for (const g of seen.values()) rows.push({ key: g.o, name: RH.OBJ[g.o].name, n: g.n, on: g.o === cur, req: miss.includes(g.o),
+          click: () => { if (g.o === cur) edRot = (edRot + 1) & 3; else edLi = g.i; pickMode = false; edKey = ''; renderEdit(); },
+          sell: miss.includes(g.o) ? null : [`Sell one for ${money(RH.objCost(h, g.o))}`, () => act('osell', { id: r.id, li: g.last })] });
+        B.cancel = [() => act('back', { id: r.id }), false, 'Back to the door (the objects are refunded)'];
+        B.shop = [() => openShop(r.id), false, EB_TITLE.shop];
+        B.pick = [() => { pickMode = !pickMode; edKey = ''; renderEdit(); }, !r.objs.length, 'Pick up: click an object in the room to put it back on the list', pickMode];
+        B.ok = [() => act('finish', { id: r.id }), miss.length > 0, miss.length ? 'Place every required object first' : 'Finish the room'];
+        if (r.list.length) extra.push(['Place for me', () => act('oauto', { id: r.id })]);
       }
     }
-    const key = [title, hint, chips.map(c => c.o + c.i + (c.n || '')).join(','), edLi, ed && ed.cur, btns.map(b => b[0] + (b[3] ? 1 : 0)).join(',')].join('|');
+    const key = [title, hint, rows.map(c => c.key + c.n + (c.on ? '*' : '')).join(','), ...['cancel', 'shop', 'pick', 'ok'].map(k => (B[k] ? (B[k][1] ? 1 : 0) + (B[k][3] ? 'on' : '') + B[k][2] : '-')), extra.map(e => e[0]).join()].join('|');
     bar.hidden = false;
     if (key === edKey) return; edKey = key;
     $('ebTitle').textContent = title; $('ebHint').textContent = hint;
-    const cl = $('ebList'); cl.replaceChildren(); cl.hidden = !chips.length;
-    const tg2 = edTarget();
-    for (const c of chips) {
-      if (c.decor) {   // an ordered corridor object: its name and how many are left
-        const ch = el('span', 'chip' + (ed && c.decor === ed.cur ? ' on' : ''));
-        const nm = el('button', 'chip-b', RH.DECOR[c.decor].name); nm.addEventListener('click', () => { ed.cur = c.decor; edKey = ''; renderEdit(); });
-        ch.append(nm, el('span', 'chip-n', '×' + c.n)); cl.append(ch); continue;
-      }
-      const ch = el('span', 'chip' + (c.i === edLi ? ' on' : ''));
-      const nm = el('button', 'chip-b', RH.OBJ[c.o].name); nm.addEventListener('click', () => { edLi = c.i; edKey = ''; renderEdit(); });
-      const x = el('button', 'chip-x', '×'); x.title = `Sell for ${money(RH.objCost(h, c.o))}`; x.addEventListener('click', () => act('osell', { id: tg2.room.id, li: c.i }));
-      ch.append(nm, x); cl.append(ch);
-    }
     const bb = $('ebBtns'); bb.replaceChildren();
-    for (const [label, cls, fn, dis] of btns) bb.append(btn(label, cls + ' pt-btn-small', fn, dis));
+    for (const k of ['cancel', 'shop', 'pick', 'ok']) {
+      const d = B[k], b = el('button', 'ebb' + (k === 'ok' ? ' go' : k === 'cancel' ? ' no' : '') + (d && d[3] ? ' on' : ''));
+      b.innerHTML = EBI[k]; b.title = d ? d[2] : EB_TITLE[k]; b.setAttribute('aria-label', b.title);
+      if (!d || d[1]) b.disabled = true; else b.addEventListener('click', d[0]);
+      bb.append(b);
+    }
+    const cl = $('ebList'); cl.replaceChildren(); cl.hidden = !rows.length;
+    for (const c of rows) {
+      const row = el('button', 'orow' + (c.on ? ' on' : '') + (c.req ? ' req' : ''));
+      row.append(el('span', 'nm', c.name), el('span', 'ct', String(c.n)));
+      if (c.on) row.title = 'Click again to turn it';
+      row.addEventListener('click', c.click);
+      if (c.sell) { const x = el('span', 'sx', '×'); x.title = c.sell[0]; x.addEventListener('click', e => { e.stopPropagation(); c.sell[1](); }); row.append(x); }
+      cl.append(row);
+    }
+    const ex = $('ebExtra'); ex.replaceChildren();
+    for (const [label, fn] of extra) ex.append(btn(label, 'pt-btn pt-btn-small pt-btn-ghost', fn));
   }
-  // the shop: the room's extra objects (only those researched), paid for as they join the placement list
-  // the room's shop, Theme Hospital style: choose how many of each extra, then they all join the room's placement list
-  let shopOrder = {}, shopRoom = null;
+  // ---- the shop window: the corridor shop (G) and the edit room's Buy/Sell share it ----
+  // preview of the hovered item on a blueprint grid, its price and the order's running total on the left; the items on
+  // the right with −, quantity, + (Shift steps 5, Ctrl 10). Left-click a row adds one, right-click takes one off.
+  let shopCfg = null, shopOrder = {}, shopHover = null;
+  function openShopWin(cfg) {
+    closeSheets(); lastErr = null;
+    shopCfg = cfg; shopOrder = Object.assign({}, cfg.start || {});
+    shopHover = cfg.items.find(o => cfg.avail(o)) || null;
+    $('shopTitle').textContent = cfg.title; $('shopHead').textContent = cfg.head;
+    $('shopSheet').hidden = false;
+    paintShop(); shopFocus(shopHover);
+  }
+  const shopTotal = () => shopCfg.items.reduce((a, o) => a + (shopOrder[o] || 0) * shopCfg.cost(o), 0);
+  function shopStep(o, d) {
+    if (!shopCfg.avail(o)) return;
+    const was = shopOrder[o] || 0, v = clamp(was + d, 0, 99);
+    if (v > was && shopTotal() + (v - was) * shopCfg.cost(o) > view.h[ME].cash) { fail('Not enough cash for that: try a loan from the Bank'); return; }
+    shopOrder[o] = v; shopHover = o; paintShop(); shopFocus(o);
+  }
+  const stepOf = e => (e.ctrlKey || e.metaKey ? 10 : e.shiftKey ? 5 : 1);
+  function paintShop() {
+    const list = $('shopList'); list.replaceChildren();
+    for (const o of shopCfg.items) {
+      const ok = shopCfg.avail(o), q = shopOrder[o] || 0, have = shopCfg.have ? shopCfg.have(o) : 0;
+      const row = el('div', 'srow' + (ok ? '' : ' locked') + (o === shopHover ? ' sel' : ''));
+      row.dataset.o = o; row.title = shopCfg.desc(o);
+      const nm = el('span', 'nm', shopCfg.name(o)); if (have) nm.append(el('small', null, ` (${have})`));
+      const minus = btn('−', 'qb', e => { e.stopPropagation(); shopStep(o, -stepOf(e)); }, !ok || !q), plus = btn('+', 'qb', e => { e.stopPropagation(); shopStep(o, stepOf(e)); }, !ok);
+      row.append(nm, minus, el('b', 'qn', String(q)), plus);
+      row.addEventListener('mouseenter', () => shopFocus(o));
+      row.addEventListener('click', e => { shopFocus(o); shopStep(o, stepOf(e)); });
+      row.addEventListener('contextmenu', e => { e.preventDefault(); shopStep(o, -stepOf(e)); });
+      list.append(row);
+    }
+    const t = shopTotal(), cash = view.h[ME].cash;
+    $('shopTotal').textContent = money(t); $('shopTotal').classList.toggle('bad', t > cash);
+    $('shopBuy').disabled = !t || view.ph !== 'play';
+    errFor('shopErr');
+  }
+  // the hovered item: its price, what it does, and its model turning on the grid
+  let shopModelO = null;
+  function shopFocus(o) {
+    for (const r of $('shopList').children) r.classList.toggle('sel', r.dataset.o === o);
+    $('shopPrice').textContent = money(o ? shopCfg.cost(o) : 0);
+    $('shopSub').textContent = o ? (shopCfg.avail(o) ? shopCfg.desc(o) : 'Not available yet: it needs research.') : '';
+    if (o === shopModelO) return;
+    shopModelO = o;
+    const c = $('shopModel'), x = c.getContext('2d'); clearInterval(c._t);
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+    if (!o) return;
+    const cfg = shopCfg;
+    let turn = 0;
+    const draw = () => {
+      if (shopModelO !== o || $('shopSheet').hidden) { clearInterval(c._t); return; }
+      const [fw, fd] = cfg.dims(o, turn), [sx, sy] = HI.px(10 * T + fw * 8, 10 * T + fd * 8);
+      x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+      const W2 = c.width / HA.SS, H2 = c.height / HA.SS, ox = sx - W2 / 2, oy = sy - H2 * 0.62;
+      x.setTransform(HA.SS, 0, 0, HA.SS, -ox * HA.SS, -oy * HA.SS); HI.setOrigin(x, ox, oy);
+      try { cfg.draw(x, o, turn); } catch (e) {}
+      HI.setOrigin(null, 0, 0);
+      turn = (turn + 1) & 3;
+    };
+    draw(); c._t = setInterval(draw, 1400);
+  }
+  $('shopBuy').addEventListener('click', () => { const cfg = shopCfg, o = shopOrder; if (!cfg) return; $('shopSheet').hidden = true; shopModelO = null; cfg.confirm(o); });
+  $('shopClose').addEventListener('click', () => { $('shopSheet').hidden = true; shopModelO = null; });
+  // the edit room's Buy/Sell: the room's objects (extras only once researched); they join the room's placement list
   function openShop(id) {
     const h = view.h[ME], r = h.rooms[id]; if (!r) return;
-    if (shopRoom !== id) shopOrder = {};
-    shopRoom = id;
-    const R = RH.ROOMS[r.k], list = $('shopList');
-    const items = [...new Set(R.extra.concat(R.req))];
-    const total = () => items.reduce((a, o) => a + (shopOrder[o] || 0) * RH.objCost(h, o), 0);
-    $('shopSub').textContent = `${R.name} · you have ${money(h.cash)}. Choose how many of each, then place them in the room. Anything you sell back is refunded in full.`;
-    const paint = () => {
-      list.replaceChildren();
-      for (const o of items) {
-        const B = RH.OBJ[o], c = RH.objCost(h, o), avail = RH.objAvailable(h, o), have = RH.countObj(r, o) + r.list.filter(x => x === o).length;
-        const row = el('div', 'item room' + (avail ? '' : ' locked'));
-        const body = el('div'); body.append(el('b', null, `${B.name} · ${money(c)}`), el('small', null, (avail ? shopDesc(o) : 'Needs research (Diagnosis Equipment).') + (have ? ` In the room: ${have}.` : '')));
-        const st = el('span', 'step');
-        st.append(btn('−', 'stepb', () => { shopOrder[o] = Math.max(0, (shopOrder[o] || 0) - 1); paint(); }, !avail), el('b', null, String(shopOrder[o] || 0)), btn('+', 'stepb', () => { shopOrder[o] = Math.min(12, (shopOrder[o] || 0) + 1); paint(); }, !avail));
-        row.append(body, st); list.append(row);
-      }
-      const t = total();
-      $('shopTotal').textContent = t ? `Total ${money(t)}${t > h.cash ? ' (more than you have)' : ''}` : '';
-      $('shopBuy').disabled = !t || t > h.cash;
-    };
-    paint();
-    $('shopSheet').hidden = false;
+    const R = RH.ROOMS[r.k];
+    openShopWin({
+      title: R.name, head: 'Objects',
+      items: [...new Set(R.extra.concat(R.req))],
+      name: o => RH.OBJ[o].name, cost: o => RH.objCost(h, o), avail: o => RH.objAvailable(h, o),
+      have: o => RH.countObj(r, o) + r.list.filter(x => x === o).length,
+      desc: o => shopDesc(o) || RH.OBJ[o].name,
+      dims: (o, turn) => RH.objDims(o, turn),
+      draw: (x, o, turn) => { for (const it of [].concat(HI.objItem(o, 10, 10, turn, r.k, false))) it.draw(x); },
+      confirm: order => {
+        const rr = view.h[ME].rooms[id]; if (!rr) return;
+        const first = rr.list.length;
+        for (const o in order) for (let i = 0; i < order[o]; i++) act('obuy', { id, o });
+        edLi = first; pickMode = false; edKey = ''; renderEdit();   // straight on to placing the first new piece
+      },
+    });
   }
-  $('shopBuy').addEventListener('click', () => {
-    const h = view.h[ME], r = shopRoom != null && h.rooms[shopRoom]; if (!r) return;
-    const first = r.list.length;
-    for (const o in shopOrder) for (let i = 0; i < shopOrder[o]; i++) act('obuy', { id: shopRoom, o });
-    shopOrder = {}; $('shopSheet').hidden = true;
-    edLi = first; edKey = ''; renderEdit();   // straight on to placing the first new piece
-  });
   const shopDesc = o => ({ ext: 'Staff feel safe; lowers explosion odds.', rad: 'Warms the room.', plant: 'Cheers staff up; needs watering.', bin: 'Fewer cans dropped.', sofa: 'One more resting place.', pool: 'Staff love it when resting.', vgame: 'Staff love it most when resting.', tv: 'A little cheer nearby.', toilet: 'One more patient at a time.', sink: 'Patients want to wash.', desk: 'One more work station.', bed: 'More beds, faster stays.', computer: 'A researcher\'s station; speeds research.', atom: 'Speeds research up.', cabinet: 'Somewhere to file.', lchair: 'One more student.', bookcase: 'Staff are happier; speeds teaching and psychiatry.', skeleton: 'Staff are happier; speeds teaching.' })[o] || '';
-  $('shopClose').addEventListener('click', () => { $('shopSheet').hidden = true; });
   // the nearest wall edge of a room to a world point: [x, y, d]
   function nearestEdge(rc, wx, wy) {
     let best = null, bd = 1e9;
@@ -1190,6 +1272,7 @@
       const tx = Math.floor(wx / T), ty = Math.floor(wy / T);
       // tapping something already placed picks it up
       const hitObj = r.objs.find(ob => RH.objTiles(ob.o, ob.x, ob.y, ob.r).foot.some(([a, b]) => a === tx && b === ty));
+      if (pickMode) { if (hitObj) { act('opick', { id: r.id, oid: hitObj.id }); edLi = 0; pickMode = false; edKey = ''; renderEdit(); } return true; }
       if (hitObj && !r.list.length) { act('opick', { id: r.id, oid: hitObj.id }); edLi = 0; return true; }
       if (!r.list.length) { if (hitObj) act('opick', { id: r.id, oid: hitObj.id }); return true; }
       const o = r.list[edLi] || r.list[0];
@@ -1204,38 +1287,25 @@
 
   // ---- corridor objects & the reception desk ----
   let decorSpotSel = null;
-  // the corridor-objects order, Theme Hospital style: pick how many of each, then place them all
-  let order = {};
+  // the corridor shop, Theme Hospital style: pick how many of each, then place them all; each is paid for as it goes down
   function openOrder() {
-    decorSpotSel = null; lastErr = null; $('decorErr').textContent = '';
+    decorSpotSel = null;
     const h = view.h[ME];
-    order = Object.assign({}, ed && ed.mode === 'decor' && ed.bag || {});
-    $('decorTitle').textContent = 'Corridor objects';
-    $('decorSub').textContent = `Comfort ${h.comfort}/${RH.MAX_COMFORT} · warmth ${warmWord(h.warm)}. Choose how many of each, then place them in the corridors. You pay for each one as it goes down.`;
-    const list = $('decorList'), total = () => RH.DECOR_ORDER.reduce((a, k) => a + (order[k] || 0) * RH.DECOR[k].cost, 0);
-    const paint = () => {
-      list.replaceChildren();
-      for (const kind of RH.DECOR_ORDER) {
-        const D = RH.DECOR[kind], row = el('div', 'item room');
-        const body = el('div'); body.append(el('b', null, `${D.name} · ${money(D.cost)}`), el('small', null, D.desc + (D.comfort ? ` Comfort +${D.comfort}.` : '')));
-        const st = el('span', 'step');
-        st.append(btn('−', 'stepb', () => { order[kind] = Math.max(0, (order[kind] || 0) - 1); paint(); }), el('b', null, String(order[kind] || 0)), btn('+', 'stepb', () => { order[kind] = Math.min(20, (order[kind] || 0) + 1); paint(); }));
-        row.append(body, st); list.append(row);
-      }
-      const t = total();
-      $('decorTotal').textContent = t ? `Total ${money(t)}${t > h.cash ? ' (more than you have)' : ''}` : '';
-      $('decorBuy').disabled = !t || view.ph !== 'play';
-    };
-    paint();
-    $('decorRemove').hidden = true; $('decorBuy').hidden = false;
-    closeSheets(); $('decorSheet').hidden = false;
+    openShopWin({
+      title: 'Corridor objects', head: `Comfort ${h.comfort}/${RH.MAX_COMFORT} · ${warmWord(h.warm)}`,
+      items: RH.DECOR_ORDER, start: ed && ed.mode === 'decor' && ed.bag || {},
+      name: k => RH.DECOR[k].name, cost: k => RH.DECOR[k].cost, avail: () => true,
+      have: k => Object.values(h.decor).filter(v => v === k).length,
+      desc: k => RH.DECOR[k].desc + (RH.DECOR[k].comfort ? ` Comfort +${RH.DECOR[k].comfort}.` : ''),
+      dims: () => [1, 1],
+      draw: (x, k) => HI.DECOR_DRAW[k](x, 10 * T + 8, 10 * T + 8, false),
+      confirm: order => {
+        const bag = {}; for (const k of RH.DECOR_ORDER) if (order[k] > 0) bag[k] = order[k];
+        if (!Object.keys(bag).length) { if (ed && ed.mode === 'decor') { ed = null; renderEdit(); } return; }
+        ed = { mode: 'decor', bag, cur: RH.DECOR_ORDER.find(k => bag[k] > 0) }; edKey = ''; renderEdit();
+      },
+    });
   }
-  $('decorBuy').addEventListener('click', () => {
-    const bag = {}; for (const k of RH.DECOR_ORDER) if (order[k] > 0) bag[k] = order[k];
-    $('decorSheet').hidden = true;
-    if (!Object.keys(bag).length) return;
-    ed = { mode: 'decor', bag, cur: RH.DECOR_ORDER.find(k => bag[k] > 0) }; edKey = ''; renderEdit();
-  });
   function openDecorInfo(c, r) {
     decorSpotSel = [c, r];
     const h = view.h[ME], kind = h.decor[RH.decorKey(c, r)]; if (!kind) return;
@@ -1243,7 +1313,7 @@
     $('decorSub').textContent = RH.DECOR[kind].desc + (kind === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' This one has died: a handyman needs to water it.' : '');
     $('decorList').replaceChildren();
     $('decorRemove').hidden = view.ph !== 'play'; $('decorRemove').textContent = `Remove · +${money(RH.DECOR[kind].cost / 2)}`;
-    $('decorErr').textContent = ''; $('decorBuy').hidden = true; $('decorTotal').textContent = '';
+    $('decorErr').textContent = ''; $('decorTotal').textContent = '';
     closeSheets(); $('decorSheet').hidden = false;
   }
   function openDesk() {
@@ -1260,7 +1330,7 @@
       b.addEventListener('click', () => { act('desk'); $('decorSheet').hidden = true; });
       list.append(b);
     }
-    $('decorRemove').hidden = true; $('decorBuy').hidden = true; $('decorTotal').textContent = '';
+    $('decorRemove').hidden = true; $('decorTotal').textContent = '';
     closeSheets(); $('decorSheet').hidden = false;
   }
   const warmWord = w => (w < 0.6 ? 'cold' : w > 1.6 ? 'too hot' : w > 1.2 ? 'warm' : 'comfortable');
@@ -1272,39 +1342,15 @@
   // Edit room: the next click on one of your rooms opens it for editing
   $('editBtn').addEventListener('click', () => { if (editPick) { editPick = false; setStatus(); return; } if (!view || view.ph !== 'play' || !mine()) return; if (tab !== ME) setTab(ME); if (myEdit()) { toast(`Finish the ${rname(myEdit().k)} first`, 'dim'); return; } closeSheets(); editPick = true; infoKey = ''; setStatus(); });
 
-  // ---- staff ----
-  let staffTab = 'd', lastPoolKey = '';
-  const STAFF_TABS = [['d', 'Doctors'], ['n', 'Nurses'], ['h', 'Handymen'], ['r', 'Receptionists'], ['pay', 'On the payroll']];
-  function openStaff(t) { if (t) staffTab = t; $('staffSheet').hidden = false; lastErr = null; fireArmed = null; lastPoolKey = ''; $('staffList').dataset.key = ''; refreshStaff(); }
+  // ---- staff management (F3): everyone on the payroll ----
+  function openStaff() { $('staffSheet').hidden = false; lastErr = null; fireArmed = null; $('staffList').dataset.key = ''; refreshStaff(); }
   function refreshStaff() {
     if ($('staffSheet').hidden || !view) return;
-    const h = view.h[ME], pool = view.pool || [];
-    const tabs = $('staffTabs');
-    if (!tabs.children.length) for (const [k, nm] of STAFF_TABS) { const b = btn(nm, '', () => { staffTab = k; lastPoolKey = ''; $('staffList').dataset.key = ''; refreshStaff(); }); b.dataset.k = k; tabs.append(b); }
+    const h = view.h[ME], sl = $('staffList');
     const live = h.staff.filter(s => !s.gone);
-    [...tabs.children].forEach(b => { b.classList.toggle('on', b.dataset.k === staffTab); if (b.dataset.k === 'pay') b.textContent = `On the payroll (${live.length})`; });
-    const hl = $('hireList'), sl = $('staffList');
-    hl.hidden = staffTab === 'pay'; sl.hidden = staffTab !== 'pay';
     let bill = 0; for (const s of live) bill += s.sal;
-    $('payroll').textContent = live.length ? `Wage bill ${money(bill)} a month` : '';
-    if (staffTab !== 'pay') {
-      const cands = pool.filter(c => c.k === staffTab);
-      const key = [view.ph, staffTab].concat(cands.map(c => `${c.id}:${h.cash < c.sal ? 0 : 1}`)).join('|');
-      if (key !== lastPoolKey) {
-        lastPoolKey = key; hl.replaceChildren();
-        for (const c of cands) {
-          const b = el('button', 'item'); b.disabled = view.ph !== 'play' || h.cash < c.sal;
-          b.append(spriteCanvas(HA.staffSheet(c.id % 8, staffKind(c)), 33));
-          const t = el('div'); t.append(el('b', null, c.nm), quals(c));
-          const what = c.k === 'h' ? 'Cleans, waters plants, repairs machines' : c.k === 'r' ? 'Works the reception desk' : c.k === 'n' ? 'Pharmacy, Ward, Fracture Clinic' : 'Any doctor\'s room';
-          const body = el('div'); body.append(t, el('small', null, `${what} · `), el('span', 'skill', skillTxt(c)));
-          b.append(body, el('span', 'price', money(c.sal) + '/mo'));
-          b.addEventListener('click', () => act('hire', { id: c.id }));
-          hl.append(b);
-        }
-        if (!cands.length) hl.append(el('small', null, 'Nobody of that kind is looking for work. New candidates arrive on the 1st of the month.'));
-      }
-    } else {
+    $('payroll').textContent = live.length ? `${live.length} on the payroll · wage bill ${money(bill)} a month` : '';
+    {
       if (fireArmed && performance.now() - fireArmed.at > FIRE_ARM_MS) fireArmed = null;
       const key = [view.ph, fireArmed ? fireArmed.id : '', Math.floor(h.cash / 200)].concat(live.map(s => `${s.id}:${s.slot}:${s.sal}:${s.mode}:${s.train}:${s.pri}:${Math.round(s.hap * 10)}:${Math.round(s.tired * 10)}:${Math.round(s.sk * 1000)}:${s.desk}`)).join('|');
       if (sl.dataset.key !== key) {
@@ -1336,6 +1382,106 @@
       }
     }
     errFor('staffErr');
+  }
+
+  // ---- hire staff: Theme Hospital's window, one candidate at a time; the new hire is then dropped on the map ----
+  const HIRE_TABS = [['d', 'Doctors'], ['n', 'Nurses'], ['h', 'Handymen'], ['r', 'Receptionists']];
+  let hireK = null, hireI = 0, hireKey = '', hiring = null;   // hiring: { c } the candidate following the cursor
+  const hireCands = k => (view && view.pool || []).filter(c => c.k === k);
+  function openHire() { closeSheets(); lastErr = null; hireKey = ''; if (hireK && !hireCands(hireK).length) hireK = null; $('hireSheet').hidden = false; refreshHire(); }
+  const QICON = {
+    s: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l9-9"/><path d="M13 11c2-4 5-6 7-7-1 3-3 6-7 7z" fill="currentColor"/></svg>',
+    p: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17v-5h4l2 3h12v2"/><path d="M5 17v3M19 17v3"/><circle cx="6" cy="8" r="2.2"/></svg>',
+    r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/><path d="M7.5 15h9"/></svg>',
+  };
+  // a line about each candidate, from their attitude, profession and skill
+  function hireDesc(c) {
+    const a = c.att == null ? 0.6 : c.att, one = arr => arr[c.id % arr.length];
+    const mood = a > 0.75 ? one(['Keen as mustard', 'A real team player', 'Never late, never grumpy']) : a < 0.45 ? one(['Can be a bit moody', 'Not a morning person', 'Fond of a long tea break']) : one(['Steady and reliable', 'Gets the job done', 'Quietly competent']);
+    const what = c.k === 'd' ? (RH.hasQ(c, 's') ? 'with a steady hand in theatre' : RH.hasQ(c, 'p') ? 'and a very good listener' : RH.hasQ(c, 'r') ? 'and fascinated by research' : c.sk >= 0.8 ? 'with years at the top' : c.sk < 0.25 ? 'and fresh out of medical school' : 'with a good bedside manner')
+      : c.k === 'n' ? (c.sk > 0.7 ? 'and very experienced on the wards' : 'and kind to patients') : c.k === 'h' ? (c.sk > 0.7 ? 'and handy with a spanner' : 'and not afraid of a mop') : (c.sk > 0.7 ? 'with a winning smile' : 'and good with a queue');
+    return `${mood}, ${what}.`;
+  }
+  function drawHirePortrait(c) {
+    const cv2 = $('hirePor'), x = cv2.getContext('2d'), W = cv2.width, H = cv2.height;
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2a6f6a'); g.addColorStop(1, '#154a46');
+    x.setTransform(1, 0, 0, 1, 0, 0); x.imageSmoothingEnabled = false; x.fillStyle = g; x.fillRect(0, 0, W, H);
+    if (!c) return;
+    const m = HA.staffSheet(c.id % 8, staffKind(c)).down[0], k = m.width / 16;
+    x.drawImage(m, 0, 0, 16 * k, 15 * k, -4, 6, W + 8, (W + 8) * 15 / 16);   // head and shoulders, as on the original's ID card
+  }
+  function refreshHire() {
+    if ($('hireSheet').hidden || !view) return;
+    const h = view.h[ME], tabs = $('hireTabs');
+    if (!tabs.children.length) for (const [k, nm] of HIRE_TABS) {
+      const b = el('button', 'htab'); b.dataset.k = k; b.title = nm;
+      b.append(spriteCanvas(HA.staffSheet(k === 'd' ? 2 : k === 'n' ? 4 : k === 'h' ? 1 : 6, k), 42), el('b', null, '0'));
+      b.addEventListener('click', () => {
+        if (!hireCands(k).length) { fail(`No ${nm.toLowerCase()} are looking for work. New candidates arrive on the 1st of the month.`); return; }
+        hireK = k; hireI = 0; hireKey = ''; lastErr = null; refreshHire();
+      });
+      tabs.append(b);
+    }
+    if (hireK && !hireCands(hireK).length) hireK = null;
+    for (const b of tabs.children) { const n = hireCands(b.dataset.k).length; b.lastChild.textContent = n; b.classList.toggle('on', b.dataset.k === hireK); b.classList.toggle('none', !n); b.title = `${HIRE_TABS.find(t => t[0] === b.dataset.k)[1]}: ${n} looking for work`; }
+    const cands = hireK ? hireCands(hireK) : [];
+    hireI = clamp(hireI, 0, Math.max(0, cands.length - 1));
+    const c = cands[hireI];
+    const key = [view.ph, hireK, c ? c.id : '', hireI, cands.length, c && h.cash < c.sal].join('|');
+    if (key !== hireKey) {
+      hireKey = key;
+      $('hireBlank').hidden = !!c;
+      if (c) {
+        const doc = c.k === 'd', rk = RH.rank(c);
+        $('hireName').textContent = c.nm;
+        $('hireSen').classList.toggle('off', !doc);
+        $('hireSen').title = doc ? rk : '';
+        $('hireSenMk').style.left = (rk === 'Consultant' ? 92 : rk === 'Doctor' ? 50 : 8) + '%';
+        $('hireSkill').style.width = Math.round(clamp(c.sk, 0, 1) * 100) + '%';
+        $('hireSkill').parentNode.title = skillTxt(c);
+        const qs = $('hireQuals'); qs.replaceChildren(); qs.classList.toggle('blank', !doc);
+        for (const q of ['s', 'p', 'r']) { const on = doc && RH.hasQ(c, q), ic = el('span', 'hq ' + q + (on ? ' on' : '')); ic.innerHTML = QICON[q]; if (on) ic.title = RH.QUAL_NAME[q]; qs.append(ic); }
+        $('hireSal').textContent = money(c.sal) + ' a month';
+        $('hireSal').classList.toggle('bad', h.cash < c.sal);
+        $('hireDesc').textContent = hireDesc(c);
+      }
+      drawHirePortrait(c);
+      $('hirePrev').disabled = !c || hireI <= 0;
+      $('hireNext').disabled = !c || hireI >= cands.length - 1;
+      $('hireGo').disabled = !c || view.ph !== 'play';
+    }
+    errFor('hireErr');
+  }
+  $('hirePrev').addEventListener('click', () => { hireI--; refreshHire(); });
+  $('hireNext').addEventListener('click', () => { hireI++; refreshHire(); });
+  $('hireClose').addEventListener('click', () => { $('hireSheet').hidden = true; });
+  $('hireGo').addEventListener('click', () => {
+    const c = hireK && hireCands(hireK)[hireI]; if (!c || !view || view.ph !== 'play') return;
+    if (view.h[ME].cash < c.sal) { fail('Not enough cash for their first month: try a loan from the Bank'); return; }
+    if (tab !== ME) setTab(ME);
+    hiring = { c }; $('hireSheet').hidden = true; edKey = ''; renderEdit();
+  });
+  // the new hire follows the cursor; a tap on a good tile puts them to work there
+  function hireDrop(wx, wy) {
+    const c = hiring.c, tx = Math.floor(wx / T), ty = Math.floor(wy / T);
+    if (!hireCands(c.k).some(x => x.id === c.id)) { hiring = null; renderEdit(); fail('Someone else got there first'); return; }
+    const chk = RH.staffDrop(view.h[ME], c, tx, ty);
+    if (!chk.ok) { fail(chk.why); return; }
+    act('hire', { id: c.id, x: tx, y: ty });
+    hiring = null; edKey = ''; renderEdit();
+  }
+  function cancelHire() { if (!hiring) return false; hiring = null; edKey = ''; renderEdit(); return true; }
+  // greyscale (or red, over a tile they can't go on) copies of a standing figure
+  const hireGhostC = {};
+  function hireGhost(c, ok) {
+    const key = c.id % 8 + staffKind(c) + (ok ? 1 : 0);
+    if (hireGhostC[key]) return hireGhostC[key];
+    const src = HA.staffSheet(c.id % 8, staffKind(c)).down[0], [g, x] = HA.canvas(src.width, src.height);
+    x.drawImage(src, 0, 0);
+    const d = x.getImageData(0, 0, src.width, src.height), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const l = p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11; if (ok) p[i] = p[i + 1] = p[i + 2] = l; else { p[i] = Math.min(255, 90 + l); p[i + 1] = l * 0.35; p[i + 2] = l * 0.3; } }
+    x.putImageData(d, 0, 0);
+    return (hireGhostC[key] = g);
   }
 
   // ---- casebook ----
@@ -1556,7 +1702,7 @@
       body.append(ul);
     }
   }
-  function refreshSheets() { refreshBuild(); refreshRoom(); refreshStaff(); refreshCase(); refreshResearch(); refreshBank(); refreshStatus(); renderFaxes(); renderEdit(); }
+  function refreshSheets() { refreshBuild(); refreshRoom(); refreshStaff(); refreshHire(); refreshCase(); refreshResearch(); refreshBank(); refreshStatus(); renderFaxes(); renderEdit(); }
   function showOver() {
     if (!view || view.ph !== 'over') return;
     if (SOLO) { soloOver(); return; }
@@ -1650,12 +1796,11 @@
   const mine = () => { if (tab !== ME) setTab(ME); return !!view; };
   // the management screens: a lit button closes its screen; opening one closes whatever else is open
   const screen = (id, open, isOpen) => () => { if (!mine()) return; if (isOpen ? isOpen() : !$(id).hidden) { $(id).hidden = true; return; } editPick = false; closeSheets(); open(); };
-  const hireOpen = () => !$('staffSheet').hidden && staffTab !== 'pay', mgmtOpen = () => !$('staffSheet').hidden && staffTab === 'pay';
   const SCREENS = {
     bankMgr: screen('bankSheet', () => openBank('mgr'), () => !$('bankSheet').hidden && bankTab === 'mgr'),
     bankStmt: screen('bankSheet', () => openBank('stmt'), () => !$('bankSheet').hidden && bankTab === 'stmt'),
-    hire: screen('staffSheet', () => openStaff(staffTab === 'pay' ? 'd' : null), hireOpen),
-    staff: screen('staffSheet', () => openStaff('pay'), mgmtOpen),
+    hire: screen('hireSheet', () => { cancelHire(); openHire(); }),
+    staff: screen('staffSheet', openStaff),
     map: () => setFlat(!HI.getFlat()),
     case: screen('caseSheet', openCase), res: screen('resSheet', openResearch), stat: screen('statSheet', () => openStatus()), pol: screen('polSheet', openPolicy),
   };
@@ -1692,7 +1837,11 @@
     const k = e.key.toLowerCase();
     // Theme Hospital's keys: Escape or Q closes, F/G/V/B are the four build buttons, F1-F9 the management screens
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey;
-    if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); setStatus(); return; }
+    if (k === 'escape' && cancelHire()) return;
+    if ((k === 'enter' || (k === 'e' && plain)) && !$('hireSheet').hidden) { e.preventDefault(); $('hireGo').click(); return; }
+    // Escape with no window open finishes the room if Confirm is lit
+    if (k === 'escape' && !sheets.some(id => !$(id).hidden) && myEdit()) { const r = myEdit(); if (r.phase === 'win') { act('wdone', { id: r.id }); return; } if (r.phase === 'furnish' && !r.list.length && !RH.missingReq(r).length) { act('finish', { id: r.id }); return; } }
+    if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; pickMode = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); setStatus(); return; }
     if ((k === 'r' || k === ' ') && plain && myEdit() && myEdit().phase === 'furnish') { e.preventDefault(); edRot = (edRot + 1) & 3; return; }
     if (plain && !e.shiftKey) { const B = { f: 'buildBtn', g: 'decorBtn', v: 'editBtn', b: 'staffBtn' }; if (B[k]) { $(B[k]).click(); return; } }
     if (k === 'm' && plain && view && (view.h[ME].fax || []).length) { showFax(view.h[ME].fax[0].id); return; }
@@ -1782,8 +1931,9 @@
   cv.addEventListener('pointerdown', e => {
     cv.setPointerCapture && (() => { try { cv.setPointerCapture(e.pointerId); } catch (err) {} })();
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1 && e.button === 2 && cancelHire()) { ptrs.delete(e.pointerId); return; }
     if (ptrs.size === 1 && e.button === 2) { const r = myEdit(); if (r && r.phase === 'furnish') { edRot = (edRot + 1) & 3; ptrs.delete(e.pointerId); return; } }
-    if (ptrs.size === 1 && !modalOpen()) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); if (edPointer('down', wx, wy)) { gesture = { kind: 'ed' }; return; } }
+    if (ptrs.size === 1 && !modalOpen() && !hiring) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); if (edPointer('down', wx, wy)) { gesture = { kind: 'ed' }; return; } }
     if (ptrs.size === 2 && gesture && gesture.kind === 'ed') { edDrag = null; }
     if (ptrs.size === 1) gesture = { kind: 'tap', x0: e.clientX, y0: e.clientY, t0: performance.now(), lx: e.clientX, ly: e.clientY };
     else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; }
@@ -1847,6 +1997,7 @@
   function onTap(bx, by) {
     if (!view || modalOpen()) return;
     const h = view.h[tab];
+    if (tab === ME && view.ph === 'play' && hiring) { hireDrop(bx, by); return; }
     if (tab === ME && view.ph === 'play' && edTap(bx, by)) return;
     if (editPick) {   // Edit room: the room clicked opens for editing
       const rm = roomAt(h, Math.floor(bx / T), Math.floor(by / T));
@@ -2057,6 +2208,15 @@
     if (tg && tg.phase === 'furnish') {
       const p = furnishPreview();
       if (p) { for (const [x, y, good] of p.check.tiles) HI.tileQuad(bctx, x, y, good ? OK_FILL : BAD_FILL); if (p.check.use) HI.tileQuad(bctx, p.check.use[0], p.check.use[1], p.check.use[2] ? 'rgba(126,224,129,.35)' : BAD_FILL, 'rgba(126,224,129,.8)'); }
+    }
+    // a new hire following the cursor: greyscale over a good tile, red where they can't go
+    if (hiring && edHoverW) {
+      const tx = Math.floor(edHoverW[0] / T), ty = Math.floor(edHoverW[1] / T);
+      if (RH.inMap(tx, ty)) {
+        const ok = RH.staffDrop(h, hiring.c, tx, ty).ok, [x, y] = [tx * T + 8, ty * T + 8], g = hireGhost(hiring.c, ok);
+        HI.tileQuad(bctx, tx, ty, ok ? OK_FILL : BAD_FILL, 'rgba(255,255,255,.5)');
+        ghosts3d.push({ d: HI.depth(x, y), draw: cx => { const [sx, sy] = HI.px(x, y); cx.globalAlpha = 0.85; cx.drawImage(g, Math.round(sx) - 8, Math.round(sy) - 23, 16, 24); cx.globalAlpha = 1; } });
+      }
     }
     if (ed && ed.mode === 'decor' && !tg && edHoverW) {
       const c = Math.floor(edHoverW[0] / T), r = Math.floor(edHoverW[1] / T);

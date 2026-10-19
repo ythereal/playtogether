@@ -1430,16 +1430,44 @@
     return null;
   }
   const replaceCost = (h, kind) => Math.round(objCost(h, ROOMS[kind].p) * 0.5);
-  function hire(s, p, id) {
+  // where a new hire (or someone picked up) may be dropped: inside the building on a free tile; in a room only if it is
+  // built and they can work there; receptionists stay out of rooms but can be put on or next to an unstaffed desk.
+  // Returns { ok, why, room, desk }.
+  function staffDrop(h, st, x, y) {
+    if (!indoor(x, y)) return { ok: false, why: 'Staff have to go inside your hospital' };
+    const L = layout(h), i = idx(x, y), rid = L.room[i];
+    const desk = st.k === 'r' && h.desk && !h.staff.some(o => o.desk && !o.gone && o.id !== st.id) && DESK_TILES.some(([a, b]) => Math.abs(a - x) <= 1 && Math.abs(b - y) <= 1);
+    if (desk) return { ok: true, desk: true };
+    if (L.block[i]) return { ok: false, why: 'They can\'t stand there' };
+    if (L.bp[i] && !rid) return { ok: false, why: 'Not on a blueprint' };
+    if (rid) {
+      const r = h.rooms[rid];
+      if (!r || !isBuilt(r)) return { ok: false, why: 'That room isn\'t finished' };
+      if (st.k === 'r') return { ok: false, why: 'Receptionists stay out of the rooms' };
+      if (st.k !== 'h' && ROOMS[r.k].staff && !eligible(st, r.k)) return { ok: false, why: `${typeName(st.k)}s can't work in a ${ROOMS[r.k].name}` };
+      return { ok: true, room: rid };
+    }
+    return { ok: true };
+  }
+  // tx, ty (optional): the tile the new hire is dropped on; without them they are driven in from the car park
+  function hire(s, p, id, tx, ty) {
     if (s.ph !== 'play') return 'Not now';
     const h = s.h[p];
     const i = s.pool.findIndex(c => c.id === id); if (i < 0) return 'Someone else got there first';
-    const c = s.pool[i];
+    const c = s.pool[i], drop = Number.isInteger(tx) && Number.isInteger(ty);
+    const chk = drop ? staffDrop(h, c, tx, ty) : null;
+    if (chk && !chk.ok) return chk.why;
     if (h.cash < c.sal) return 'Not enough cash for the first month';
     s.pool.splice(i, 1);
     book(h, 'Wages', -c.sal);
     h.staff.push(Object.assign({}, c, { slot: null, desk: false, x: EXIT[0], y: EXIT[1], path: [], f: 3, mv: 0, gone: false, idle: -1, look: c.id % 8, job: null, work: 0, wt: 1, hap: 0.75, tired: 0, mode: 'idle', room: null, train: false, pri: 'all', fax: 0, quit: 0 }));
-    arrive(s, h, h.staff[h.staff.length - 1]);   // the new hire is driven in
+    const st = h.staff[h.staff.length - 1];
+    if (!drop) arrive(s, h, st);   // the new hire is driven in
+    else {
+      [st.x, st.y] = center(tx, ty);
+      if (chk.desk) { st.desk = true; route(h, st, DESK_STAFF[0], DESK_STAFF[1]); }
+      else if (chk.room != null && ROOMS[h.rooms[chk.room].k].staff && st.k !== 'h') { const e = place(s, p, st.id, chk.room); if (e) assign(h); }
+    }
     assign(h);
     s.ev.push({ k: 'hired', p, nm: c.nm, type: c.k });
     return null;
@@ -2239,7 +2267,7 @@
     score, progress, metTargets, value, curePct, arrivals, unlocked, hasUpgrade, machStr, cureFee, diagFee, priceFactor, loanLimit, researchCost, cureType, hasTag,
     rank, isCon, hasQ, fairWage, typeName, eligible, capacity, seatsOf, countObj,
     newState, start, step, bpPlace, doorPlace, winToggle, winsDone, objPlace, objPick, objSell, objBuy, autoPlace, finishBuild, buildBack, deleteRoom, editRoom, clearWreck,
-    replaceMachine, hire, fire, place, setTrain, setPri, pay, setPolicy, setPrice, setResearch, loan, openDoors,
+    replaceMachine, hire, staffDrop, fire, place, setTrain, setPri, pay, setPolicy, setPrice, setResearch, loan, openDoors,
     addExtra, placeDecor, removeDecor, buyDesk, shoot, vax, answerFax, setProfile, staffById, patById, findSite, quickBuild, stepAuto };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RH = api;
 })(typeof window !== 'undefined' ? window : globalThis);
