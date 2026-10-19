@@ -23,6 +23,28 @@
   const LOSE = { cash: -20000, rep: 150 };
   const DEATH_REP = 12, ANGRY_REP = 3, HOME_REP = 1, CROWD = 6, QMAX = 6;
   const LOAN_STEP = 5000, LOAN_RATE = 0.01;
+
+  // ---------- single player: the 12-level campaign (Theme Hospital single-player spec) ----------
+  // Targets per level, null = not a target there. start = starting cash. intro = what the level brings in.
+  // Win: every target met at a quarter-end check with no loan. Lose: checked at year end, after the awards.
+  const LEVELS = [
+    { nm: 'Toxicity', rep: 300, cash: 1000, pct: 40, cured: 10, value: 55000, start: 40000, intro: 'The basic rooms' },
+    { nm: 'Sleepy Hollow', rep: 300, cash: 10000, pct: 40, cured: 40, value: 60000, start: 40000, intro: 'Research and consultants' },
+    { nm: 'Largechester', rep: null, cash: 20000, pct: null, cured: 60, value: 80000, start: 50000, intro: 'Emergencies and surgery' },
+    { nm: 'Frimpton-on-Sea', rep: 500, cash: 50000, pct: null, cured: null, value: 100000, start: 50000, intro: 'Training' },
+    { nm: 'Simpleton', rep: 400, cash: 50000, pct: 45, cured: 200, value: 120000, start: 50000, intro: 'Earthquakes' },
+    { nm: 'Festering-on-the-Wold', rep: null, cash: 150000, pct: 50, cured: 300, value: 140000, start: 50000, intro: 'Epidemics' },
+    { nm: 'Greenpool', rep: 600, cash: 200000, pct: null, cured: 350, value: 160000, start: 50000, intro: '' },
+    { nm: 'Manquay', rep: null, cash: 300000, pct: 55, cured: 500, value: 180000, start: 60000, intro: '' },
+    { nm: 'Eastville', rep: null, cash: 400000, pct: 60, cured: 500, value: 200000, start: 60000, intro: '' },
+    { nm: 'Eggsenham', rep: 650, cash: 500000, pct: 65, cured: 500, value: 220000, start: 60000, intro: 'Better drugs' },
+    { nm: 'Croaking', rep: 700, cash: 500000, pct: 70, cured: 600, value: 240000, start: 70000, intro: 'Alien DNA' },
+    { nm: 'Battenberg', rep: 800, cash: 750000, pct: 70, cured: 750, value: 250000, start: 70000, intro: 'Everything' },
+  ];
+  // the level each feature first appears on
+  const LVL_FROM = { research: 2, emerg: 3, op: 3, training: 4, quake: 5, epi: 6, dna: 11 };
+  const lvlOK = (s, f) => !s.solo || s.solo.lvl >= LVL_FROM[f];
+  const RIVAL_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Skynet', 'Marvin', 'Cerebro', 'Mother', 'Jayne'];
   // the lobby by the entrance: never built on (reception desk, idle staff, waiting patients)
   const LOBBY = { x0: 2, y0: 3, x1: 5, y1: 9 };
   const DESK_TILES = [[2, 6], [3, 6]];
@@ -571,12 +593,13 @@
     return st;
   }
   function newPool(s, first) {
-    const pool = [];
-    for (let i = 0; i < 5; i++) pool.push(newCand(s, 'd'));
+    const pool = [], n = s.solo ? { d: 8, n: 8, h: 3, r: 2 } : { d: 5, n: 3, h: 2, r: 2 };
+    for (let i = 0; i < n.d; i++) pool.push(newCand(s, 'd'));
+    if (s.solo && s.solo.lvl < LVL_FROM.research) for (const c of pool) if (c.sk >= 0.8) { c.sk = r2(0.3 + rnd() * 0.45); c.sal = Math.round(fairWage(c) * (1 + rnd() * 0.25)); }
     if (first) { pool[0].q.r = QUAL_PTS.r; pool[1].q.p = QUAL_PTS.p; pool[1].sk = Math.max(pool[1].sk, 0.3); for (const c of pool) c.sal = Math.round(fairWage(c) * 1.1); }
-    for (let i = 0; i < 3; i++) pool.push(newCand(s, 'n'));
-    for (let i = 0; i < 2; i++) pool.push(newCand(s, 'h'));
-    for (let i = 0; i < 2; i++) pool.push(newCand(s, 'r'));
+    for (let i = 0; i < n.n; i++) pool.push(newCand(s, 'n'));
+    for (let i = 0; i < n.h; i++) pool.push(newCand(s, 'h'));
+    for (let i = 0; i < n.r; i++) pool.push(newCand(s, 'r'));
     return pool;
   }
 
@@ -594,17 +617,20 @@
       epi: null, awards: [], monthDeaths: 0, built: {},
     };
   }
-  function newState() {
+  // lvl (1–12) starts a single-player campaign level: one hospital (h[0]) against three statistical rivals
+  function newState(lvl) {
     const s = { v: VERSION, ph: 'ready', t: 0, month: 0, nextId: 1, ev: [], h: null, winner: -1, why: '', prof: [{ nm: '', av: 0 }, { nm: '', av: 1 }], quake: null };
     s.h = [newHospital(s), newHospital(s)];
+    if (lvl) setupSolo(s, clamp(lvl | 0, 1, LEVELS.length));
     s.pool = newPool(s, true);
     return s;
   }
   function start(s) {
     if (s.ph === 'play') return;
-    const prof = s.prof;
-    Object.assign(s, newState());
+    const prof = s.prof, names = s.solo && s.solo.rivals.map(r => r.nm);   // keep the rivals the briefing named
+    Object.assign(s, newState(s.solo ? s.solo.lvl : 0));
     if (prof) s.prof = prof;
+    if (names) s.solo.rivals.forEach((r, i) => { r.nm = names[i]; });
     s.ph = 'play';
     s.ev.push({ k: 'start' });
   }
@@ -621,7 +647,7 @@
   const shellCost = (h, kind) => ROOMS[kind].shell;
   // what the hospital is worth: paid rooms and their furniture, corridor objects, the desk
   function value(h) {
-    let v = h.desk ? DESK_COST : 0;
+    let v = (h.desk ? DESK_COST : 0) + (h.land || 0);
     for (const k in h.rooms) {
       const r = h.rooms[k]; if (r.phase === 'wreck') continue;
       if (r.paid) v += ROOMS[r.k].shell;
@@ -632,13 +658,14 @@
     return v;
   }
   function progress(h) {
-    const tg = TARGETS;
-    return { rep: h.rep / tg.rep, cash: h.cash / tg.cash, pct: curePct(h) / tg.pct, cured: h.cured / tg.cured, value: value(h) / tg.value };
+    const tg = h.tg || TARGETS, now = { rep: h.rep, cash: h.cash, pct: curePct(h), cured: h.cured, value: value(h) }, out = {};
+    for (const k in now) if (tg[k] != null) out[k] = now[k] / tg[k];
+    return out;
   }
   const metTargets = h => Object.values(progress(h)).every(v => v >= 1);
-  function score(h) { const p = progress(h); let s = 0; for (const k in p) s += clamp(p[k], 0, 1); return Math.round(s / 5 * 1000); }
+  function score(h) { const p = progress(h); let s = 0, n = 0; for (const k in p) { s += clamp(p[k], 0, 1); n++; } return Math.round(s / (n || 1) * 1000); }
   function lost(h) { return h.cash < LOSE.cash ? 'cash' : h.rep < LOSE.rep ? 'rep' : ''; }
-  const unlocked = (h, kind) => START_ROOMS.has(kind) || RESEARCH.cure.list.indexOf(kind) >= 0 && RESEARCH.cure.list.indexOf(kind) < h.res.done.cure || RESEARCH.diag.list.indexOf(kind) >= 0 && RESEARCH.diag.list.indexOf(kind) < h.res.done.diag;
+  const unlocked = (h, kind) => !(h.ban && h.ban.includes(kind)) && (START_ROOMS.has(kind) || RESEARCH.cure.list.indexOf(kind) >= 0 && RESEARCH.cure.list.indexOf(kind) < h.res.done.cure || RESEARCH.diag.list.indexOf(kind) >= 0 && RESEARCH.diag.list.indexOf(kind) < h.res.done.diag);
   const hasUpgrade = (h, u) => RESEARCH.diag.list.indexOf(u) < h.res.done.diag;
   const machStr = (h, kind) => (ROOMS[kind].mach || 0) + h.res.done.imp + ((h.specStr && h.specStr[kind]) || 0);
   const priceFactor = h => { const r = h.rep; return r <= 500 ? 0.5 + r / 1000 : 1 + (r - 500) / 500; };
@@ -675,6 +702,7 @@
   const free = st => !st.gone && st.slot == null && !st.desk && st.mode === 'idle' && !st.train;
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
+  const LAND_VALUE = (W - 2) * H * 25 + 20000;
   for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(y <= 6 && x <= 3) && !(x === 3 && y === 7)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
@@ -728,7 +756,7 @@
 
   // ---------- patients ----------
   function pickDisease(s) {
-    const pool = DISEASES.filter(d => d.from <= s.month && d.w > 0);
+    const pool = DISEASES.filter(d => d.from <= s.month && d.w > 0 && (d.room !== 'op' || lvlOK(s, 'op')) && (d.room !== 'dna' || lvlOK(s, 'dna')));
     let tot = 0; for (const d of pool) tot += d.w;
     let r = rnd() * tot;
     for (const d of pool) { r -= d.w; if (r <= 0) return DIS_IDX[d.id]; }
@@ -919,7 +947,7 @@
   // ---------- events: epidemics, emergencies, VIPs ----------
   function maybeEpidemic(s, p, pt) {
     const h = s.h[p], d = DISEASES[pt.dis];
-    if (s.month < 10 || h.epi || !hasTag(d, 'cont') || rnd() > 0.12) return;
+    if (s.month < 10 || h.epi || !hasTag(d, 'cont') || !lvlOK(s, 'epi') || rnd() > 0.12) return;
     const others = h.pats.filter(x => x !== pt && x.st !== 'leave');
     const n = Math.min(others.length, 2 + Math.floor(rnd() * 4));
     pt.inf = 1;
@@ -1532,12 +1560,12 @@
   const arrivals = m => 20 + 1.4 * m;      // patients per month for the whole town
   function monthTick(s) {
     s.month++;
-    for (let p = 0; p < 2; p++) {
+    for (let p = 0; p < (s.solo ? 1 : 2); p++) {
       const h = s.h[p];
       let sal = 0; for (const st of h.staff) if (!st.gone) sal += st.sal;
       book(h, 'Wages', -sal);
       const heat = Math.round(h.rads * h.pol.heat * 6); if (heat) book(h, 'Heating', -heat);
-      if (h.loan) book(h, 'Interest', -Math.round(h.loan * LOAN_RATE));
+      if (h.loan) book(h, 'Interest', -Math.round(h.loan * (h.lrate != null ? h.lrate : LOAN_RATE)));
       if (h.owed) { book(h, 'Insurance', h.owed); h.owed = 0; }
       if (h.mess.length >= 4) addRep(h, -Math.floor(h.mess.length / 3));
       if (h.rats.length) addRep(h, -2 * h.rats.length);
@@ -1552,12 +1580,14 @@
       s.ev.push({ k: 'month', p, m: s.month, fin: h.fin.cur });
       h.fin.last = h.fin.cur; h.fin.cur = {};
       h.monthDeaths = 0;
-      if (s.month >= 4 && !h.em && rnd() < 0.35) emergencyOffer(s, p);
+      if (s.month >= 4 && !h.em && lvlOK(s, 'emerg') && rnd() < 0.35) emergencyOffer(s, p);
+      if (s.solo && h.rep < h.yMinRep) h.yMinRep = h.rep;
       if (s.month >= 3 && (rnd() < 0.25 || h.vipNo >= 2)) { if (h.vipNo >= 2) { h.vipNo = 0; startVip(s, p, pick(VIPS)); s.ev.push({ k: 'vipSurprise', p }); } else vipOffer(s, p); }
     }
     s.pool = newPool(s, false);
     s.ev.push({ k: 'pool' });
-    if (s.month >= 8 && !s.quake && rnd() < 0.22) { s.quake = { t: s.t + 15, big: rnd() < 0.5 }; s.ev.push({ k: 'tremor' }); }
+    if (s.month >= 8 && !s.quake && lvlOK(s, 'quake') && rnd() < 0.22) { s.quake = { t: s.t + 15, big: rnd() < 0.5 }; s.ev.push({ k: 'tremor' }); }
+    if (s.solo) return soloMonth(s);
     if (s.month % 12 === 0) appraisal(s);
     const out = [0, 1].map(p => lost(s.h[p]));
     if (out[0] || out[1]) return finish(s, out[0] && out[1] ? (score(s.h[0]) >= score(s.h[1]) ? 0 : 1) : out[0] ? 1 : 0, 'lost:' + (out[0] || out[1]));
@@ -1590,11 +1620,16 @@
       return open ? h.rep * clamp(2 - avgPrice(h) / 100, 0.4, 1.6) + 50 : 0;
     });
     const tot = att[0] + att[1];
-    for (let p = 0; p < 2; p++) {
+    if (s.solo) stepRivals(s, dt, att[0]);
+    for (let p = 0; p < (s.solo ? 1 : 2); p++) {
       const h = s.h[p];
       recount(h); h.warm = warmth(h);
       if (h.boiler > 0) h.boiler -= dt;
-      if (tot > 0) {
+      if (s.solo) {
+        h.acc += dt * townRate(s) * s.solo.share[0] / MONTH;
+        while (h.acc >= 1 && h.pats.length < 60) { h.acc -= 1; spawnPatient(s, p); }
+        if (h.acc >= 1) h.acc = 0.99;
+      } else if (tot > 0) {
         h.acc += dt * arrivals(s.month) * att[p] / tot / MONTH;
         while (h.acc >= 1 && h.pats.length < 60) { h.acc -= 1; spawnPatient(s, p); }
         if (h.acc >= 1) h.acc = 0.99;
@@ -1901,6 +1936,114 @@
     }
   }
 
+  // ---------- single player: level setup, rivals, appraisal, checks ----------
+  function setupSolo(s, lvl) {
+    const L = LEVELS[lvl - 1], h = s.h[0];
+    const names = RIVAL_NAMES.slice(); const rivals = [];
+    for (let i = 0; i < 3; i++) rivals.push(newRival(names.splice(Math.floor(rnd() * names.length), 1)[0], lvl, L.start));
+    s.solo = { lvl, rivals, declined: false, share: [0.25, 0.25, 0.25, 0.25] };
+    h.cash = L.start; h.land = LAND_VALUE;
+    h.tg = {}; for (const k of ['rep', 'cash', 'pct', 'cured', 'value']) if (L[k] != null) h.tg[k] = L[k];
+    h.lrate = (1 + 8 * (lvl - 1) / 11) / 100 / 12;   // 1% a year on level 1 up to 9% on level 12, charged monthly
+    h.ban = Object.keys(LVL_FROM).filter(k => ROOMS[k] && lvl < LVL_FROM[k]);
+    yearStart(s);
+  }
+  // rivals are never drawn or simulated tile by tile: they're statistical competitors (spec: Rival hospitals)
+  function newRival(nm, lvl, cash) {
+    return { nm, rep: START_REP, cash, cured: 0, died: 0, home: 0, visits: 0, seen: 0, value: LAND_VALUE, staff: 2, pend: 0, open: false,
+      openT: GRACE * (0.55 + rnd() * 0.7), hireT: MONTH * (0.2 + rnd() * 0.6), cr: r2(0.5 + rnd() * 0.15 + lvl * 0.01), dr: r2(0.03 + rnd() * 0.04), awards: [] };
+  }
+  // the town's patients a month, shared by all four hospitals; later levels are busier towns
+  const townRate = s => arrivals(s.month) * 2 * (1 + 0.08 * (s.solo.lvl - 1));
+  function stepRivals(s, dt, att0) {
+    const S = s.solo;
+    for (const rv of S.rivals) {
+      if (!rv.open && s.t >= rv.openT) { rv.open = true; s.ev.push({ k: 'rivalOpen', nm: rv.nm }); }
+      // rivals recruit from the same candidate pool, so good candidates can disappear
+      rv.hireT -= dt;
+      if (rv.hireT <= 0) {
+        rv.hireT = MONTH * (0.45 + rnd() * 0.8);
+        const want = rnd() < 0.55 ? 'd' : rnd() < 0.7 ? 'n' : 'h', list = s.pool.filter(c => c.k === want);
+        if (list.length && rv.staff < 8 + s.month * 1.5) {
+          const c = rnd() < 0.5 ? list.sort((a, b) => b.sk - a.sk)[0] : pick(list);
+          s.pool.splice(s.pool.indexOf(c), 1); rv.staff++;
+          s.ev.push({ k: 'poached', nm: rv.nm, who: c.nm, type: c.k });
+        }
+      }
+    }
+    // patient share: round-robin for the first 3 months, then weighted by reputation with a quarter left to chance
+    const w = [att0].concat(S.rivals.map(rv => (rv.open ? rv.rep + 50 : 0)));
+    const open = w.filter(x => x > 0).length, sum = w.reduce((a, b) => a + b, 0);
+    S.share = w.map(x => (!x || !open ? 0 : s.month < 3 ? 1 / open : 0.25 / open + 0.75 * x / sum));
+    S.rivals.forEach((rv, i) => { rv.pend += dt * townRate(s) * S.share[i + 1] / MONTH; });
+  }
+  // the spec's resistance near the extremes: gains below 500 and losses above 500 always land
+  function rivalRep(rv, d) {
+    const r = rv.rep, always = (d > 0 && r < 500) || (d < 0 && r > 500);
+    if (always || rnd() < 1 - (0.000004008 * r * r - 0.004008 * r + 1)) rv.rep = clamp(rv.rep + d, 0, 1000);
+  }
+  function rivalMonth(s, rv) {
+    const n = Math.floor(rv.pend); rv.pend -= n;
+    const cured = Math.min(n, Math.round(n * rv.cr * (0.85 + rnd() * 0.3))), died = Math.min(n - cured, Math.round(n * rv.dr * (0.5 + rnd())));
+    const home = Math.round((n - cured - died) * 0.4);
+    rv.visits += n; rv.seen += cured + died + home; rv.cured += cured; rv.died += died; rv.home += home;
+    for (let i = 0; i < cured; i++) rivalRep(rv, 1);
+    for (let i = 0; i < died; i++) rivalRep(rv, -4);
+    for (let i = 0; i < home; i++) rivalRep(rv, -3);
+    rv.cash += Math.round(cured * 800 * priceFactor(rv) + n * 150) - rv.staff * 95;
+    // money in the bank turns into rooms and better cures; value grows steadily
+    const spend = rv.cash > 25000 ? Math.round(Math.min(rv.cash - 20000, 3000 + rnd() * 9000)) : 0;
+    rv.cash -= spend; rv.value += Math.round(spend * 0.85) + 1500;
+    rv.cr = Math.min(0.88, rv.cr + 0.003 + spend / 2e6);
+  }
+  function yearStart(s) {
+    const h = s.h[0];
+    h.y0 = { cured: h.cured, died: h.died, seen: h.seen, home: h.home, angry: h.angry, visits: h.visits, rv: s.solo.rivals.map(r => r.visits) };
+    h.yMinRep = h.rep;
+  }
+  // year-end awards and trophies, measured against the spec's fixed thresholds rather than the rivals
+  function soloAppraisal(s) {
+    const h = s.h[0], y = h.y0, S = s.solo;
+    const cured = h.cured - y.cured, died = h.died - y.died, seen = h.seen - y.seen, gone = (h.home - y.home) + (h.angry - y.angry);
+    const mine = h.visits - y.visits, theirs = S.rivals.reduce((a, r, i) => a + r.visits - (y.rv[i] || 0), 0);
+    const share = mine + theirs ? mine / (mine + theirs) : 0;
+    const live = h.staff.filter(x => !x.gone), staffHap = live.length ? live.reduce((a, x) => a + x.hap, 0) / live.length : 0.5;
+    const pats = h.pats.filter(q => q.st !== 'leave'), patHap = pats.length ? pats.reduce((a, q) => a + Math.min(1, q.pat / 150), 0) / pats.length : 0.5;
+    const award = (name, cash, rep) => { h.awards.push(name); if (cash) book(h, 'Awards', cash); if (rep) addRep(h, rep); };
+    const cite = (name, cash, rep) => award('Citation: ' + name, cash, rep);
+    if (cured > 50) award('Most cures', 2000); else if (cured < 10) cite('too few cures', -3000);
+    if (seen && died < 10) award('Fewest deaths', 3000); else if (died > 25) cite('too many deaths', -5000);
+    if (share > 0.5) award('Biggest market share', 0, 4); else if (share < 0.15) cite('tiny market share', 0, -5);
+    const ratio = died ? cured / died : 99;
+    if (cured + died && ratio > 5) award('Cures beat deaths', 4000); else if (cured + died && ratio < 1) cite('more deaths than cures', -4000);
+    if (h.rep > 500) award('Reputation', 2000); else if (h.rep < 200) cite('poor reputation', -3000);
+    const v = value(h);
+    if (v > 150000) award('Hospital value', 0, 3); else if (v < 50000) cite('run-down hospital', 0, -6);
+    if (live.length && staffHap > 0.75) award('Happy staff', 0, 4); else if (live.length && staffHap < 0.25) cite('miserable staff', 0, -10);
+    if (pats.length && patHap > 0.75) award('Happy patients', 0, 4); else if (pats.length && patHap < 0.25) cite('miserable patients', 0, -9);
+    if (seen >= 5 && !died && !gone) award('Trophy: every patient cured', 20000);
+    else if (seen >= 5 && !died) award('Trophy: no deaths', 10000);
+    if (seen >= 10 && cured / seen > 0.9) award('Trophy: cure rate over 90%', 6000);
+    if (h.yMinRep > 400) award('Trophy: reputation all year', 2000);
+    s.ev.push({ k: 'awards', y: s.month / 12 });
+    h.messMade = 0;
+    yearStart(s);
+  }
+  function soloMonth(s) {
+    const h = s.h[0], S = s.solo;
+    for (const rv of S.rivals) rivalMonth(s, rv);
+    if (s.month % 12 === 0) { soloAppraisal(s); const why = lost(h); if (why) return finish(s, 1, 'lost:' + why); }
+    // a declined promotion comes back at the half-year checks only
+    if (s.month % (S.declined ? 6 : 3) === 0 && !h.loan && metTargets(h)) return finish(s, 0, 'targets');
+  }
+  // turn down a promotion and keep running this hospital
+  function stayOn(s) {
+    if (!s.solo || s.ph !== 'over' || s.winner !== 0) return 'Not now';
+    s.ph = 'play'; s.winner = -1; s.why = ''; s.solo.declined = true;
+    s.ev.push({ k: 'stay' });
+    return null;
+  }
+
   // ---------- helpers for tests and the bot ----------
   // a free rectangle for a room of this kind (smallest legal size), scanning the floor
   function findSite(h, kind, extra) {
@@ -1932,6 +2075,7 @@
   }
 
   const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, DESK_TILES, DIRS,
+    LEVELS, LVL_FROM, LAND_VALUE, stayOn,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,
     walled, isBuilt, editing, roomCenter, doorPoint, queuePos, idlePos, yearMonth, missingReq, objAvailable, objCost, roomCost, shellCost, replaceCost, wreckCost, teachSpeed,

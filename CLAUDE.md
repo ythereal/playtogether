@@ -58,6 +58,11 @@ games/<id>/index.html   One folder per game, self-contained
   send positions; the host validates proximity before revealing a clue. When editing the case
   generator, run a quick Node check over thousands of seeds that every case stays solvable.
 
+- `games/hospital3d`: also has a **single-player campaign** at `?solo=1` (12 levels against three statistical rivals,
+  per the Theme Hospital single-player spec). Solo mode never calls `PT.room`: `game.js` builds a local stand-in room
+  and saves to localStorage. Rules for it live in `rules.js` (`newState(lvl)`, `s.solo`); `newState()` with no level is
+  the two-player game and must stay unchanged.
+
 ## Networking API (`window.PT`)
 
 ```js

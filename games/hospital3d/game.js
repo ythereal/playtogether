@@ -18,7 +18,59 @@
   const btn = (txt, cls, fn, dis) => { const b = el('button', cls || 'pt-btn pt-btn-small', txt); if (dis) b.disabled = true; b.addEventListener('click', fn); return b; };
   const meter = (v, cls) => { const m = el('span', 'meter' + (cls ? ' ' + cls : '')), i = el('i'); i.style.width = Math.round(clamp(v, 0, 1) * 100) + '%'; m.append(i); return m; };
 
-  const room = await PT.room({ game: 'hospital3d', title: 'Rival Hospital 3D' });
+  // ============================ single player ============================
+  // ?solo=1 skips PeerJS: a local stand-in for the room, a campaign menu, and the save kept in localStorage.
+  const params = new URLSearchParams(location.search);
+  const SOLO = params.get('solo') === '1';
+  const SOLO_SAVE = 'rh3d_solo', CAMP_KEY = 'rh3d_campaign';
+  const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const campBest = () => clamp(((lsGet(CAMP_KEY) || {}).best) | 0 || 1, 1, RH.LEVELS.length);
+  function soloMenu() {
+    return new Promise(done => {
+      const sv = lsGet(SOLO_SAVE), best = campBest();
+      const ov = el('div', 'pt-overlay'), card = el('div', 'pt-card'), body = el('div', 'pt-card-body');
+      card.append(el('div', 'pt-eyebrow', 'Single player'), el('h2', 'pt-title', 'Rival Hospital 3D'), body);
+      ov.append(card); document.body.append(ov);
+      const go = pick => { ov.remove(); done(pick); };
+      body.append(el('p', 'pt-muted', 'Run one hospital per level against three computer rivals. Meet every target at a quarter-end check, with no loan, to be promoted.'));
+      if (sv && sv.v === RH.VERSION && sv.solo && sv.ph !== 'over') {
+        const L = RH.LEVELS[sv.solo.lvl - 1], ym = RH.yearMonth(sv.month);
+        body.append(btn(`Continue: level ${sv.solo.lvl}, ${L.nm} · ${RH.MONTH_NAMES[ym.month]} year ${ym.year}`, 'pt-btn pt-btn-big', () => go({ lvl: sv.solo.lvl, cont: true })));
+        body.append(el('div', 'pt-or', 'or start a level'));
+      }
+      const list = el('div', 'lvl-list');
+      RH.LEVELS.forEach((L, i) => {
+        const n = i + 1, b = btn('', 'lvl' + (n === best ? ' next' : ''), () => go({ lvl: n, cont: false }), n > best);
+        b.append(el('b', null, `${n} · ${L.nm}`), el('small', null, n > best ? 'Locked: win the level before' : L.intro || ' '));
+        list.append(b);
+      });
+      body.append(list, el('a', 'pt-btn pt-btn-ghost', 'Play with a friend instead'));
+      body.lastChild.href = location.pathname;
+    });
+  }
+  let soloPick = null;
+  async function makeRoom() {
+    if (!SOLO) {
+      const pr = PT.room({ game: 'hospital3d', title: 'Rival Hospital 3D' });
+      // net.js has drawn its host / join card by now: offer the campaign beside it
+      const card = document.querySelector('.pt-card-body');
+      if (card && !params.get('room')) {
+        const a = el('a', 'pt-btn pt-btn-ghost', 'Single-player campaign'); a.href = '?solo=1';
+        card.append(el('div', 'pt-or', 'or play alone'), a);
+      }
+      return pr;
+    }
+    const lobby = el('a', 'pt-lobby-link', '← All games'); lobby.href = '../../index.html'; document.body.append(lobby);
+    soloPick = await soloMenu();
+    return {
+      role: 'host', connected: true, code: 'SOLO',
+      send() {}, on(ev, fn) { if (ev === 'connected') setTimeout(fn, 0); return this; },
+      save(st) { if (st && st.solo) lsSet(SOLO_SAVE, st); },
+      get saved() { return soloPick.cont ? lsGet(SOLO_SAVE) : null; },
+    };
+  }
+  const room = await makeRoom();
   const host = room.role === 'host';
   const ME = host ? 0 : 1, FRIEND = 1 - ME;
 
@@ -30,7 +82,7 @@
   let lastPhase = null;
   if (host) {
     const sv = room.saved;
-    state = sv && sv.v === RH.VERSION ? sv : RH.newState();
+    state = sv && sv.v === RH.VERSION && !!sv.solo === SOLO ? sv : RH.newState(SOLO ? soloPick.lvl : 0);
     state.ev = []; if (!state.prof) state.prof = [{ nm: '', av: 0 }, { nm: '', av: 1 }];
     view = state;
   }
@@ -212,13 +264,26 @@
   function requestStart() { if (host) hostStart(); else if (room.connected) room.send({ t: 'start' }); }
 
   // ============================ host loop ============================
+  // single-player speeds, relative to Normal (the spec's 56 / 12 / 3 / 2 / 1 ticks per game hour)
+  const SPEEDS = [['Paused', 0, '–'], ['Slowest', 3 / 56, '0.05×'], ['Slower', 3 / 12, '¼×'], ['Normal', 1, '1×'], ['Max', 1.5, '1.5×'], ['And then some more', 3, '3×']];
+  let speed = 3;
+  try { const v = +localStorage.getItem('rh3d_speed'); if (v >= 1 && v <= 5) speed = v; } catch (e) {}
+  let lastSpeed = speed;
+  function setSpeed(v) {
+    if (!SOLO) return;
+    if (v === 0 && speed === 0) v = lastSpeed;   // P toggles
+    speed = clamp(v, 0, 5); if (speed) { lastSpeed = speed; try { localStorage.setItem('rh3d_speed', String(speed)); } catch (e) {} }
+    $('pauseBtn').textContent = speed ? '⏸' : '▶'; $('pauseBtn').title = speed ? 'Pause (P)' : 'Carry on (P)';
+    $('speedBtn').textContent = SPEEDS[speed || lastSpeed][2]; $('speedBtn').title = `Speed ${speed || lastSpeed}: ${SPEEDS[speed || lastSpeed][0]} (keys 1–5)`;
+    statusKey = ''; setStatus();
+  }
   let acc = 0, lastTick = performance.now(), lastSnap = 0, lastSave = 0;
   if (host) setInterval(() => {
     const now = performance.now();
     const dt = Math.min((now - lastTick) / 1000, 0.1); lastTick = now;
-    const paused = !room.connected && state.ph === 'play';
-    if (!paused) { acc += dt; while (acc >= TICK) { RH.step(state, TICK); acc -= TICK; } drainEvents(); onPhase(); } else acc = 0;
-    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected) room.send(snapshot()); refreshSheets(); }
+    const paused = (!room.connected || (SOLO && !speed)) && state.ph === 'play';
+    if (!paused) { acc += dt * (SOLO ? SPEEDS[speed][1] : 1); while (acc >= TICK) { RH.step(state, TICK); acc -= TICK; } drainEvents(); onPhase(); } else acc = 0;
+    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected && !SOLO) room.send(snapshot()); refreshSheets(); }
     if (now - lastSave > 3000) { lastSave = now; room.save(state); }
   }, 1000 / 120);
 
@@ -277,6 +342,9 @@
       case 'decor': if (!mine) toast(`${nameOf(e.p)} added a ${RH.DECOR[e.kind].name.toLowerCase()}`, 'dim'); break;
       case 'month': if (mine) { const f = e.fin || {}; let inc = 0, out = 0; for (const k in f) { if (f[k] > 0) inc += f[k]; else out -= f[k]; } toast(`${RH.MONTH_NAMES[(e.m - 1) % 12]}: in ${money(inc)} · out ${money(out)}`, inc >= out ? 'dim' : 'bad'); } break;
       case 'pool': if (staffTab !== 'pay') lastPoolKey = ''; break;
+      case 'poached': if (staffTab !== 'pay') lastPoolKey = ''; if (e.type === 'd') toast(`${e.nm} snapped up ${e.who} from the hiring pool`, 'dim'); break;
+      case 'rivalOpen': toast(`${e.nm} has opened its doors`, 'dim'); break;
+      case 'stay': toast('You stayed on. The board will ask again at the half-year checks.', 'dim'); break;
       case 'built':
         if (!mine) { toast(`${nameOf(e.p)} built a ${rname(e.kind)}`, 'dim'); break; }
         if (e.first) roomInfo(e.kind);
@@ -331,12 +399,13 @@
     const h = view.h[ME], r = view.h[FRIEND];
     const key = [view.ph, view.month, h.cash, h.rep, h.cured, r.cash, r.rep, tab, nameOf(ME), nameOf(FRIEND), h.open].join('|');
     if (key === hudKey) return; hudKey = key;
-    const ym = RH.yearMonth(Math.min(view.month, RH.MONTHS - 1));
+    const ym = RH.yearMonth(SOLO ? view.month : Math.min(view.month, RH.MONTHS - 1));
     $('hudDate').innerHTML = (view.ph === 'ready' ? '<small>Opening</small>soon' : `<small>Year ${ym.year}</small>${RH.MONTH_NAMES[ym.month]}`) + '<i class="mp"><b id="monthBar"></b></i>';
     $('hudCash').textContent = money(h.cash); $('hudCash').classList.toggle('neg', h.cash < 0);
     $('hudRep').textContent = h.rep; $('hudRepBar').style.width = h.rep / 10 + '%';
     $('hudCured').textContent = h.cured + (h.seen ? ` · ${RH.curePct(h)}%` : '');
-    $('tabMine').replaceChildren(document.createTextNode(`${nameOf(ME)}'s`), Object.assign(el('span', 'alt'), { textContent: ' hospital' }));
+    if (SOLO) $('tabMine').replaceChildren(document.createTextNode(lvlInfo().nm), Object.assign(el('span', 'alt'), { textContent: ` · level ${view.solo.lvl}` }));
+    else $('tabMine').replaceChildren(document.createTextNode(`${nameOf(ME)}'s`), Object.assign(el('span', 'alt'), { textContent: ' hospital' }));
     $('tabRival').replaceChildren(document.createTextNode(`${nameOf(FRIEND)}'s `), Object.assign(el('small'), { textContent: `· ${money(r.cash)} · ${r.rep}` }));
     $('openBtn').hidden = !(view.ph === 'play' && !h.open && view.t < RH.GRACE && tab === ME);
   }
@@ -355,8 +424,11 @@
     if (mismatch) return [mismatchText(), 'warn'];
     if (!room.connected) return ['Waiting for your friend to join…' + (view && view.ph === 'play' ? ' (paused)' : '')];
     if (!view) return ['Syncing…'];
+    if (SOLO && view.ph === 'ready') return [`Level ${view.solo.lvl}: ${lvlInfo().nm}. Read the briefing (?), then press “Start level”.`];
+    if (SOLO && view.ph === 'over') return [view.winner === 0 ? 'Promoted! Take the job, or stay on here.' : 'The Health Ministry stepped in. Restart the level.'];
     if (view.ph === 'ready') return [host ? 'Press “Start the match” when you\'re both ready.' : 'Waiting for the host to start the match…'];
     if (view.ph === 'over') return ['Game over. ' + (host ? 'Press Play again for a rematch.' : 'Ask the host for a rematch.')];
+    if (SOLO && !speed) return ['Paused. Press P or ▶ to carry on; you can still build and hire.', 'info'];
     if (tab !== ME) return [`Peeking at ${nameOf(FRIEND)}'s hospital. Tap a room to see what they have.`];
     if (hoverTxt) return [hoverTxt, 'info'];
     const h = view.h[ME], rooms = Object.entries(h.rooms).filter(([, r]) => r.phase === 'built'), live = h.staff.filter(s => !s.gone);
@@ -390,6 +462,7 @@
     $('status').hidden = advisorOff;
     if (host) { $('startBtn').disabled = !room.connected; $('startBtn').hidden = !(view && view.ph === 'ready'); }
   }
+  const lvlInfo = () => RH.LEVELS[(view && view.solo ? view.solo.lvl : 1) - 1];
   function onPhase() {
     if (!view) return;
     setStatus();
@@ -1069,7 +1142,7 @@
     if (bankTab === 'mgr') {
       body.append(el('div', 'big', money(h.cash)), el('p', 'sub', 'Bank balance. The loan isn\'t counted against it, and the game is lost if it falls below ' + money(RH.LOSE.cash) + '.'));
       const lim = Math.max(20000, Math.round(RH.value(h) * 0.6 / RH.LOAN_STEP) * RH.LOAN_STEP);
-      line('Loan', money(h.loan)); line('Loan limit (tied to hospital value)', money(lim)); line('Interest', `${RH.LOAN_RATE * 100}% a month · ${money(h.loan * RH.LOAN_RATE)}`);
+      line('Loan', money(h.loan)); line('Loan limit (tied to hospital value)', money(lim)); const lr = h.lrate != null ? h.lrate : RH.LOAN_RATE; line('Interest', `${+(lr * 100).toFixed(2)}% a month · ${money(h.loan * lr)}`);
       line('Insurance owed to you (paid at month end)', money(h.owed)); line('Hospital value', money(RH.value(h)));
       const r = el('div', 'row'); r.append(btn(`Borrow ${money(RH.LOAN_STEP)}`, 'pt-btn', () => act('loan', { dir: 1 }), h.loan + RH.LOAN_STEP > lim || view.ph !== 'play'), btn(`Repay ${money(RH.LOAN_STEP)}`, 'pt-btn pt-btn-ghost', () => act('loan', { dir: -1 }), !h.loan || h.cash < RH.LOAN_STEP || view.ph !== 'play'));
       body.append(r);
@@ -1093,18 +1166,21 @@
     const key = [view.month, h.cash, h.rep, h.cured, h.seen, r.cured, r.rep, h.awards.length, r.awards.length].join('|');
     if ($('statBody').dataset.key === key) return;
     $('statBody').dataset.key = key;
-    const nextQ = (Math.floor(view.month / 3) + 1) * 3;
-    $('statSub').textContent = `Meet every target at a quarter-end check (next: end of ${RH.MONTH_NAMES[(nextQ - 1) % 12]}, year ${Math.floor((nextQ - 1) / 12) + 1}) to win. After ${RH.MONTHS} months, the hospital closest to its targets wins.`;
+    const step = SOLO && view.solo.declined ? 6 : 3, nextQ = (Math.floor(view.month / step) + 1) * step;
+    const qTxt = `end of ${RH.MONTH_NAMES[(nextQ - 1) % 12]}, year ${Math.floor((nextQ - 1) / 12) + 1}`;
+    $('statSub').textContent = SOLO ? `Level ${view.solo.lvl}, ${lvlInfo().nm}. Meet every target with no loan at a ${step === 3 ? 'quarter' : 'half-year'}-end check (next: ${qTxt}) to be promoted. The lose limits are checked at each year end, after the awards.`
+      : `Meet every target at a quarter-end check (next: ${qTxt}) to win. After ${RH.MONTHS} months, the hospital closest to its targets wins.`;
     const body = $('statBody'); body.replaceChildren();
     const bars = el('div', 'bars');
     const tb = (label, v, t, txt, lose) => { const w = el('div', 'tbar' + (lose ? ' lose' : '')), tr = el('span', 'track'), i = el('i'); i.style.width = clamp(v / t, 0, 1) * 100 + '%'; tr.append(i); w.append(el('span', null, label), tr, el('b', clamp(v / t, 0, 1) >= 1 && !lose ? 'ok' : lose && v / t > 0.6 ? 'bad' : '', txt)); bars.append(w); };
-    const tg = RH.TARGETS;
+    const tg = h.tg || RH.TARGETS;
     body.append(el('h4', null, 'Targets'));
-    tb('Reputation', h.rep, tg.rep, `${h.rep} / ${tg.rep}`);
-    tb('Bank balance', Math.max(0, h.cash), tg.cash, `${money(h.cash)} / ${money(tg.cash)}`);
-    tb('Cure rate', RH.curePct(h), tg.pct, `${RH.curePct(h)}% / ${tg.pct}%`);
-    tb('Patients cured', h.cured, tg.cured, `${h.cured} / ${tg.cured}`);
-    tb('Hospital value', RH.value(h), tg.value, `${money(RH.value(h))} / ${money(tg.value)}`);
+    if (tg.rep != null) tb('Reputation', h.rep, tg.rep, `${h.rep} / ${tg.rep}`);
+    if (tg.cash != null) tb('Bank balance', Math.max(0, h.cash), tg.cash, `${money(h.cash)} / ${money(tg.cash)}`);
+    if (tg.pct != null) tb('Cure rate', RH.curePct(h), tg.pct, `${RH.curePct(h)}% / ${tg.pct}%`);
+    if (tg.cured != null) tb('Patients cured', h.cured, tg.cured, `${h.cured} / ${tg.cured}`);
+    if (tg.value != null) tb('Hospital value', RH.value(h), tg.value, `${money(RH.value(h))} / ${money(tg.value)}`);
+    if (SOLO) tb('No loan outstanding', h.loan ? 0 : 1, 1, h.loan ? money(h.loan) + ' owed' : 'clear');
     tb('Bank balance below ' + money(RH.LOSE.cash), Math.max(0, -h.cash), -RH.LOSE.cash, h.cash < 0 ? money(h.cash) : 'safe', true);
     tb('Reputation below ' + RH.LOSE.rep, Math.max(0, 500 - h.rep), 500 - RH.LOSE.rep, h.rep < 500 ? String(h.rep) : 'safe', true);
     body.append(bars);
@@ -1118,6 +1194,7 @@
     body.append(pb);
     // market share and the league table against the rival
     body.append(el('h4', null, 'League table'));
+    if (SOLO) { soloLeague(body, h); return; }
     const share = (h.visits + r.visits) ? h.visits / (h.visits + r.visits) : 0.5;
     const pie = el('div', 'pie'), c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
     x.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent-2') || '#1f8f87'; x.beginPath(); x.moveTo(32, 32); x.arc(32, 32, 30, 0, Math.PI * 2); x.fill();
@@ -1135,9 +1212,40 @@
     }
   }
 
+  // single player: the player against three statistical rivals
+  const PIE = ['--accent', '--accent-2', '#d9a83a', '#7a6fd0'];
+  function soloLeague(body, h) {
+    const rows = [{ nm: lvlInfo().nm, me: true, rep: h.rep, cash: h.cash, cured: h.cured, died: h.died, visits: h.visits, value: RH.value(h) }].concat(view.solo.rivals);
+    const tot = rows.reduce((a, r) => a + r.visits, 0);
+    const pie = el('div', 'pie'), c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    const css = getComputedStyle(document.body);
+    let a0 = -Math.PI / 2;
+    rows.forEach((r, i) => {
+      const f = tot ? r.visits / tot : 0.25; x.fillStyle = PIE[i].startsWith('--') ? (css.getPropertyValue(PIE[i]).trim() || '#e8533f') : PIE[i];
+      x.beginPath(); x.moveTo(32, 32); x.arc(32, 32, 30, a0, a0 + Math.PI * 2 * f); x.fill(); a0 += Math.PI * 2 * f;
+    });
+    pie.append(c, el('span', null, 'Market share: ' + rows.map(r => `${r.nm} ${tot ? Math.round(100 * r.visits / tot) : 25}%`).join(' · ')));
+    body.append(pie);
+    const wrap = el('div', 'league'), t = el('table', 't'), hd = el('tr');
+    for (const k of ['', 'Rep', 'Balance', 'Cured', 'Deaths', 'Visitors', 'Value']) hd.append(el('th', null, k));
+    t.append(hd);
+    for (const r of rows.slice().sort((a, b) => b.rep - a.rep)) {
+      const tr = el('tr', r.me ? 'me' : '');
+      for (const v of [r.nm, r.rep, money(r.cash), r.cured, r.died, r.visits, money(r.value)]) tr.append(el('td', null, String(v)));
+      t.append(tr);
+    }
+    wrap.append(t); body.append(wrap);
+    if (h.awards.length || statAwards) {
+      body.append(el('h4', null, 'Awards and citations'));
+      const ul = el('ul', 'tips'); for (const a of h.awards) ul.append(el('li', null, a)); if (!h.awards.length) ul.append(el('li', null, 'None yet.'));
+      body.append(ul);
+    }
+  }
   function refreshSheets() { refreshBuild(); refreshRoom(); refreshStaff(); refreshCase(); refreshResearch(); refreshBank(); refreshStatus(); renderFaxes(); renderEdit(); }
   function showOver() {
     if (!view || view.ph !== 'over') return;
+    if (SOLO) { soloOver(); return; }
+    $('ovStay').hidden = true;
     const a = view.h[ME], b = view.h[FRIEND], w = view.winner;
     $('ovTitle').textContent = view.why === 'targets' ? 'Targets met!' : view.why && view.why.startsWith('lost') ? 'Scandal!' : `Year ${RH.MONTHS / 12} is over`;
     $('ovVerdict').textContent = w === ME ? `${nameOf(ME)}'s hospital wins!` : w === FRIEND ? `${nameOf(FRIEND)}'s hospital wins` : 'Dead heat!';
@@ -1148,10 +1256,51 @@
     for (const [k, x, y] of rows) c.append(el('span', 'a', String(x)), el('span', 'k', k), el('span', 'b', String(y)));
     closeSheets(); $('legend').hidden = true; $('over').hidden = false;
   }
+  function soloOver() {
+    const h = view.h[ME], won = view.winner === 0, n = view.solo.lvl, L = lvlInfo(), next = RH.LEVELS[n];
+    if (won) lsSet(CAMP_KEY, { best: Math.max(campBest(), Math.min(n + 1, RH.LEVELS.length)) });
+    $('ovTitle').textContent = won ? (next ? 'Promoted!' : 'The campaign is yours!') : 'Scandal!';
+    $('ovVerdict').textContent = won ? (next ? `The board offers you ${next.nm} (level ${n + 1})` : `${L.nm} was the last hospital. You've won the campaign.`) : `You've been removed from ${L.nm}`;
+    $('ovWhy').textContent = won ? `Every target was met at a ${view.solo.declined ? 'half-year' : 'quarter'}-end check with no loan outstanding.` + (next && next.intro ? ` New at ${next.nm}: ${next.intro.toLowerCase()}.` : '')
+      : view.why === 'lost:cash' ? `Your balance was below ${money(RH.LOSE.cash)} at the year-end check: the Health Ministry stepped in.` : `Your reputation was below ${RH.LOSE.rep} at the year-end check: the Health Ministry stepped in.`;
+    const best = view.solo.rivals.slice().sort((a, b) => b.rep - a.rep)[0];
+    const rows = [['Balance', money(h.cash), money(best.cash)], ['Reputation', h.rep, best.rep], ['Cured', `${h.cured} (${RH.curePct(h)}%)`, best.cured], ['Deaths', h.died, best.died], ['Visitors', h.visits, best.visits], ['Value', money(RH.value(h)), money(best.value)]];
+    const c = $('ovCmp'); c.replaceChildren(el('span', 'a hd', L.nm), el('span', 'k', ''), el('span', 'b hd', `${best.nm} (top rival)`));
+    for (const [k, a, b] of rows) c.append(el('span', 'a', String(a)), el('span', 'k', k), el('span', 'b', String(b)));
+    $('ovAgain').textContent = won ? (next ? 'Take the job' : 'Play it again') : 'Restart the level';
+    $('ovStay').hidden = !(won && next);
+    closeSheets(); $('legend').hidden = true; $('over').hidden = false;
+  }
+  // a fresh level, paused on its briefing
+  function soloLevel(n) {
+    const prof = state.prof;
+    for (const k of Object.keys(state)) delete state[k];
+    Object.assign(state, RH.newState(n)); state.prof = prof; state.ev = [];
+    floaters.length = ghosts.length = sparks.length = 0;
+    lastPhase = 'ready'; hudKey = ''; statusKey = ''; selected = null; ed = null;
+    closeSheets(); $('over').hidden = true; briefing(); $('legend').hidden = false;
+    room.save(state); setStatus(); renderEdit(); fitView();
+  }
+  // the legend doubles as the level briefing in single player
+  function briefing() {
+    const tg = (view && view.h[ME].tg) || RH.TARGETS;
+    const parts = [];
+    if (tg.rep != null) parts.push(`reputation ${tg.rep}`); if (tg.cash != null) parts.push(`a bank balance of ${money(tg.cash)}`);
+    if (tg.pct != null) parts.push(`a ${tg.pct}% cure rate`); if (tg.cured != null) parts.push(`${tg.cured} patients cured`); if (tg.value != null) parts.push(`a hospital value of ${money(tg.value)}`);
+    if (!SOLO) {
+      $('legendWin').textContent = `Be the first to meet every target at a quarter-end check: ${parts.join(', ')}. Lose if your balance falls below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. If nobody gets there in ${RH.MONTHS} months (a month lasts ${RH.MONTH} seconds), the hospital closest to its targets wins. Year-end awards bring cash and reputation.`;
+      return;
+    }
+    const L = lvlInfo(), n = view.solo.lvl, rv = view.solo.rivals.map(r => r.nm);
+    $('legendTitle').textContent = `Level ${n}: ${L.nm}`;
+    $('legendSub').textContent = `You start with ${money(L.start)}. ${rv[0]}, ${rv[1]} and ${rv[2]} run the town's other hospitals and hire from the same pool of staff; patients go where the reputation is best.` + (L.intro ? ` New here: ${L.intro.toLowerCase()}.` : '');
+    const later = Object.entries(RH.LVL_FROM).filter(([, v]) => n < v).map(([k, v]) => `${{ research: 'research', emerg: 'emergencies', op: 'surgery', training: 'training', quake: 'earthquakes', epi: 'epidemics', dna: 'the DNA Fixer' }[k]} (level ${v})`);
+    $('legendWin').textContent = `To be promoted, meet every target at a quarter-end check (end of March, June, September or December) with no loan outstanding: ${parts.join(', ')}. At each year end the awards are handed out, then you're removed if your balance is below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. A month lasts ${RH.MONTH} seconds at Normal speed: P pauses and keys 1–5 set the speed.` + (later.length ? ` Not on this level yet: ${later.join(', ')}.` : '');
+    $('legendNote').textContent = view.ph === 'ready' ? 'Close this, then press “Start level”.' : '';
+  }
   // legend
   (function buildLegend() {
-    const tg = RH.TARGETS;
-    $('legendWin').textContent = `Be the first to meet every target at a quarter-end check: reputation ${tg.rep}, a bank balance of ${money(tg.cash)}, a ${tg.pct}% cure rate, ${tg.cured} patients cured and a hospital value of ${money(tg.value)}. Lose if your balance falls below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. If nobody gets there in ${RH.MONTHS} months (a month lasts ${RH.MONTH} seconds), the hospital closest to its targets wins. Year-end awards bring cash and reputation.`;
+    briefing();
     const tb = $('disTable'); tb.replaceChildren();
     const hd = el('tr'); for (const c of ['', 'Disease', 'Cure', 'Type']) hd.append(el('th', null, c)); tb.append(hd);
     RH.DISEASES.forEach((d, i) => {
@@ -1162,7 +1311,7 @@
       c3.textContent = RH.cureType(d);
       tr.append(c0, c1, c2, c3); tb.append(tr);
     });
-    $('legendNote').textContent = host ? 'Close this, then press “Start the match”.' : 'The host starts the match.';
+    if (!SOLO) $('legendNote').textContent = host ? 'Close this, then press “Start the match”.' : 'The host starts the match.';
   })();
   function toggleLegend() { if ($('legend').hidden) { closeSheets(); $('over').hidden = true; $('legend').hidden = false; } else if (view && view.ph !== 'ready') $('legend').hidden = true; }
   $('helpBtn').addEventListener('click', toggleLegend);
@@ -1190,8 +1339,16 @@
   if (host) applyProfile(); else renderProfBtn();
   if (!profile) openProfile();
   $('ovClose').addEventListener('click', () => { $('over').hidden = true; });
-  $('ovAgain').addEventListener('click', () => { if (host) { RH.start(state); drainEvents(); onPhase(); room.save(state); } else { requestStart(); $('ovAgain').textContent = 'Asked the host…'; setTimeout(() => ($('ovAgain').textContent = 'Play again'), 2000); } });
+  $('ovStay').addEventListener('click', () => { if (!RH.stayOn(state)) { drainEvents(); onPhase(); $('over').hidden = true; room.save(state); } });
+  $('ovAgain').addEventListener('click', () => { if (SOLO) { const n = view.solo.lvl; soloLevel(view.winner === 0 ? Math.min(n + 1, RH.LEVELS.length) : n); return; } if (host) { RH.start(state); drainEvents(); onPhase(); room.save(state); } else { requestStart(); $('ovAgain').textContent = 'Asked the host…'; setTimeout(() => ($('ovAgain').textContent = 'Play again'), 2000); } });
   function setTab(p) { tab = p; $('tabMine').classList.toggle('on', p === ME); $('tabRival').classList.toggle('on', p !== ME); selected = null; closeSheets(); hudKey = ''; statusKey = ''; setStatus(); if (!host && room.connected) room.send({ t: 'tab', p }); }
+  if (SOLO) {
+    $('tabRival').hidden = true; $('speedBox').hidden = false; $('startBtn').textContent = 'Start level';
+    $('profSub').textContent = 'Pick your administrator and a name. They walk your corridor.';
+    $('pauseBtn').addEventListener('click', () => setSpeed(speed ? 0 : lastSpeed));
+    $('speedBtn').addEventListener('click', () => setSpeed(speed >= 5 || !speed ? 1 : speed + 1));
+    setSpeed(speed);
+  }
   $('tabMine').addEventListener('click', () => setTab(ME));
   $('tabRival').addEventListener('click', () => setTab(FRIEND));
   addEventListener('keydown', e => {
@@ -1204,7 +1361,8 @@
     if (F[k]) { e.preventDefault(); if (view && mine()) F[k](); return; }
     if (k === 'a' && e.shiftKey) { advisorOff = !advisorOff; setStatus(); return; }
     if (k === 'h' || k === '?') { if (!e.repeat) toggleLegend(); return; }
-    if (k === 'tab') { e.preventDefault(); setTab(tab === ME ? FRIEND : ME); return; }
+    if (k === 'tab') { e.preventDefault(); if (!SOLO) setTab(tab === ME ? FRIEND : ME); return; }
+    if (SOLO && !e.metaKey && !e.ctrlKey && !e.altKey) { if (k === 'p') { setSpeed(0); return; } if (k >= '1' && k <= '5') { setSpeed(+k); return; } }
   });
 
   // ============================ canvas, camera, input ============================

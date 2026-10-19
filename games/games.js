@@ -6,7 +6,7 @@ window.PT_GAMES = [
     name: 'Rival Hospital 3D',
     blurb: 'The full Theme Hospital duel in isometric 3D: build rooms anywhere and furnish them, diagnose 33 diseases, train consultants, research, keep machines from exploding, and survive emergencies, VIPs, epidemics and earthquakes.',
     icon: '🏥',
-    type: 'Rivals · Real-time',
+    type: 'Rivals · Real-time · Solo campaign',
   },
   {
     id: 'hospital',
