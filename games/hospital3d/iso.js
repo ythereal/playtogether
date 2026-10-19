@@ -386,7 +386,16 @@
     const B = RH.OBJ[o], [rwd, rdp] = RH.objDims(o, rot);
     const X = x * T, Y = y * T, cx = X + rwd * 8, cy = Y + rdp * 8;
     const parts = [].concat(OBJ_DRAW[o](roomKind, dry));
-    const item = { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1), b: sbox(X, Y, rwd * T, rdp * T, 72), draw: c => {
+    // A wall-mounted object (radiator, extinguisher, bin) shares its tile with whatever stands there, so it's sorted by
+    // where it really is, against the wall, not by the tile's middle; otherwise it's drawn over a chair or a person
+    let d = depthBox(X, Y, rwd * T - 1, rdp * T - 1);
+    if (B.side && parts[0] && parts[0].w != null) {
+      const p = parts[0];
+      let dx = cx - B.fw * 8 + p.x + p.w / 2 - cx, dy = cy - B.fd * 8 + p.y + p.d / 2 - cy;
+      for (let i = 0; i < (rot & 3); i++) [dx, dy] = [-dy, dx];
+      d = depth(cx + dx, cy + dy);
+    }
+    const item = { d, b: sbox(X, Y, rwd * T, rdp * T, 72), draw: c => {
       if (alpha != null) c.globalAlpha = alpha;
       withRot(cx, cy, rot, () => { const X0 = cx - B.fw * 8, Y0 = cy - B.fd * 8; for (const pt of parts) pt.draw(c, X0, Y0); });
       if (alpha != null) c.globalAlpha = 1;
@@ -474,7 +483,10 @@
   }
   function decorItem(h, c, r, kind, dry, forced) {
     const x = c * T + 8, y = r * T + 8, d = decorSide(h, c, r, forced), snug = d >= 0 && wallBeside(h, c, r, d);   // only nudged up to a real wall
-    return { d: depth(x, y), b: sbox(x - 12, y - 12, 24, 24, 48), draw: cx => {
+    // a wall-mounted radiator or extinguisher is sorted where it hangs, against its wall, so it stays behind anyone
+    // on the same tile (benches keep the tile's middle, which their sitters are ordered against)
+    const kk = snug && (kind === 'radiator' || kind === 'ext') ? BACK_TO_WALL[kind] : 0, [ddx, ddy] = d >= 0 ? RH.DIRS[d] : [0, 0];
+    return { d: depth(x + ddx * kk, y + ddy * kk), b: sbox(x - 12, y - 12, 24, 24, 48), draw: cx => {
       if (!DECOR_DRAW[kind]) return;
       if (d < 0) { DECOR_DRAW[kind](cx, x, y, dry); return; }
       const [dx, dy] = RH.DIRS[d], k = snug ? BACK_TO_WALL[kind] || 0 : 0, ox = x + dx * k, oy = y + dy * k;
