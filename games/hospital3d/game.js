@@ -922,20 +922,40 @@
     for (const [label, cls, fn, dis] of btns) bb.append(btn(label, cls + ' pt-btn-small', fn, dis));
   }
   // the shop: the room's extra objects (only those researched), paid for as they join the placement list
+  // the room's shop, Theme Hospital style: choose how many of each extra, then they all join the room's placement list
+  let shopOrder = {}, shopRoom = null;
   function openShop(id) {
     const h = view.h[ME], r = h.rooms[id]; if (!r) return;
-    const R = RH.ROOMS[r.k], list = $('shopList'); list.replaceChildren();
-    $('shopSub').textContent = `${R.name} · you have ${money(h.cash)}. Objects are charged when added and refunded in full if sold.`;
-    for (const o of [...new Set(R.extra.concat(R.req))]) {
-      const B = RH.OBJ[o], c = RH.objCost(h, o), avail = RH.objAvailable(h, o);
-      const b = el('button', 'item room' + (avail ? '' : ' locked')); b.disabled = !avail;
-      const body = el('div'); body.append(el('b', null, `${B.name} (${RH.countObj(r, o) + r.list.filter(x => x === o).length})`), el('small', null, avail ? shopDesc(o) : 'Needs research (Diagnosis Equipment).'));
-      b.append(body, el('span', 'price', money(c)));
-      b.addEventListener('click', () => { act('obuy', { id, o }); setTimeout(() => openShop(id), 150); });
-      list.append(b);
-    }
+    if (shopRoom !== id) shopOrder = {};
+    shopRoom = id;
+    const R = RH.ROOMS[r.k], list = $('shopList');
+    const items = [...new Set(R.extra.concat(R.req))];
+    const total = () => items.reduce((a, o) => a + (shopOrder[o] || 0) * RH.objCost(h, o), 0);
+    $('shopSub').textContent = `${R.name} · you have ${money(h.cash)}. Choose how many of each, then place them in the room. Anything you sell back is refunded in full.`;
+    const paint = () => {
+      list.replaceChildren();
+      for (const o of items) {
+        const B = RH.OBJ[o], c = RH.objCost(h, o), avail = RH.objAvailable(h, o), have = RH.countObj(r, o) + r.list.filter(x => x === o).length;
+        const row = el('div', 'item room' + (avail ? '' : ' locked'));
+        const body = el('div'); body.append(el('b', null, `${B.name} · ${money(c)}`), el('small', null, (avail ? shopDesc(o) : 'Needs research (Diagnosis Equipment).') + (have ? ` In the room: ${have}.` : '')));
+        const st = el('span', 'step');
+        st.append(btn('−', 'stepb', () => { shopOrder[o] = Math.max(0, (shopOrder[o] || 0) - 1); paint(); }, !avail), el('b', null, String(shopOrder[o] || 0)), btn('+', 'stepb', () => { shopOrder[o] = Math.min(12, (shopOrder[o] || 0) + 1); paint(); }, !avail));
+        row.append(body, st); list.append(row);
+      }
+      const t = total();
+      $('shopTotal').textContent = t ? `Total ${money(t)}${t > h.cash ? ' (more than you have)' : ''}` : '';
+      $('shopBuy').disabled = !t || t > h.cash;
+    };
+    paint();
     $('shopSheet').hidden = false;
   }
+  $('shopBuy').addEventListener('click', () => {
+    const h = view.h[ME], r = shopRoom != null && h.rooms[shopRoom]; if (!r) return;
+    const first = r.list.length;
+    for (const o in shopOrder) for (let i = 0; i < shopOrder[o]; i++) act('obuy', { id: shopRoom, o });
+    shopOrder = {}; $('shopSheet').hidden = true;
+    edLi = first; edKey = ''; renderEdit();   // straight on to placing the first new piece
+  });
   const shopDesc = o => ({ ext: 'Staff feel safe; lowers explosion odds.', rad: 'Warms the room.', plant: 'Cheers staff up; needs watering.', bin: 'Fewer cans dropped.', sofa: 'One more resting place.', pool: 'Staff love it when resting.', vgame: 'Staff love it most when resting.', tv: 'A little cheer nearby.', toilet: 'One more patient at a time.', sink: 'Patients want to wash.', desk: 'One more work station.', bed: 'More beds, faster stays.', computer: 'A researcher\'s station; speeds research.', atom: 'Speeds research up.', cabinet: 'Somewhere to file.', lchair: 'One more student.', bookcase: 'Staff are happier; speeds teaching and psychiatry.', skeleton: 'Staff are happier; speeds teaching.' })[o] || '';
   $('shopClose').addEventListener('click', () => { $('shopSheet').hidden = true; });
   // the nearest wall edge of a room to a world point: [x, y, d]
@@ -1889,7 +1909,9 @@
         objs.push({ d: HI.depth(mx, my), draw: () => { const [sx, sy] = drawPerson(HA.managerSheet(avOf(tab)), mgr, 'g', t, dt, mx, my); labels.push({ x: sx, y: sy - 30, txt: nameOf(tab), col: '#fff6e0', size: 3.8, plate: true }); } });
       }
     }
-    objs.sort((a, b) => a.d - b.d).forEach(o => o.draw(bctx));
+    // while furnishing (or placing a door or windows), the room's two camera-side walls turn see-through
+    const tgF = mine && view && view.ph === 'play' ? edTarget() : null, fade = tgF && tgF.room && ['door', 'win', 'furnish'].includes(tgF.phase) ? tgF.room.id : 0;
+    objs.sort((a, b) => a.d - b.d).forEach(o => { if (fade && o.front === fade) { bctx.globalAlpha = 0.28; o.draw(bctx); bctx.globalAlpha = 1; } else o.draw(bctx); });
     if (h) {
       for (const key in h.rooms) {
         const r = h.rooms[key], R = RH.ROOMS[r.k], rc = r.rect;

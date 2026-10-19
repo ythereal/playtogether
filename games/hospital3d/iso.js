@@ -594,7 +594,9 @@
       const brickWin = ext && !tall && ((x + y) & 1) === 0;
       const deco = extWin ? lawnWin : brickWin ? frontWin : isWin ? winDecal : isPoster ? (c2, w, hh) => { const pc = poster(r.k); if (pc) c2.drawImage(pc, Math.round((w - pc.width) / 2), 5); } : null;
       const k2 = (ext ? 'X' : r.k) + (isWin || extWin || brickWin ? 'w' : isPoster ? 'p' : '');
-      items.push(...wallPiece(ax, ay, bx, by, face.n[0], face.n[1], k2 + (ext && !tall ? 'b' : ''), col, style, deco, tall, ext && !tall ? EXT_LOW : LOW_H));
+      // front: the room this wall is a camera-side wall of (so it can turn see-through while that room is furnished)
+      const front = near.room > 0 ? near.room : 0;
+      for (const it of wallPiece(ax, ay, bx, by, face.n[0], face.n[1], k2 + (ext && !tall ? 'b' : ''), col, style, deco, tall, ext && !tall ? EXT_LOW : LOW_H)) { it.front = front; items.push(it); }
     };
     for (let y = -1; y <= H; y++) for (let x = 0; x <= W; x++) { edge(x, y, 1); edge(x, y, 2); }
     edgeCache.set(h, { key, items });
@@ -608,11 +610,15 @@
       const span = r && r.door ? RH.doorTiles(r).map(([tx, ty]) => (d === 0 || d === 2 ? tx : ty)).sort((a, b) => a - b) : [];
       const i = span.indexOf(d === 0 || d === 2 ? x : y), last = span.length - 1, wide = span.length > 1 && i >= 0;
       const gap = wide ? [i === 0 ? 1 : 0, i === last ? 15 : 16] : [1, 15];
+      const front = !tall && r ? r.id : 0, at = items.length;
       if (r) items.push(...wallPiece(ax, ay, bx, by, n[0], n[1], r.k + 'd' + gap.join('-'), WALLCOL[RH.ROOMS[r.k].wall], A.ROOM_STYLE[r.k].wall[1], null, tall, LOW_H, gap));
-      if (!wide) { items.push(swingDoor(ax, ay, bx, by, n, 14)); return; }
-      const len = span.length * 8 - 1;   // each leaf covers half the opening
-      if (i === 0) items.push(swingDoor(ax, ay, ax + (bx - ax) * span.length, ay + (by - ay) * span.length, n, len));
-      if (i === last) items.push(swingDoor(bx, by, bx - (bx - ax) * span.length, by - (by - ay) * span.length, n, len));
+      if (!wide) items.push(swingDoor(ax, ay, bx, by, n, 14));
+      else {
+        const len = span.length * 8 - 1;   // each leaf covers half the opening
+        if (i === 0) items.push(swingDoor(ax, ay, ax + (bx - ax) * span.length, ay + (by - ay) * span.length, n, len));
+        if (i === last) items.push(swingDoor(bx, by, bx - (bx - ax) * span.length, by - (by - ay) * span.length, n, len));
+      }
+      for (let k = at; k < items.length; k++) items[k].front = front;
     }
   }
   // one 16px wall edge; `tall` back walls, low front walls
