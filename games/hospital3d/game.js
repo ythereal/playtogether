@@ -625,6 +625,8 @@
   // ============================ sheets ============================
   const sheets = ['legend', 'buildSheet', 'roomSheet', 'staffSheet', 'over', 'profile', 'decorSheet', 'caseSheet', 'polSheet', 'resSheet', 'bankSheet', 'statSheet', 'faxSheet', 'shopSheet', 'infoSheet'];
   const panelOpen = () => sheets.some(id => !$(id).hidden);
+  // the intro, briefing and game-over screens take over the screen; every other window floats over the live map
+  const modalOpen = () => ['legend', 'over', 'profile'].some(id => !$(id).hidden);
   function closeSheets() { for (const id of sheets) if (id !== 'legend' && id !== 'over') $(id).hidden = true; openFax = null; }
   let razeArmed = false;
   let fireArmed = null;        // { id, at }: a Fire button waiting for its confirming second tap
@@ -1452,26 +1454,38 @@
     DPR = devicePixelRatio || 1; cw = innerWidth; ch = innerHeight;
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
-    clampCam();
+    cam.z = viewZ(); clampCam();
   }
-  const minZ = () => Math.max(0.6, Math.min(fitZ, 1.5)), maxZ = () => 4;
+  // Theme Hospital's camera: one fixed close-up scale (no zooming); you move round by pushing the mouse against the
+  // screen edge, dragging, the arrow keys or the wheel. The 2D aerial view instead shows the whole hospital at once.
+  const viewZ = () => (HI.getFlat() ? Math.max(fitZ, 0.6) : clamp(cw / 400, 1.6, 3.2));
   function clampCam() {
-    // the view centre may sit anywhere over the map, at any zoom, so panning always works
-    cam.z = clamp(cam.z, minZ(), maxZ());
+    // the view centre may sit anywhere over the map, so panning always works
+    cam.z = viewZ();
     const ex = HI.extent();
     cam.x = clamp(cam.x, ex.x, ex.x + ex.w);
     cam.y = clamp(cam.y, ex.y, ex.y + ex.h);
   }
+  // back to the start: the whole map in 2D, the front doors and reception in 3D
   function fitView() {
     const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
-    cam.z = Math.max(fitZ, 0.6); cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10;
-    if (cw < 700) { cam.z = Math.max(cam.z, 1.4); const [ex, ey] = HI.px(120, 100); cam.x = ex; cam.y = ey; }   // phones: start zoomed in on the entrance
+    cam.z = viewZ();
+    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(120, 110); cam.x = bx; cam.y = by; }
     clampCam();
   }
-  function zoomAt(f, px, py) {   // zoom by factor f keeping the screen point (px, py) fixed
-    const z0 = cam.z, z1 = clamp(z0 * f, minZ(), maxZ());
-    const bx = cam.x + (px - cw / 2) / z0, by = cam.y + (py - ch / 2) / z0;
-    cam.z = z1; cam.x = bx - (px - cw / 2) / z1; cam.y = by - (py - ch / 2) / z1; clampCam();
+  // pushing the mouse against an edge of the window scrolls the map, faster the closer it gets
+  const EDGE = 18;
+  let mouse = null;
+  addEventListener('mousemove', e => { mouse = { x: e.clientX, y: e.clientY }; });
+  document.addEventListener('mouseleave', () => { mouse = null; });
+  addEventListener('blur', () => { mouse = null; });
+  function edgePan(dt) {
+    if (!mouse || HI.getFlat() || modalOpen() || !$('profile').hidden || (gesture && gesture.kind !== 'tap')) return;
+    const f = d => (d < EDGE ? 1 - d / EDGE * 0.6 : 0);
+    const dx = f(cw - 1 - mouse.x) - f(mouse.x), dy = f(ch - 1 - mouse.y) - f(mouse.y);
+    if (!dx && !dy) return;
+    const v = 520 * dt / cam.z;
+    cam.x += dx * v; cam.y += dy * v; clampCam();
   }
   function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (V)' : 'Aerial view (V)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
   try { if (localStorage.getItem('rh3d_flat') === '1') setFlat(true); } catch (e) {}
@@ -1485,7 +1499,7 @@
     cv.setPointerCapture && (() => { try { cv.setPointerCapture(e.pointerId); } catch (err) {} })();
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (ptrs.size === 1 && e.button === 2) { const r = myEdit(); if (r && r.phase === 'furnish') { edRot = (edRot + 1) & 3; ptrs.delete(e.pointerId); return; } }
-    if (ptrs.size === 1 && !panelOpen()) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); if (edPointer('down', wx, wy)) { gesture = { kind: 'ed' }; return; } }
+    if (ptrs.size === 1 && !modalOpen()) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); if (edPointer('down', wx, wy)) { gesture = { kind: 'ed' }; return; } }
     if (ptrs.size === 2 && gesture && gesture.kind === 'ed') { edDrag = null; }
     if (ptrs.size === 1) gesture = { kind: 'tap', x0: e.clientX, y0: e.clientY, t0: performance.now(), lx: e.clientX, ly: e.clientY };
     else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; }
@@ -1498,8 +1512,7 @@
     if (gesture.kind === 'ed' && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; }
     if (gesture.kind === 'pinch' && ptrs.size === 2) {
       const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const target = clamp(gesture.z0 * d / Math.max(10, gesture.d0), minZ(), maxZ());
-      zoomAt(target / cam.z, mx, my);
+      void d;   // no zoom: two fingers just pan
       cam.x -= (mx - gesture.mx) / cam.z; cam.y -= (my - gesture.my) / cam.z; gesture.mx = mx; gesture.my = my; clampCam();
       return;
     }
@@ -1516,15 +1529,14 @@
   };
   cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
   cv.addEventListener('contextmenu', e => e.preventDefault());
-  cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); else { cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); } }, { passive: false });
+  cv.addEventListener('wheel', e => { e.preventDefault(); cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); }, { passive: false });
   $('camFlat').addEventListener('click', () => setFlat(!HI.getFlat()));
-  $('camIn').addEventListener('click', () => zoomAt(1.3, cw / 2, ch / 2)); $('camOut').addEventListener('click', () => zoomAt(1 / 1.3, cw / 2, ch / 2)); $('camFit').addEventListener('click', fitView);
+  $('camFit').addEventListener('click', fitView);
   const keysDown = new Set();
   addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || !$('profile').hidden || panelOpen()) return;
+    if (e.target.tagName === 'INPUT' || !$('profile').hidden || modalOpen()) return;
     const k = e.key.toLowerCase();
     if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
-    else if (k === '+' || k === '=') zoomAt(1.25, cw / 2, ch / 2); else if (k === '-' || k === '_') zoomAt(0.8, cw / 2, ch / 2);
     else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 'd'].includes(k) || (k === 's' && !e.repeat && false)) { keysDown.add(k); e.preventDefault(); }
   });
   addEventListener('keyup', e => keysDown.delete(e.key.toLowerCase()));
@@ -1538,7 +1550,7 @@
   }
   const roomAt = (h, tx, ty) => { for (const k in h.rooms) { const r = h.rooms[k], rc = r.rect; if (tx >= rc.x && ty >= rc.y && tx < rc.x + rc.w && ty < rc.y + rc.h) return r; } return null; };
   function onTap(bx, by) {
-    if (!view || panelOpen()) return;
+    if (!view || modalOpen()) return;
     const h = view.h[tab];
     if (tab === ME && view.ph === 'play' && edTap(bx, by)) return;
     const [tx, ty] = HI.px(bx, by);
@@ -1836,7 +1848,7 @@
   function frame(now) {
     // rAF timestamps can precede a performance.now() taken earlier, so never let dt go negative
     const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
-    panKeys(dt);
+    panKeys(dt); edgePan(dt);
     try {
       render(now / 1000, dt); renderHud(); placeStatus(); advisorTick(now); monthBar(now);
       if ((slow += dt) > 0.5) { slow = 0; setStatus(); renderFaxes(); if (host) refreshSheets(); }

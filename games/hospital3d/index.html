@@ -110,6 +110,14 @@
     /* ---------- panels ---------- */
     .panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(4px); }
     .panel[hidden] { display: none; }
+    /* in-game windows float over the live map like Theme Hospital's: no dimming, the game keeps running and scrolling */
+    .panel.float { inset: auto; top: 44px; left: 12px; display: block; padding: 0; background: none; backdrop-filter: none; pointer-events: none; }
+    .panel.float .sheet { pointer-events: auto; width: min(470px, calc(100vw - 24px)); max-height: calc(100vh - var(--barh, 70px) - 70px); padding: 0 14px 12px; border: 3px solid #0c3a4a; border-radius: 8px; background: #f2f9fa; color: #1b1720; box-shadow: inset 0 0 0 2px #7fc4d8, 0 8px 22px rgba(0,0,0,.4); }
+    .panel.float .sheet.wide { width: min(620px, calc(100vw - 24px)); }
+    .panel.float .sheet h2, .panel.float .fax h3 { position: sticky; top: 0; z-index: 2; margin: 0 -14px 8px; padding: 7px 14px; font-size: 1.05rem; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.4); background: linear-gradient(#2a8aa6, #1c6a84); border-bottom: 2px solid #0c3a4a; }
+    .panel.float .sheet .sub { color: #3d5560; }
+    .panel.float .item { background: #fff; border-color: #b9d8e0; }
+    @media (max-width: 640px) { .panel.float { top: 40px; left: 6px; right: 6px; } .panel.float .sheet, .panel.float .sheet.wide { width: auto; max-height: calc(100vh - var(--barh, 70px) - var(--advh, 0px) - 60px); } }
     .sheet { width: min(600px, 100%); max-height: calc(100% - 30px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 18px; }
     .sheet.wide { width: min(780px, 100%); }
     .sheet h2 { margin: 0; font-size: 1.4rem; }
@@ -189,9 +197,7 @@
   <div class="ui">
     <div class="toasts" id="toasts"></div>
     <div class="camctl">
-      <button id="camIn" title="Zoom in (+)">+</button>
-      <button id="camOut" title="Zoom out (−)">−</button>
-      <button id="camFit" title="Fit the whole hospital (F)">⌂</button>
+      <button id="camFit" title="Back to the front doors (F)">⌂</button>
       <button id="camFlat" title="Aerial view (V)">2D</button>
     </div>
     <div class="faxes" id="faxes"></div>
@@ -273,7 +279,7 @@
       <h4>Winning</h4>
       <p class="tips" style="padding:0" id="legendWin"></p>
       <h4>Controls</h4>
-      <p class="tips" style="padding:0">Drag to pan, pinch or scroll to zoom, F to fit, V for the flat aerial view, B to build, R or right-click to rotate furniture. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
+      <p class="tips" style="padding:0">Move the mouse to the edge of the screen (or drag, scroll or use the arrow keys) to look round the hospital, F to go back to the front doors, V for the flat aerial view of the whole hospital, B to build, R or right-click to rotate furniture. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
       <h4>Diseases</h4>
       <table class="t" id="disTable"></table>
       <div class="row">
@@ -283,7 +289,7 @@
     </div>
   </div>
 
-  <div class="panel" id="buildSheet" hidden>
+  <div class="panel float" id="buildSheet" hidden>
     <div class="sheet">
       <h2>Build a room</h2>
       <p class="sub" id="buildSub"></p>
@@ -294,7 +300,7 @@
     </div>
   </div>
 
-  <div class="panel" id="decorSheet" hidden>
+  <div class="panel float" id="decorSheet" hidden>
     <div class="sheet">
       <h2 id="decorTitle">Corridor objects</h2>
       <p class="sub" id="decorSub"></p>
@@ -304,7 +310,7 @@
     </div>
   </div>
 
-  <div class="panel" id="roomSheet" hidden>
+  <div class="panel float" id="roomSheet" hidden>
     <div class="sheet">
       <h2 id="roomTitle"></h2>
       <p class="sub" id="roomSub"></p>
@@ -321,7 +327,7 @@
     </div>
   </div>
 
-  <div class="panel" id="staffSheet" hidden>
+  <div class="panel float" id="staffSheet" hidden>
     <div class="sheet wide">
       <h2>Staff</h2>
       <p class="sub" id="staffSub">New candidates turn up on the 1st of every month. Your rival hires from the same pool.</p>
@@ -333,7 +339,7 @@
     </div>
   </div>
 
-  <div class="panel" id="caseSheet" hidden>
+  <div class="panel float" id="caseSheet" hidden>
     <div class="sheet wide">
       <h2>Drug Casebook</h2>
       <p class="sub" id="caseSub">Diseases your hospital has discovered. Charges are a % of the recommended price, which rises with reputation.</p>
@@ -343,7 +349,7 @@
     </div>
   </div>
 
-  <div class="panel" id="polSheet" hidden>
+  <div class="panel float" id="polSheet" hidden>
     <div class="sheet">
       <h2>Hospital Policy</h2>
       <p class="sub">How doctors handle uncertain diagnoses, and when staff take a break.</p>
@@ -352,7 +358,7 @@
     </div>
   </div>
 
-  <div class="panel" id="resSheet" hidden>
+  <div class="panel float" id="resSheet" hidden>
     <div class="sheet">
       <h2>Research</h2>
       <p class="sub" id="resSub"></p>
@@ -362,7 +368,7 @@
     </div>
   </div>
 
-  <div class="panel" id="bankSheet" hidden>
+  <div class="panel float" id="bankSheet" hidden>
     <div class="sheet">
       <h2>Bank</h2>
       <div class="seg" id="bankTabs"></div>
@@ -372,7 +378,7 @@
     </div>
   </div>
 
-  <div class="panel" id="statSheet" hidden>
+  <div class="panel float" id="statSheet" hidden>
     <div class="sheet wide">
       <h2>Status</h2>
       <p class="sub" id="statSub"></p>
@@ -381,14 +387,14 @@
     </div>
   </div>
 
-  <div class="panel" id="faxSheet" hidden>
+  <div class="panel float" id="faxSheet" hidden>
     <div class="sheet" style="width:min(460px,100%)">
       <div class="fax" id="faxBody"></div>
       <div class="row"><button class="pt-btn pt-btn-ghost" id="faxClose">Later</button></div>
     </div>
   </div>
 
-  <div class="panel" id="shopSheet" hidden>
+  <div class="panel float" id="shopSheet" hidden>
     <div class="sheet">
       <h2>Buy furniture</h2>
       <p class="sub" id="shopSub"></p>
@@ -397,7 +403,7 @@
     </div>
   </div>
 
-  <div class="panel" id="infoSheet" hidden>
+  <div class="panel float" id="infoSheet" hidden>
     <div class="sheet" style="width:min(460px,100%)">
       <h2 id="infoTitle"></h2>
       <div class="tips" id="infoBody" style="padding:0"></div>
