@@ -10,7 +10,7 @@
 // walls block movement except through doors. The lobby by the entrance (reception desk, waiting area) stays open.
 (function (root) {
   'use strict';
-  const VERSION = 4;   // 4: the building's front corner became the forecourt and the entrance moved beside it
+  const VERSION = 5;   // 5: a narrow entrance hall with the desk at its far end; people come and go by car
   const T = 16, W = 32, H = 26;
   const MONTH = 60;                 // real seconds per in-game month
   const DAY = MONTH / 30;           // the spec's daily happiness effects tick once per in-game day
@@ -18,7 +18,13 @@
   const GRACE = 120;                // build timer: patients start arriving after this, or when you open the doors
   // the reception desk stands across the lobby facing the front doors: patients check in on the door side (RECEP),
   // the receptionist sits behind it (DESK_STAFF), so seen from the entrance they're never in front of the doors
-  const EXIT = [-16, 152], RECEP = [56, 142], DESK_STAFF = [88, 142];
+  // The entrance hall runs along the front (west) wall: the sliding doors at its south end (rows 9-11), the reception
+  // desk at its north end with the receptionist's back to that wall, facing the patients who walk up the hall.
+  const EXIT = [-14, 230], RECEP = [74, 64], DESK_STAFF = [40, 64];
+  // the car park south of the entrance path: bays one under the other, cars nose-in towards the road
+  const LOT = { x: -30, y0: 222, n: 8, walk: -8, path: 168 };
+  const bayPos = i => [LOT.x, LOT.y0 + i * 16];
+  const CAR_IN = 2.4, CAR_STOP = 0.9, CAR_OUT = 2.4;
   const PSPEED = 36, SSPEED = 44;
   const START_CASH = 40000, START_REP = 500;
   const TARGETS = { rep: 650, cash: 100000, pct: 65, cured: 200, value: 70000 };
@@ -48,11 +54,11 @@
   const lvlOK = (s, f) => !s.solo || s.solo.lvl >= LVL_FROM[f];
   const RIVAL_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Skynet', 'Marvin', 'Cerebro', 'Mother', 'Jayne'];
   // the lobby by the entrance: never built on (reception desk, idle staff, waiting patients)
-  const LOBBY = { x0: 2, y0: 6, x1: 5, y1: 11 };
+  const LOBBY = { x0: 2, y0: 2, x1: 4, y1: 11 };
   // Theme Hospital's entrance: the building's front corner (columns 2-8, rows 12 down) is a paved forecourt, and the
-  // front doors (rows 8-10 of the west wall) open from it into the lobby beside that corner
+  // front doors (rows 9-11 of the west wall) open from it into the entrance hall beside that corner
   const NOTCH = { x1: 9, y0: 12 };
-  const DESK_TILES = [[4, 8], [4, 9]];
+  const DESK_TILES = [[3, 3], [3, 4]];
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // N E S W
 
   // ---------- objects ----------
@@ -237,7 +243,7 @@
   const idx = (x, y) => y * W + x;
   const inMap = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
   const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0);
-  const outPath = (x, y) => x >= 0 && x < 2 && y === 9;   // everyone comes and goes through the middle (sliding) pair of the three door panels
+  const outPath = (x, y) => x >= 0 && x < 2 && y === 10;   // everyone comes and goes through the middle (sliding) pair of the three door panels
   const inLobby = (x, y) => x >= LOBBY.x0 && x <= LOBBY.x1 && y >= LOBBY.y0 && y <= LOBBY.y1;
   const tileOf = v => Math.floor(v / T);
   const center = (tx, ty) => [tx * T + 8, ty * T + 8];
@@ -246,7 +252,7 @@
   const AVOID = new Set(['door', 'win', 'wait']);
   const walled = r => WALLED.has(r.phase);
   const isBuilt = r => r.phase === 'built';
-  const exitTile = () => [0, 9];   // the path tile outside the middle of the front doors
+  const exitTile = () => [0, 10];   // the path tile outside the middle of the front doors
   // the door's tiles inside the room (three for a swing door)
   function doorTiles(r) {
     if (!r.door) return [];
@@ -321,6 +327,7 @@
 
   // ---------- movement ----------
   function walk(e, speed, dt) {
+    if (e.incar) { e.mv = 0; return false; }   // still in the car
     if (!e.path.length) { e.mv = 0; return true; }
     const [tx, ty] = e.path[0];
     const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy), step = speed * dt;
@@ -333,7 +340,8 @@
   function route(h, e, gx, gy) {
     let sx = tileOf(e.x), sy = tileOf(e.y);
     const p = [];
-    if (e.x < 0) { p.push([8, clamp(e.y, 72, 104)]); sx = 0; sy = clamp(tileOf(e.y), 4, 6); }
+    // outside the building: along the car park's walkway to the entrance path, then in through the middle door
+    if (e.x < 0) { p.push([LOT.walk, e.y], [LOT.walk, LOT.path], [8, LOT.path]); [sx, sy] = exitTile(); }
     const out = gx < 0;
     const [tx, ty] = out ? exitTile() : [tileOf(gx), tileOf(gy)];
     const res = findPath(h, sx, sy, tx, ty);
@@ -344,7 +352,7 @@
       if (i > 0 && nx && i < tiles.length - 1) { const [px2, py2] = tiles[i - 1]; if ((px2 === x && nx[0] === x) || (py2 === y && nx[1] === y)) continue; }
       p.push(center(x, y));
     }
-    if (out) p.push([gx, gy + (rnd() - 0.5) * 6]);
+    if (out) p.push([LOT.walk, LOT.path], [LOT.walk, gy], [gx, gy]);
     else if (res.reached) p.push([gx, gy]);
     if (!p.length) p.push([gx, gy]);
     e.path = p;
@@ -732,7 +740,7 @@
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
   const LAND_VALUE = (W - 2) * H * 25 + 20000;
-  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(x <= 3 && y >= 8 && y <= 10) && !(x === 5 && y >= 8 && y <= 9)) LOBBY_TILES.push([x, y]);
+  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(x <= 3 && y >= 9 && y <= 11) && !(x === 2 && y >= 3 && y <= 4)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
   function assign(h) {
@@ -797,8 +805,49 @@
   }
   function spawnPatient(s, p) {
     const h = s.h[p], pt = newPatient(s, h, pickDisease(s));
-    route(h, pt, RECEP[0] + (rnd() - 0.5) * 8, RECEP[1] + (rnd() - 0.5) * 6);
+    arrive(s, h, pt);
+    route(h, pt, RECEP[0] + (rnd() - 0.5) * 6, RECEP[1] + (rnd() - 0.5) * 8);
     h.pats.push(pt); h.visits++;
+  }
+  // ---------- cars: everyone arrives and leaves by car through the car park ----------
+  // A car drives in from the road to a bay (CAR_IN), stops (CAR_STOP), and drives off (CAR_OUT). On a drop-off the
+  // passenger steps out when it stops; on a pick-up the waiting passenger gets in and is gone.
+  function freeBay(h) {
+    const used = new Set((h.cars || []).map(c => c.bay));
+    const free = []; for (let i = 0; i < LOT.n; i++) if (!used.has(i)) free.push(i);
+    return free.length ? pick(free) : Math.floor(rnd() * LOT.n);
+  }
+  function arrive(s, h, e) {
+    if (!h.cars) h.cars = [];
+    const bay = freeBay(h), [bx, by] = bayPos(bay);
+    e.x = bx + 12; e.y = by + 4; e.incar = 1; e.f = 3;
+    h.cars.push({ id: s.nextId++, bay, ph: 'in', t: CAR_IN, who: e.id, drop: 1, col: Math.floor(rnd() * 6) });
+  }
+  // the walk out ends at a bay: route there, and call the car once arrived
+  function exitSpot(h) { const [bx, by] = bayPos(freeBay(h)); return [bx + 12, by + 4]; }
+  function callCar(s, h, e) {
+    if (!h.cars) h.cars = [];
+    if (h.cars.some(c => c.who === e.id)) return;
+    e.waitCar = 1;
+    const bay = Math.max(0, Math.min(LOT.n - 1, Math.round((e.y - 4 - LOT.y0) / 16)));
+    h.cars.push({ id: s.nextId++, bay, ph: 'in', t: CAR_IN, who: e.id, drop: 0, col: Math.floor(rnd() * 6) });
+  }
+  function stepCars(s, h, dt) {
+    if (!h.cars || !h.cars.length) return;
+    for (const c of h.cars) {
+      c.t -= dt; if (c.t > 0) continue;
+      if (c.ph === 'in') {
+        c.ph = 'stop'; c.t = CAR_STOP;
+        if (c.drop) { const e = patById(h, c.who) || staffById(h, c.who) || h.vis.find(v => v.id === c.who); if (e) e.incar = 0; }
+        else {   // the passenger gets in
+          let i = h.pats.findIndex(x => x.id === c.who); if (i >= 0) h.pats.splice(i, 1);
+          i = h.staff.findIndex(x => x.id === c.who); if (i >= 0) h.staff.splice(i, 1);
+          i = h.vis.findIndex(x => x.id === c.who); if (i >= 0) h.vis.splice(i, 1);
+        }
+      } else if (c.ph === 'stop') { c.ph = 'out'; c.t = CAR_OUT; }
+      else c.gone = 1;
+    }
+    h.cars = h.cars.filter(c => !c.gone);
   }
   function queuePos(h, r, i) {
     // after whoever is next in line, the queue sits down on benches near the door, two to a bench (standing on the
@@ -836,7 +885,7 @@
     unqueue(h, pt);
     dropFax(h, f => f.pid === pt.id);
     pt.st = 'leave'; pt.why = why;
-    route(h, pt, EXIT[0], EXIT[1]);
+    const [gx, gy] = exitSpot(h); route(h, pt, gx, gy);
   }
   function kill(s, p, pt, where) {
     const h = s.h[p];
@@ -996,7 +1045,7 @@
     if (left === 0) { book(h, 'Inspector', 2000); addRep(h, 15); }
     else { book(h, 'Fines', -1000 * left); addRep(h, -6 * left); }
     for (const x of h.pats) x.inf = 0, x.vax = 0, x.mk = 0;
-    h.vis = h.vis.filter(v => v.k !== 'insp');
+    for (const v of h.vis) if (v.k === 'insp' && !v.done) { v.done = true; const [gx, gy] = exitSpot(h); route(h, v, gx, gy); }
     s.ev.push({ k: 'epiEnd', p, left });
     h.epi = null;
   }
@@ -1035,6 +1084,7 @@
   function startVip(s, p, who) {
     const h = s.h[p];
     const v = { id: s.nextId++, k: 'vip', who, x: EXIT[0], y: EXIT[1], path: [], f: 3, mv: 0, t: 0, legs: 0 };
+    arrive(s, h, v);
     const [x, y] = corridorSpot(h); route(h, v, x, y);
     h.vis.push(v);
     s.ev.push({ k: 'vipIn', p, who });
@@ -1371,6 +1421,7 @@
     s.pool.splice(i, 1);
     book(h, 'Wages', -c.sal);
     h.staff.push(Object.assign({}, c, { slot: null, desk: false, x: EXIT[0], y: EXIT[1], path: [], f: 3, mv: 0, gone: false, idle: -1, look: c.id % 8, job: null, work: 0, wt: 1, hap: 0.75, tired: 0, mode: 'idle', room: null, train: false, pri: 'all', fax: 0, quit: 0 }));
+    arrive(s, h, h.staff[h.staff.length - 1]);   // the new hire is driven in
     assign(h);
     s.ev.push({ k: 'hired', p, nm: c.nm, type: c.k });
     return null;
@@ -1388,7 +1439,7 @@
     leaveFacility(h, st); st.mode = 'leave';
     unslot(h, st);
     dropFax(h, f => f.sid === st.id);
-    route(h, st, EXIT[0], EXIT[1]);
+    { const [gx, gy] = exitSpot(h); route(h, st, gx, gy); }
     assign(h);
     s.ev.push({ k: why, p, nm: st.nm });
   }
@@ -1721,7 +1772,7 @@
         for (const pt of h.pats) if (pt.mk && !pt.vax) { pt.vt = (pt.vt || 0) + dt * Math.min(2, nurses); if (pt.vt >= 3) { pt.vax = 1; s.ev.push({ k: 'vax', p, id: pt.id }); } }
         if (s.t >= e.t && !h.vis.some(v => v.k === 'insp')) {
           const v = { id: s.nextId++, k: 'insp', x: EXIT[0], y: EXIT[1], path: [], f: 3, mv: 0, t: 0 };
-          route(h, v, RECEP[0] - 8, RECEP[1] + 14); h.vis.push(v); e.phase = 'insp'; s.ev.push({ k: 'inspector', p });
+          arrive(s, h, v); route(h, v, RECEP[0] + 8, RECEP[1] + 20); h.vis.push(v); e.phase = 'insp'; s.ev.push({ k: 'inspector', p });
         }
       } else if (e.phase === 'declared' && s.t >= e.t) { for (const x of h.pats) x.inf = 0; h.epi = null; }
     }
@@ -1729,12 +1780,12 @@
       const v = h.vis[i];
       const arrived = walk(v, 26, dt);
       if (!arrived) continue;
-      if (v.k === 'insp') { if (v.done) { h.vis.splice(i, 1); continue; } endEpidemic(s, p); continue; }
-      if (v.done) { h.vis.splice(i, 1); continue; }
+      if (v.done) { if (!v.waitCar) callCar(s, h, v); continue; }   // back at the car park: their car comes
+      if (v.k === 'insp') { endEpidemic(s, p); continue; }
       v.t += dt;
       if (v.t < 1.5) continue;
       v.t = 0; v.legs++;
-      if (v.legs >= 6) { judgeVip(s, p, v); v.done = true; route(h, v, EXIT[0], EXIT[1]); continue; }
+      if (v.legs >= 6) { judgeVip(s, p, v); v.done = true; const [gx, gy] = exitSpot(h); route(h, v, gx, gy); continue; }
       const [x, y] = corridorSpot(h); route(h, v, x, y);
     }
     h.ratT = (h.ratT || 0) + dt;
@@ -1748,7 +1799,8 @@
 
   function stepStaff(s, p, dt) {
     const h = s.h[p], pol = h.pol, days = dt / DAY;
-    for (let i = h.staff.length - 1; i >= 0; i--) { const st = h.staff[i]; if (walk(st, SSPEED, dt) && st.gone) h.staff.splice(i, 1); }
+    for (let i = h.staff.length - 1; i >= 0; i--) { const st = h.staff[i]; if (walk(st, SSPEED, dt) && st.gone && !st.waitCar) callCar(s, h, st); }
+    stepCars(s, h, dt);
     const cold = h.warm < 0.6, hot = h.warm > 1.6, messy = h.mess.length > 6;
     h.leaveT = (h.leaveT || 0) + dt;
     let reassign = false;
@@ -1869,14 +1921,14 @@
     const crowd = h.pats.filter(x => x.st === 'queue' || x.st === 'recep').length;
     // the receptionist goes behind the desk (also after a save from before the desk moved) and faces the doors
     const desker = h.staff.find(x => x.desk && !x.gone && !x.path.length && x.mode !== 'rest' && x.mode !== 'train');
-    if (desker) { if (Math.hypot(desker.x - DESK_STAFF[0], desker.y - DESK_STAFF[1]) > 3) route(h, desker, DESK_STAFF[0], DESK_STAFF[1]); else desker.f = 2; }
+    if (desker) { if (Math.hypot(desker.x - DESK_STAFF[0], desker.y - DESK_STAFF[1]) > 3) route(h, desker, DESK_STAFF[0], DESK_STAFF[1]); else desker.f = 3; }
     const recep = h.staff.find(x => x.desk && !x.gone && !x.path.length);
     for (let i = h.pats.length - 1; i >= 0; i--) {
       const pt = h.pats[i];
       if (!h.pats.includes(pt)) continue;
       const d = DISEASES[pt.dis];
       const arrived = walk(pt, d.id === 'sleep' ? PSPEED * 0.6 : pt.em ? PSPEED * 1.3 : PSPEED, dt);
-      if (pt.st === 'leave') { if (arrived) { if (pt.inf && !pt.vax && h.epi && h.epi.phase === 'cover') h.epi.t = s.t; /* an infected patient got outside: the inspector comes at once */ h.pats.splice(i, 1); } continue; }
+      if (pt.st === 'leave') { if (arrived && !pt.waitCar) { if (pt.inf && !pt.vax && h.epi && h.epi.phase === 'cover') h.epi.t = s.t; /* an infected patient got outside: the inspector comes at once */ callCar(s, h, pt); } continue; }
       pt.hp -= dt / (d.fatal ? 300 : 520) * (pt.em ? 2.5 : 1);
       if (pt.hp <= 0) { kill(s, p, pt, -1); continue; }
       pt.th = clamp(pt.th + dt / 120 * (h.warm > 1.6 ? 2 : 1), 0, 1);
@@ -2015,7 +2067,7 @@
     h.rooms = {};
     for (const k in c.rooms) {
       const r = c.rooms[k]; if (r.phase !== 'built') continue;
-      if (!rectTiles(r.rect).size || [...rectTiles(r.rect)].some(i => !indoor(i % W, Math.floor(i / W)))) continue;   // no longer inside the building
+      if (!rectTiles(r.rect).size || [...rectTiles(r.rect)].some(i => !indoor(i % W, Math.floor(i / W)) || inLobby(i % W, Math.floor(i / W)))) continue;   // no longer inside the building, or in the entrance hall
       Object.assign(r, { sts: [], p: null, prog: 0, n: 0, q: [], qt: [], dis: -1, users: [] });
       h.rooms[r.id] = r;
     }
@@ -2161,7 +2213,7 @@
     for (const r of roomList(h)) if (r.auto && r.phase === 'furnish') { autoFurnish(h, r); const e = finishBuild(s, p, r.id); if (e) deleteRoom(s, p, r.id); else r.auto = false; }
   }
 
-  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, DESK_TILES, DIRS,
+  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
     LEVELS, LVL_FROM, LAND_VALUE, stayOn, carrySnapshot, carryOver, MP_RESEARCH,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,

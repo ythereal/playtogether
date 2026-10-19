@@ -183,11 +183,12 @@
       comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, dry, mess: h.mess,
       em: h.em ? { dis: h.em.dis, n: h.em.n, saved: h.em.saved, end: r1(h.em.end) } : null, epi: h.epi ? { phase: h.epi.phase, t: r1(h.epi.t), dis: h.epi.dis } : null, pstat: ps,
       staff: h.staff.map(s => ({ id: s.id, k: s.k, nm: s.nm, sk: s.sk, q: s.q, sal: s.sal, slot: s.slot, desk: s.desk, room: s.room, x: r1(s.x), y: r1(s.y), f: s.f, mv: s.mv, gone: s.gone ? 1 : 0, look: s.look,
-        cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, quit: s.quit })), res: undefined };
+        cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, quit: s.quit, incar: s.incar ? 1 : 0 })), res: undefined,
+      cars: (h.cars || []).map(c => ({ id: c.id, bay: c.bay, ph: c.ph, t: r2(c.t), col: c.col })) };
     if (ents) {
       o.pats = h.pats.map(q => ({ id: q.id, nm: q.nm, dis: q.dis, dx: q.dx, x: r1(q.x), y: r1(q.y), f: q.f, mv: q.mv, st: q.st, slot: q.slot, pat: Math.round(q.pat), look: q.look, why: q.why,
-        hp: r2(q.hp), dg: r2(q.dg), em: q.em, inf: q.inf, vax: q.vax, mk: q.mk }));
-      o.vis = h.vis.map(v => ({ id: v.id, k: v.k, x: r1(v.x), y: r1(v.y), f: v.f, mv: v.mv }));
+        hp: r2(q.hp), dg: r2(q.dg), em: q.em, inf: q.inf, vax: q.vax, mk: q.mk, incar: q.incar ? 1 : 0 }));
+      o.vis = h.vis.map(v => ({ id: v.id, k: v.k, x: r1(v.x), y: r1(v.y), f: v.f, mv: v.mv, incar: v.incar ? 1 : 0 }));
       o.rats = h.rats.map(v => ({ id: v.id, x: r1(v.x), y: r1(v.y), f: v.f }));
     }
     o.res = { done: h.res.done, disc: h.res.disc };
@@ -1558,7 +1559,7 @@
   function fitView() {
     const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
     cam.z = viewZ();
-    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(120, 170); cam.x = bx; cam.y = by; }
+    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(60, 150); cam.x = bx; cam.y = by; }
     clampCam();
   }
   // pushing the mouse against an edge of the window scrolls the map, faster the closer it gets
@@ -1667,7 +1668,7 @@
       return;
     }
     selected = null;
-    if (tab === ME && bx >= 62 && bx <= 82 && by >= 124 && by <= 160) { openDesk(); return; }
+    if (tab === ME && bx >= 44 && bx <= 64 && by >= 44 && by <= 80) { openDesk(); return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
     const rm = roomAt(h, c, r);
     if (rm) { openRoom(rm.id); return; }
@@ -1686,7 +1687,7 @@
     if (rm) {
       const R = RH.ROOMS[rm.k];
       txt = rm.phase === 'wreck' ? `${R.name}: wrecked` : rm.phase !== 'built' ? `${R.name}: being built` : `${R.name} · ${qn(rm)} queuing` + (R.mach ? ` · machine strength ${rm.str}, used ${rm.used}` : '') + (rm.sts.length < (R.need || (R.staff ? 1 : 0)) ? ` · needs a ${needWord(rm.k)}` : '');
-    } else if (wx >= 62 && wx <= 82 && wy >= 124 && wy <= 160) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
+    } else if (wx >= 44 && wx <= 64 && wy >= 44 && wy <= 80) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
     else { const d = h.decor[RH.decorKey(c, r)]; if (d) txt = RH.DECOR[d].name + (d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' (dead: needs watering)' : ''); }
     if (myEdit() || (ed && ed.mode)) txt = '';
     if (txt !== hoverTxt) { hoverTxt = txt; setStatus(); }
@@ -1858,7 +1859,8 @@
       for (const m of h.mess) objs.push(HI.messItem(m));
       for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
       // someone sitting draws after the seat they're on (which sorts by its nearest corner)
-      for (const st of h.staff) { const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, seat = atDesk ? { x: st.x, y: st.y, f: 2, d: HI.depth(st.x, st.y) } : seatOf(h, st, true); objs.push({ d: seat ? seat.d : HI.depth(st.x, st.y), draw: () => {
+      for (const car of h.cars || []) objs.push(HI.carItem(car));   // cars bringing and fetching people
+      for (const st of h.staff) { if (st.incar) continue; const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, seat = atDesk ? { x: st.x, y: st.y, f: 3, d: HI.depth(st.x, st.y) } : seatOf(h, st, true); objs.push({ d: seat ? seat.d : HI.depth(st.x, st.y), draw: () => {
         const [x, y] = seat ? [seat.x, seat.y] : posOf('s', st);   // behind the counter, at a desk, on a sofa, in a lecture
         const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, seat ? seat.f : null);
         if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
@@ -1867,7 +1869,7 @@
         if (st.hap < 0.3 && !st.gone && Math.floor(t * 2) % 2) icon('angry', sx - 7, sy - 27, t);
       } }); }
       const onBench = benchSeats(h);
-      for (const pt of h.pats || []) { const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), draw: () => {
+      for (const pt of h.pats || []) { if (pt.incar) continue; const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), draw: () => {
         const dis = RH.DISEASES[pt.dis], shown = pt.why === 'cured' ? '' : dis.vis;
         const [x, y] = seat ? [seat.x, seat.y] : posOf('p', pt);
         // serious radiation glows
@@ -1895,7 +1897,7 @@
           labels.push({ x: sx, y: sy - 34, txt: `${pt.nm} · ${what} · health ${Math.round(pt.hp * 100)}%${doing}${pt.em ? ' · EMERGENCY' : ''}${pt.inf && !pt.vax ? ' · infected' : ''}`, col: '#fff6e0', bubble: true, size: 4.6 });
         }
       } }); }
-      for (const v of h.vis || []) objs.push({ d: HI.depth(v.x, v.y), draw: () => {
+      for (const v of (h.vis || []).filter(v => !v.incar)) objs.push({ d: HI.depth(v.x, v.y), draw: () => {
         const [x, y] = posOf('v', v);
         const [sx, sy] = drawPerson(v.k === 'vip' ? HA.vipSheet() : HA.inspSheet(), v, 'v', t, dt, x, y);
         labels.push({ x: sx, y: sy - 32, txt: v.k === 'vip' ? 'VIP' : 'Inspector', col: '#fff6e0', size: 3.8, plate: true });
