@@ -455,25 +455,29 @@
   // a corridor object on tile (c, r): turned so its back is against a neighbouring wall (one behind it, from the
   // viewer, if there is one) and nudged up to it; sorted by the tile's centre
   const BACK_TO_WALL = { bench: 3, radiator: 5, drinks: 3, ext: 5, plant: 0 };
-  function decorSide(h, c, r) {
-    const x = c * T + 8, y = r * T + 8, Lr = RH.layout(h);
-    const wallAt = d => { const [dx, dy] = RH.DIRS[d], nx = c + dx, ny = r + dy; return !RH.indoor(nx, ny) || (Lr.room[RH.idx(nx, ny)] || 0) > 0; };
+  // A turned object (h.drot, or `forced` for a preview) keeps its turn; otherwise it backs onto a wall
+  const wallBeside = (h, c, r, d) => { const Lr = RH.layout(h), [dx, dy] = RH.DIRS[d], nx = c + dx, ny = r + dy; return !RH.indoor(nx, ny) || (Lr.room[RH.idx(nx, ny)] || 0) > 0; };
+  function decorSide(h, c, r, forced) {
+    if (forced != null) return forced;
+    const set = h.drot && h.drot[c + ',' + r]; if (set != null) return set;
+    const x = c * T + 8, y = r * T + 8;
+    const wallAt = d => wallBeside(h, c, r, d);
     const sides = [0, 1, 2, 3].filter(wallAt), behind = sides.filter(d => { const [dx, dy] = RH.DIRS[d]; return depth(x + dx, y + dy) < depth(x, y); });
     return behind.length ? behind[0] : sides.length ? sides[0] : -1;
   }
   // where the nth sitter on a bench sits (world x, y) and which way they face (sprite facing)
   function benchSeat(h, c, r, n) {
-    const d = decorSide(h, c, r), k = d < 0 ? 0 : d, push = d < 0 ? 0 : BACK_TO_WALL.bench;
+    const d = decorSide(h, c, r), k = d < 0 ? 0 : d, push = d < 0 || !wallBeside(h, c, r, d) ? 0 : BACK_TO_WALL.bench;
     let ox = n ? 3.5 : -3.5, oy = 0.5; for (let i = 0; i < k; i++) [ox, oy] = [-oy, ox];
     const [dx, dy] = d < 0 ? [0, 0] : RH.DIRS[d];
     return { x: c * T + 8 + dx * push + ox, y: r * T + 8 + dy * push + oy, f: [0, 2, 1, 3][k], near: d === 2 || d === 3 };
   }
-  function decorItem(h, c, r, kind, dry) {
-    const x = c * T + 8, y = r * T + 8, d = decorSide(h, c, r);
+  function decorItem(h, c, r, kind, dry, forced) {
+    const x = c * T + 8, y = r * T + 8, d = decorSide(h, c, r, forced), snug = d >= 0 && wallBeside(h, c, r, d);   // only nudged up to a real wall
     return { d: depth(x, y), b: sbox(x - 12, y - 12, 24, 24, 48), draw: cx => {
       if (!DECOR_DRAW[kind]) return;
       if (d < 0) { DECOR_DRAW[kind](cx, x, y, dry); return; }
-      const [dx, dy] = RH.DIRS[d], k = BACK_TO_WALL[kind] || 0, ox = x + dx * k, oy = y + dy * k;
+      const [dx, dy] = RH.DIRS[d], k = snug ? BACK_TO_WALL[kind] || 0 : 0, ox = x + dx * k, oy = y + dy * k;
       withRot(ox, oy, d, () => DECOR_DRAW[kind](cx, ox, oy, dry));
     } };
   }
@@ -1047,5 +1051,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { frame, clouds, setOrigin, sbox, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { frame, clouds, setOrigin, decorSide, sbox, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

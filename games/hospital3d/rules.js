@@ -1157,13 +1157,15 @@
     for (const [dx, dy] of DIRS) { const x = tx + dx, y = ty + dy; if (walkable(x, y) && !L.block[idx(x, y)] && L.room[idx(x, y)] === L.room[idx(tx, ty)]) return center(x, y); }
     return center(tx, ty);
   }
-  function placeDecor(s, p, c, r, kind) {
+  // rot (optional, 0-3 as DIRS): the side the object's back faces; left out, it backs onto the nearest wall
+  function placeDecor(s, p, c, r, kind, rot) {
     if (s.ph !== 'play') return 'Not now';
     const h = s.h[p]; c |= 0; r |= 0;
     if (!DECOR[kind]) return 'Bad request';
     if (!decorCheck(h, c, r, kind)) return 'Can\'t put that there';
     if (h.cash < DECOR[kind].cost) return 'Not enough cash';
     book(h, 'Building', -DECOR[kind].cost); h.decor[decorKey(c, r)] = kind;
+    if (rot != null && rot >= 0 && rot < 4) (h.drot || (h.drot = {}))[decorKey(c, r)] = rot | 0; else if (h.drot) delete h.drot[decorKey(c, r)];
     if (kind === 'plant') h.water[decorKey(c, r)] = 1;
     recount(h); changed(h);
     for (const rm of roomList(h)) reQueue(h, rm);
@@ -1174,7 +1176,7 @@
     if (s.ph !== 'play') return 'Not now';
     const h = s.h[p], key = decorKey(c | 0, r | 0), kind = h.decor[key];
     if (!kind) return 'Nothing there';
-    delete h.decor[key]; delete h.water[key]; book(h, 'Building', Math.round(DECOR[kind].cost / 2)); recount(h); changed(h);
+    delete h.decor[key]; delete h.water[key]; if (h.drot) delete h.drot[key]; book(h, 'Building', Math.round(DECOR[kind].cost / 2)); recount(h); changed(h);
     for (const rm of roomList(h)) reQueue(h, rm);
     s.ev.push({ k: 'undecor', p, kind });
     return null;

@@ -181,7 +181,7 @@
     const dry = []; for (const k in h.decor) if (h.decor[k] === 'plant' && (h.water[k] || 0) <= 0) dry.push(k);
     const ps = patStat(h.pats);
     const o = { lv: h.lv, cash: h.cash, loan: h.loan, rep: h.rep, cured: h.cured, died: h.died, angry: h.angry, home: h.home, seen: h.seen, visits: h.visits, open: h.open, desk: h.desk,
-      comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, dry, mess: h.mess,
+      comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, drot: h.drot || {}, dry, mess: h.mess,
       em: h.em ? { dis: h.em.dis, n: h.em.n, saved: h.em.saved, end: r1(h.em.end) } : null, epi: h.epi ? { phase: h.epi.phase, t: r1(h.epi.t), dis: h.epi.dis } : null, pstat: ps,
       staff: h.staff.map(s => ({ id: s.id, k: s.k, nm: s.nm, sk: s.sk, q: s.q, sal: s.sal, slot: s.slot, desk: s.desk, room: s.room, x: r1(s.x), y: r1(s.y), f: s.f, mv: s.mv, gone: s.gone ? 1 : 0, look: s.look,
         cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, pw: s.pw || null, quit: s.quit, incar: s.incar ? 1 : 0 })), res: undefined,
@@ -347,7 +347,7 @@
       case 'research': return RH.setResearch(s, p, m.alloc, m.spec == null ? null : n(m.spec));
       case 'loan': return RH.loan(s, p, m.dir > 0 ? 1 : -1);
       case 'open': return RH.openDoors(s, p);
-      case 'decor': return RH.placeDecor(s, p, n(m.c), n(m.r), String(m.kind));
+      case 'decor': return RH.placeDecor(s, p, n(m.c), n(m.r), String(m.kind), m.rot == null ? null : n(m.rot) & 3);
       case 'undecor': return RH.removeDecor(s, p, n(m.c), n(m.r));
       case 'desk': return RH.buyDesk(s, p);
       case 'shoot': return RH.shoot(s, p, n(m.id));
@@ -1411,8 +1411,8 @@
       const bag = ed.bag || {}, left = RH.DECOR_ORDER.filter(k => bag[k] > 0);
       if (!bag[ed.cur]) ed.cur = left[0];
       title = 'Corridor Objects';
-      hint = ed.cur ? `Place the objects down in a corridor: free floor, not the lobby or a doorway. Each is paid for as it goes down (${RH.DECOR[ed.cur].name.toLowerCase()} ${money(RH.DECOR[ed.cur].cost)}).` : 'Everything is placed.';
-      rows = left.map(k => ({ key: k, name: RH.DECOR[k].name, n: bag[k], on: k === ed.cur, click: () => { ed.cur = k; edKey = ''; renderEdit(); } }));
+      hint = ed.cur ? `Place the objects down in a corridor: free floor, not the lobby or a doorway. Right-click, Space or its row again turns it. Each is paid for as it goes down (${RH.DECOR[ed.cur].name.toLowerCase()} ${money(RH.DECOR[ed.cur].cost)}).` : 'Everything is placed.';
+      rows = left.map(k => ({ key: k, name: RH.DECOR[k].name, n: bag[k], on: k === ed.cur, click: () => { if (k === ed.cur) rotDecor(); else { ed.cur = k; ed.rot = null; } edKey = ''; renderEdit(); } }));
       B.cancel = [() => { ed = null; renderEdit(); }, false, 'Close: anything not yet placed isn\'t charged'];
     } else {
       const R = RH.ROOMS[tg.kind], step = STEP[tg.phase];
@@ -1616,6 +1616,14 @@
     }
     return false;
   }
+  // turning a corridor object while placing it: from whichever way it would face on its own under the cursor, a
+  // quarter turn at a time
+  function rotDecor() {
+    if (!ed || ed.mode !== 'decor') return;
+    let base = ed.rot;
+    if (base == null) { const [wx, wy] = edHoverW || [0, 0], side = HI.decorSide(view.h[ME], Math.floor(wx / T), Math.floor(wy / T)); base = side < 0 ? 0 : side; }
+    ed.rot = (base + 1) & 3;
+  }
   // a tap while building: door, windows, furniture
   function edTap(wx, wy) {
     const tg = edTarget();
@@ -1625,7 +1633,7 @@
       if (!kind) return true;
       if (!RH.decorCheck(h, c, r, kind)) { toast('Objects go on free corridor floor (not the lobby, a doorway or a room), and must leave a way through', 'dim'); return true; }
       if (h.cash < RH.DECOR[kind].cost) { fail('Not enough cash: try a loan from the Bank'); return true; }
-      act('decor', { c, r, kind });
+      act('decor', ed.rot == null ? { c, r, kind } : { c, r, kind, rot: ed.rot });
       ed.bag[kind]--;
       if (!(ed.bag[kind] > 0)) { const nx = RH.DECOR_ORDER.find(k => ed.bag[k] > 0); if (nx) ed.cur = nx; else { ed = null; toast('Everything you ordered is in place', 'good'); } }
       edKey = ''; renderEdit();
@@ -2217,6 +2225,7 @@
     if (k === 'escape' && !sheets.some(id => !$(id).hidden) && myEdit()) { const r = myEdit(); if (r.phase === 'win') { act('wdone', { id: r.id }); return; } if (r.phase === 'furnish' && !r.list.length && !RH.missingReq(r).length) { act('finish', { id: r.id }); return; } }
     if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; pickMode = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); closeIW(); closeQW(); cancelCarry(); setStatus(); return; }
     if ((k === 'r' || k === ' ') && plain && myEdit() && myEdit().phase === 'furnish') { e.preventDefault(); edRot = (edRot + 1) & 3; return; }
+    if ((k === 'r' || k === ' ') && plain && ed && ed.mode === 'decor' && !edTarget()) { e.preventDefault(); rotDecor(); return; }
     if (plain && !e.shiftKey) { const B = { f: 'buildBtn', g: 'decorBtn', v: 'editBtn', b: 'staffBtn' }; if (B[k]) { $(B[k]).click(); return; } }
     if (k === 'm' && plain && view && (view.h[ME].fax || []).length) { showFax(view.h[ME].fax[0].id); return; }
     const F = { f1: SCREENS.bankMgr, f2: SCREENS.bankStmt, f3: SCREENS.staff, f4: SCREENS.map, f5: SCREENS.case, f6: SCREENS.res, f7: SCREENS.stat, f9: SCREENS.pol };
@@ -2306,7 +2315,7 @@
     cv.setPointerCapture && (() => { try { cv.setPointerCapture(e.pointerId); } catch (err) {} })();
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (ptrs.size === 1 && e.button === 2 && cancelHire()) { ptrs.delete(e.pointerId); return; }
-    if (ptrs.size === 1 && e.button === 2) { const r = myEdit(); if (r && r.phase === 'furnish') { edRot = (edRot + 1) & 3; ptrs.delete(e.pointerId); return; } }
+    if (ptrs.size === 1 && e.button === 2) { const r = myEdit(); if (r && r.phase === 'furnish') { edRot = (edRot + 1) & 3; ptrs.delete(e.pointerId); return; } if (ed && ed.mode === 'decor' && !edTarget()) { rotDecor(); ptrs.delete(e.pointerId); return; } }
     if (ptrs.size === 1 && !modalOpen() && !hiring) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); if (edPointer('down', wx, wy)) { gesture = { kind: 'ed' }; return; } }
     if (ptrs.size === 2 && gesture && gesture.kind === 'ed') { edDrag = null; }
     if (ptrs.size === 1) gesture = { kind: 'tap', x0: e.clientX, y0: e.clientY, t0: performance.now(), lx: e.clientX, ly: e.clientY };
@@ -2600,7 +2609,7 @@
       if (RH.inMap(c, r)) {
         const ok = RH.decorCheck(h, c, r, ed.cur || 'radiator');
         HI.tileQuad(bctx, c, r, ok ? OK_FILL : BAD_FILL, 'rgba(255,255,255,.5)');
-        if (ok && ed.cur) { const it = HI.decorItem(h, c, r, ed.cur, false); ghosts3d.push({ d: it.d, draw: cx => { cx.globalAlpha = 0.6; it.draw(cx); cx.globalAlpha = 1; } }); }   // a see-through preview of the item
+        if (ok && ed.cur) { const it = HI.decorItem(h, c, r, ed.cur, false, ed.rot); ghosts3d.push({ d: it.d, draw: cx => { cx.globalAlpha = 0.6; it.draw(cx); cx.globalAlpha = 1; } }); }   // a see-through preview of the item
       }
     }
   }
