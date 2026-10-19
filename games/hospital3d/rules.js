@@ -300,28 +300,40 @@
     return a === b || L.doors.has(edgeKey(idx(x, y), idx(nx, ny)));
   }
   const roomAtTile = (h, x, y) => (inMap(x, y) ? layout(h).room[idx(x, y)] : 0);
-  // breadth-first search from tile (sx, sy) to (gx, gy). Blocked tiles can be the start or the goal; blueprint
-  // sites are avoided unless you start inside one. Unreachable goal: the path to the nearest reachable tile.
+  // shortest walk from tile (sx, sy) to (gx, gy), in 8 directions: a diagonal step costs 7 against 5 straight (about
+  // root 2) and is only taken when both tiles beside it are open too, so nobody cuts a wall corner, an object or a
+  // doorway. Blocked tiles can be the start or the goal; blueprint sites are avoided unless you start inside one.
+  // Unreachable goal: the path to the nearest reachable tile.
+  const STEPS = [[0, -1, 5], [1, 0, 5], [0, 1, 5], [-1, 0, 5], [1, -1, 7], [1, 1, 7], [-1, 1, 7], [-1, -1, 7]];
   function findPath(h, sx, sy, gx, gy) {
     const L = layout(h), N = W * H;
     if (!walkable(sx, sy)) [sx, sy] = exitTile();
     const s = idx(sx, sy), g = inMap(gx, gy) ? idx(gx, gy) : -1;
-    const prev = new Int32Array(N).fill(-1), q = new Int32Array(N);
+    const prev = new Int32Array(N).fill(-1), cost = new Int32Array(N).fill(1 << 30), done = new Uint8Array(N);
     const startAvoid = L.avoid[s];
-    let head = 0, tail = 0, best = s, bd = Math.abs(sx - gx) + Math.abs(sy - gy);
-    q[tail++] = s; prev[s] = s;
-    while (head < tail) {
-      const i = q[head++]; if (i === g) { best = g; break; }
+    const enter = (j, x, y, nx, ny) => edgeOpen(L, x, y, nx, ny) && (!L.block[j] || j === g) && (!L.avoid[j] || startAvoid || j === g);
+    const side = (x, y, nx, ny) => { const j = idx(nx, ny); return edgeOpen(L, x, y, nx, ny) && !L.block[j] && (!L.avoid[j] || startAvoid); };
+    // a small binary heap of [cost, tile]
+    const heap = [];
+    const push = (c, i) => { heap.push([c, i]); let k = heap.length - 1; while (k) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const a = 2 * k + 1, b = a + 1; let m = k; if (a < heap.length && heap[a][0] < heap[m][0]) m = a; if (b < heap.length && heap[b][0] < heap[m][0]) m = b; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    let best = s, bd = Math.abs(sx - gx) + Math.abs(sy - gy);
+    cost[s] = 0; prev[s] = s; push(0, s);
+    while (heap.length) {
+      const [c, i] = pop(); if (done[i]) continue; done[i] = 1;
+      if (i === g) { best = g; break; }
       const x = i % W, y = (i / W) | 0;
-      for (let d = 0; d < 4; d++) {
-        const nx = x + DIRS[d][0], ny = y + DIRS[d][1];
+      const dd0 = Math.abs(x - gx) + Math.abs(y - gy); if (dd0 < bd) { bd = dd0; best = i; }
+      for (const [dx, dy, k] of STEPS) {
+        const nx = x + dx, ny = y + dy;
         if (!inMap(nx, ny)) continue;
         const j = idx(nx, ny);
-        if (prev[j] !== -1 || !edgeOpen(L, x, y, nx, ny)) continue;
-        if (L.block[j] && j !== g) continue;
-        if (L.avoid[j] && !startAvoid && j !== g) continue;
-        prev[j] = i; q[tail++] = j;
-        const dd = Math.abs(nx - gx) + Math.abs(ny - gy); if (dd < bd) { bd = dd; best = j; }
+        if (done[j] || c + k >= cost[j]) continue;
+        if (dx && dy) {
+          if (!side(x, y, nx, y) || !side(x, y, x, ny) || !edgeOpen(L, nx, y, nx, ny) || !edgeOpen(L, x, ny, nx, ny)) continue;
+          if (!enter(j, nx, y, nx, ny)) continue;
+        } else if (!enter(j, x, y, nx, ny)) continue;
+        cost[j] = c + k; prev[j] = i; push(c + k, j);
       }
     }
     const out = [];
@@ -352,10 +364,10 @@
     const [tx, ty] = out ? exitTile() : [tileOf(gx), tileOf(gy)];
     const res = findPath(h, sx, sy, tx, ty);
     const tiles = res.tiles;
-    // straight runs collapse to their corners
+    // straight and diagonal runs collapse to their corners
     for (let i = 0; i < tiles.length; i++) {
       const [x, y] = tiles[i], nx = tiles[i + 1];
-      if (i > 0 && nx && i < tiles.length - 1) { const [px2, py2] = tiles[i - 1]; if ((px2 === x && nx[0] === x) || (py2 === y && nx[1] === y)) continue; }
+      if (i > 0 && nx) { const [px2, py2] = tiles[i - 1]; if (x - px2 === nx[0] - x && y - py2 === nx[1] - y) continue; }
       p.push(center(x, y));
     }
     if (out) p.push([doorX, LOT.path], [LOT.walk, LOT.path], [LOT.walk, gy], [gx, gy]);
