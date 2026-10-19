@@ -103,7 +103,7 @@
   }
 
   // o: look + { coat: 'doctor'|'nurse'|'recep', dis: disease id or null }
-  function drawPerson(o, dir, f, raw) {
+  function drawPerson(o, dir, f, raw, sit) {
     const [c, x] = canvas(16, 24);
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     const d = o.dis || '', side = dir === 'left', back = dir === 'up';
@@ -128,7 +128,9 @@
     const lUp = f === 1 ? 1 : 0, rUp = f === 2 ? 1 : 0;
 
     // ----- legs / skirt -----
-    if (!side) {
+    // seated: the head and body sit 3px lower and the lap and legs are drawn over them at the end
+    if (sit) x.translate(0, 3);
+    else if (!side) {
       if (dress) {
         R(3, 17, 10, 5, coat); R(3, 21, 10, 1, coatD); R(12, 17, 1, 5, coatD); R(3, 17, 1, 4, coatL);
         if (!invis) { R(5, 22 - lUp, 2, 1, skin); R(9, 22 - rUp, 2, 1, skin); }
@@ -256,11 +258,24 @@
     if (o.tophat) { R(3, 2, 10, 1, '#1d1f2c'); R(5, -1, 6, 3, '#26283a'); R(5, 1, 6, 1, '#c43c2c'); R(6, -1, 2, 1, '#4a4f6a'); }
     if (o.coat === 'insp' && !o.tophat) { R(3, 2, 10, 1, '#3a3f48'); R(5, 0, 6, 2, '#4a4f5a'); }
     if (o.coat === 'recep' && !side) { R(3, 6, 1, 3, '#2b2e3a'); R(3, 9, 2, 1, '#2b2e3a'); }
+    if (sit) {
+      x.setTransform(HI, 0, 0, HI, 0, 0);
+      // hips on the seat (about 4px up), thighs forward over the lap, short shins down to the floor
+      const leg = dress ? coat : pants, legD = shade(leg, -0.18), shin = dress && !invis ? skin : leg;
+      if (back) { R(4, 20, 8, 2, leg); R(4, 21, 8, 1, legD); R(4, 23, 3, 1, shoes); R(9, 23, 3, 1, shoes); }
+      else if (side) {
+        R(2, 19, 8, 2, leg); R(2, 19, 8, 1, shade(leg, 0.15)); R(2, 20.5, 8, 0.5, legD);   // thighs out in front
+        R(2, 21, 2, 2, shin); R(3, 21, 1, 2, shade(shin, -0.15)); R(0, 23, 4, 1, shoes);      // a shin and a shoe
+      } else {
+        R(4, 19, 8, 3, leg); R(4, 19, 8, 1, shade(leg, 0.15)); R(4, 21, 8, 1, legD); R(8, 19, 1, 3, legD);   // the lap
+        R(5, 22, 2, 1, shin); R(9, 22, 2, 1, shade(shin, -0.12)); R(4, 23, 3, 1, shoes); R(9, 23, 3, 1, shoes);
+      }
+    }
     return raw ? c : outline(c);
   }
   // the remastered person: upscaled and shaded, then given highlights only possible at the higher resolution
-  function hiPerson(o, dir, f) {
-    const c = remaster(drawPerson(o, dir, f, true)), x = c.getContext('2d');
+  function hiPerson(o, dir, f, sit) {
+    const c = remaster(drawPerson(o, dir, f, true, sit)), x = c.getContext('2d');
     const P = (X, Y, w, h, col) => { x.fillStyle = col; x.fillRect(X, Y, w, h); };   // in remastered pixels (half a logical pixel)
     const d = o.dis || '', plainHead = !['tv', 'balloon', 'alien', 'invis'].includes(d);
     if (plainHead && dir === 'down' && d !== 'sleep') { P(12, 14, 1, 1, '#ffffff'); P(18, 14, 1, 1, '#ffffff'); }   // a glint in each eye
@@ -274,6 +289,9 @@
     const sh = {};
     for (const d of ['down', 'up', 'left']) sh[d] = [0, 1, 2].map(f => hiPerson(o, d, f));
     sh.right = sh.left.map(flipH);
+    // one seated pose per direction
+    sh.sit = { down: hiPerson(o, 'down', 0, true), up: hiPerson(o, 'up', 0, true), left: hiPerson(o, 'left', 0, true) };
+    sh.sit.right = flipH(sh.sit.left);
     return (personCache[key] = sh);
   }
   const patientSheet = (lookIdx, dis) => personSheet('p' + lookIdx + ':' + (dis || ''), Object.assign(look(lookIdx), { dis }));

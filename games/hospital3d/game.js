@@ -1651,20 +1651,35 @@
   }
   const animT = new Map();
   // draws an upright sprite at its projected feet; returns the screen (buffer) position of the feet
-  // where people sit: the use spot of chairs, sofas, desks (the office chair), lecture chairs and toilets
+  // Seats: chairs, comfy chairs, sofas, lecture chairs, toilets, and the office chair at every desk. Each gives the
+  // sitter a spot (nudged onto the seat when it's used from the tile in front), the way they face, and whether the
+  // seat's back is between them and the camera (then the seat is drawn over them).
   const SEATS = new Set(['chair', 'comfy', 'sofa', 'lchair', 'toilet', 'desk']);
+  const S2F = [1, 3, 0, 2];                       // compass N E S W → sprite facing up / right / down / left
+  const nearSide = d => d === 2 || d === 3;       // the camera looks from the south-west
   const seatCache = new WeakMap();
-  function seatTiles(h) {
-    const hit = seatCache.get(h); if (hit && hit.lv === h.lv) return hit.set;
-    const set = new Set();
-    for (const k in h.rooms) { const r = h.rooms[k]; if (r.phase !== 'built') continue; for (const ob of r.objs) if (SEATS.has(ob.o)) { const tl = RH.objTiles(ob.o, ob.x, ob.y, ob.r); const u = tl.use || tl.foot[0]; set.add(u[0] + ',' + u[1] + (ob.o === 'desk' ? 's' : '')); } }
-    seatCache.set(h, { lv: h.lv, set }); return set;
+  function seatMap(h) {
+    const hit = seatCache.get(h); if (hit && hit.lv === h.lv) return hit.map;
+    const map = new Map();
+    for (const k in h.rooms) {
+      const r = h.rooms[k]; if (r.phase !== 'built') continue;
+      for (const ob of r.objs) {
+        if (!SEATS.has(ob.o)) continue;
+        const t = RH.objTiles(ob.o, ob.x, ob.y, ob.r), u = t.use || t.foot[0], [bx, by] = RH.DIRS[t.bdir];
+        if (ob.o === 'desk') map.set(u.join(','), { f: S2F[t.bdir], near: nearSide(t.fdir), ox: bx * 3, oy: by * 3, staff: true, desk: true });
+        else { const push = RH.OBJ[ob.o].use === 'front' ? 9 : 0; map.set(u.join(','), { f: S2F[t.fdir], near: nearSide(t.bdir), ox: bx * push, oy: by * push }); }
+      }
+    }
+    seatCache.set(h, { lv: h.lv, map }); return map;
   }
-  function seated(h, e, staff) {
-    if (e.mv || (e.path && e.path.length)) return false;
-    if (staff && (e.mode === 'rest' || e.mode === 'train')) return true;
-    const k = Math.floor(e.x / T) + ',' + Math.floor(e.y / T), set = seatTiles(h);
-    return set.has(k) || (staff && set.has(k + 's'));
+  // where (and how) someone standing still is sitting, or null
+  function seatOf(h, e, staff) {
+    if (e.mv || (e.path && e.path.length)) return null;
+    const info = seatMap(h).get(Math.floor(e.x / T) + ',' + Math.floor(e.y / T));
+    const key = HI.depth(e.x, e.y);
+    if (info && (!info.staff || staff)) return { x: e.x + info.ox, y: e.y + info.oy, f: info.f, d: info.desk ? key : key + (info.near ? -0.5 : 0.5) };
+    if (staff && (e.mode === 'rest' || e.mode === 'train')) return { x: e.x, y: e.y, f: e.f, d: key };
+    return null;
   }
   // still patients near a bench take a seat on it (two to a bench)
   function benchSeats(h) {
@@ -1675,7 +1690,7 @@
       for (let dy = -1; dy <= 1 && !out.has(pt.id); dy++) for (let dx = -1; dx <= 1 && !out.has(pt.id); dx++) {
         const key = (c + dx) + ',' + (r + dy); if (h.decor[key] !== 'bench') continue;
         const n = taken.get(key) || 0; if (n >= 2) continue;
-        taken.set(key, n + 1); const st = HI.benchSeat(h, c + dx, r + dy, n); out.set(pt.id, [st.x, st.y, st.f]);
+        taken.set(key, n + 1); const st = HI.benchSeat(h, c + dx, r + dy, n); out.set(pt.id, { x: st.x, y: st.y, f: st.f, d: HI.depth((c + dx) * T + 8, (r + dy) * T + 8) + (st.near ? -0.5 : 0.5) });
       }
     }
     return out;
@@ -1686,9 +1701,9 @@
     const frame = e.mv ? [1, 0, 2, 0][Math.floor(a * 8) % 4] : 0;
     const dir = sheet[DIRS[HI.facing(e.f)]] || sheet.down, sh = dir[frame] || dir[0];
     const [sx, sy] = HI.px(wx, wy);
+    // sitting (sink = the facing): the seated pose, hips on the seat and feet on the floor
+    if (sink != null) { const sp = sheet.sit[DIRS[HI.facing(sink)]] || sheet.sit.down; bctx.drawImage(sp, Math.round(sx) - 8, Math.round(sy) - 23, 16, 24); return [Math.round(sx), Math.round(sy)]; }
     bctx.fillStyle = 'rgba(0,0,0,.28)'; bctx.beginPath(); bctx.ellipse(sx, sy, 6, 3, 0, 0, Math.PI * 2); bctx.fill();
-    // sitting: head and body only (the legs are tucked out of sight), resting on a seat about 5px off the floor
-    if (sink) { const lift = sink === true ? 5 : 0, rows = sink === true ? 17 : 24 - sink; bctx.drawImage(sh, 0, 0, sh.width, sh.height * rows / 24, Math.round(sx) - 8, Math.round(sy) - lift - rows + (sink === true ? 1 : sink), 16, rows); return [Math.round(sx), Math.round(sy)]; }
     // standing still, people breathe: a half-pixel rise now and then
     const breathe = !e.mv && Math.sin(t * 2.2 + (typeof e.id === 'number' ? e.id : 3) * 1.7) > 0.55 ? 0.5 : 0;
     bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23 - breathe, 16, 24);
@@ -1773,13 +1788,13 @@
         const r = h.rooms[key];
         if (r.phase === 'wreck') { objs.push(...HI.wreckItems(r.rect)); continue; }
         if (!RH.walled(r)) continue;
-        for (const ob of r.objs) objs.push(HI.objItem(ob.o, ob.x, ob.y, ob.r, r.k, ob.o === 'plant' && ob.w <= 0));
+        for (const ob of r.objs) objs.push(...[].concat(HI.objItem(ob.o, ob.x, ob.y, ob.r, r.k, ob.o === 'plant' && ob.w <= 0)));
         // a machine past its strength smokes
         if (r.phase === 'built' && RH.ROOMS[r.k].mach && r.used > r.str && r.sp && Math.random() < dt * 8) smokes.push({ p: tab, x: r.sp.p[0] + (Math.random() - 0.5) * 16, y: r.sp.p[1] - 10 + (Math.random() - 0.5) * 10, z: 20, life: 1.6, r: 2 + Math.random() * 2 });
       }
       // the object being placed follows the cursor
       const prev = mine ? furnishPreview() : null;
-      if (prev) objs.push(HI.objItem(prev.o, prev.x, prev.y, prev.r, prev.k, false, prev.ok ? 0.75 : 0.4));
+      if (prev) objs.push(...[].concat(HI.objItem(prev.o, prev.x, prev.y, prev.r, prev.k, false, prev.ok ? 0.75 : 0.4)));
     }
     if (h) {
       objs.push(...HI.deskItem(h.desk, t));
@@ -1787,23 +1802,22 @@
       for (const m of h.mess) objs.push(HI.messItem(m));
       for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
       // someone sitting draws after the seat they're on (which sorts by its nearest corner)
-      for (const st of h.staff) { const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, chair = !atDesk && seated(h, st, true); objs.push({ d: HI.depth(st.x, st.y) + (chair ? 7.5 : 0), draw: () => {
-        const [x, y] = posOf('s', st);
-        const sits = atDesk || chair;   // behind the counter, at a desk, on a sofa
-        const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, sits ? (st.desk ? 4 : true) : 0);
+      for (const st of h.staff) { const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, seat = atDesk ? { x: st.x, y: st.y, f: 2, d: HI.depth(st.x, st.y) } : seatOf(h, st, true); objs.push({ d: seat ? seat.d : HI.depth(st.x, st.y), draw: () => {
+        const [x, y] = seat ? [seat.x, seat.y] : posOf('s', st);   // behind the counter, at a desk, on a sofa, in a lecture
+        const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, seat ? seat.f : null);
         if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
         if (st.mode === 'rest' && Math.floor(t * 1.5) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'z', col: '#9fd8ff', size: 4.5 });
         else if (st.tired > 0.85 && Math.floor(t * 2) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'zz', col: '#ff9a7a', size: 3.6 });
         if (st.hap < 0.3 && !st.gone && Math.floor(t * 2) % 2) icon('angry', sx - 7, sy - 27, t);
       } }); }
       const onBench = benchSeats(h);
-      for (const pt of h.pats || []) { const bs = onBench.get(pt.id), chair = !bs && seated(h, pt, false); objs.push({ d: bs ? HI.depth(bs[0], bs[1]) + 0.2 : HI.depth(pt.x, pt.y) + (chair ? 7.5 : 0), draw: () => {
+      for (const pt of h.pats || []) { const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), draw: () => {
         const dis = RH.DISEASES[pt.dis], shown = pt.why === 'cured' ? '' : dis.vis;
-        const [x, y] = bs || posOf('p', pt), sits = !!bs || chair;
+        const [x, y] = seat ? [seat.x, seat.y] : posOf('p', pt);
         // serious radiation glows
         if (shown === 'rad') { const [gx, gy] = HI.px(x, y); const g = bctx.createRadialGradient(gx, gy - 12, 0, gx, gy - 12, 14); g.addColorStop(0, 'rgba(180,240,106,.45)'); g.addColorStop(1, 'rgba(180,240,106,0)'); bctx.fillStyle = g; bctx.fillRect(gx - 14, gy - 26, 28, 28); }
         const wob = shown === 'jelly' ? Math.round(Math.sin(t * 9 + pt.id) * 1) : 0;
-        const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), bs ? Object.assign({}, pt, { f: bs[2] }) : pt, 'p', t, dt, x + wob * 0.5, y, sits ? true : 0);
+        const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), pt, 'p', t, dt, x + wob * 0.5, y, seat ? seat.f : null);
         let ix = sx, iy = sy - 29;
         if (pt.em) { icon('siren', ix, iy, t); iy -= 6; }
         // epidemic: a pulsing red ring at the feet and a coloured tag over the head saying what to do next
