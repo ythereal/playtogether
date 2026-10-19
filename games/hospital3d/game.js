@@ -1676,6 +1676,7 @@
       if (mine && r.phase === 'bp') continue;   // drawn from the editor's copy below
       for (let y = r.rect.y; y < r.rect.y + r.rect.h; y++) for (let x = r.rect.x; x < r.rect.x + r.rect.w; x++) HI.tileQuad(bctx, x, y, r.phase === 'wait' ? `rgba(80,150,255,${0.25 + 0.15 * pulse})` : 'rgba(80,150,255,.3)', 'rgba(60,110,200,.35)');
       HI.rectOutline(bctx, r.rect, '#3c7bd6', r.phase === 'bp');
+      HI.ghostWalls(bctx, r.rect, r.phase === 'wait' ? pulse + 0.2 : 1, r.door ? new Set(RH.doorTiles(r).map(([x, y]) => x + ',' + y + ',' + r.door.d)) : null);
       if (r.door) for (const [x, y] of RH.doorTiles(r)) HI.edgeMark(bctx, x, y, r.door.d, '#6fd38a', 10);
       for (const w of r.wins) HI.edgeMark(bctx, w[0], w[1], w[2], '#9fd8ff', 8);
     }
@@ -1685,6 +1686,7 @@
       const v = bpValid(tg), small = tg.rect.w < RH.ROOMS[tg.kind].min || tg.rect.h < RH.ROOMS[tg.kind].min;
       for (const [x, y, good] of v.tiles) HI.tileQuad(bctx, x, y, good && !small && (v.ok || v.why.startsWith('Too small') || true) && good ? (v.ok ? OK_FILL : small ? BAD_FILL : 'rgba(255,170,60,.42)') : BAD_FILL, 'rgba(255,255,255,.35)');
       HI.rectOutline(bctx, tg.rect, v.ok ? '#3c7bd6' : '#e8533f', false);
+      if (v.ok) HI.ghostWalls(bctx, tg.rect, 1, null);
     }
     if (tg && (tg.phase === 'door' || tg.phase === 'win') && edHoverW) {
       const e = nearestEdge(tg.rect, edHoverW[0], edHoverW[1]);

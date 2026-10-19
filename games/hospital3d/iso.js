@@ -486,6 +486,33 @@
   function rectOutline(ctx, rc, col, dash) {
     decal(ctx, rc.x * T, rc.y * T, c => { c.strokeStyle = col; c.lineWidth = 2; if (dash) c.setLineDash([4, 3]); c.strokeRect(1, 1, rc.w * T - 2, rc.h * T - 2); c.setLineDash([]); });
   }
+  // Theme Hospital's blueprint walls: see-through blue panels round the room's outline with a post at every tile,
+  // full height on every side so the room's size reads at a glance. skip: 'x,y,d' edges to leave open (the door).
+  function ghostWalls(ctx, rc, alpha, skip) {
+    const segs = [], hh = flat ? 3 : WALL_H;
+    const edgeAt = (x, y, d) => (d === 0 ? [x * T, y * T, (x + 1) * T, y * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T]);
+    for (let x = rc.x; x < rc.x + rc.w; x++) { segs.push([x, rc.y, 0]); segs.push([x, rc.y + rc.h - 1, 2]); }
+    for (let y = rc.y; y < rc.y + rc.h; y++) { segs.push([rc.x, y, 3]); segs.push([rc.x + rc.w - 1, y, 1]); }
+    const list = segs.map(([x, y, d]) => { const e = edgeAt(x, y, d); return { e, open: skip && skip.has(x + ',' + y + ',' + d), dep: depth((e[0] + e[2]) / 2, (e[1] + e[3]) / 2) }; }).sort((a, b) => a.dep - b.dep);
+    const posts = new Map();
+    for (const { e, open } of list) {
+      const [u1, u2] = px(e[0], e[1]), [v1, v2] = px(e[2], e[3]);
+      for (const [wx, wy] of [[e[0], e[1]], [e[2], e[3]]]) posts.set(wx + ',' + wy, [wx, wy]);
+      if (open) continue;
+      ctx.fillStyle = `rgba(110,165,255,${0.2 * alpha})`;
+      ctx.beginPath(); ctx.moveTo(u1, u2); ctx.lineTo(v1, v2); ctx.lineTo(v1, v2 - hh); ctx.lineTo(u1, u2 - hh); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = `rgba(60,115,225,${0.9 * alpha})`; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(u1, u2 - hh); ctx.lineTo(v1, v2 - hh); ctx.stroke();
+      ctx.strokeStyle = `rgba(60,115,225,${0.35 * alpha})`; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(u1, u2 - hh * 0.5); ctx.lineTo(v1, v2 - hh * 0.5); ctx.stroke();
+    }
+    for (const [wx, wy] of [...posts.values()].sort((a, b) => depth(a[0], a[1]) - depth(b[0], b[1]))) {
+      const [sx, sy] = px(wx, wy);
+      ctx.fillStyle = `rgba(40,90,200,${0.85 * alpha})`; ctx.fillRect(sx - 1, sy - hh, 2, hh);
+      ctx.fillStyle = `rgba(190,215,255,${0.95 * alpha})`; ctx.fillRect(sx - 0.5, sy - hh, 0.5, hh);
+      ctx.fillStyle = `rgba(40,90,200,${0.9 * alpha})`; ctx.fillRect(sx - 1.5, sy - hh - 1, 3, 1.5);
+    }
+  }
   // a mark on the edge on side d of tile (x, y): a coloured bar standing on the floor
   function edgeMark(ctx, x, y, d, col, hgt) {
     const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
@@ -560,5 +587,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();
