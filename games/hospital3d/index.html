@@ -343,6 +343,9 @@
     .hblank { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--muted); background: #12606e; }
     .hblank[hidden] { display: none; }
     .hname { font-weight: 800; font-size: 1.02rem; }
+    /* what the candidate is (profession, and a doctor's rank and qualifications), and which candidate of how many */
+    .hrole { display: flex; justify-content: space-between; gap: 8px; margin-top: -4px; font-size: .8rem; font-weight: 700; color: #ffe7a0; }
+    .hrole span:last-child { color: var(--muted); font-weight: 600; white-space: nowrap; }
     .hmid { display: grid; grid-template-columns: 1fr 72px; gap: 8px; align-items: start; }
     .hleft { display: grid; gap: 4px; }
     .hsen-l { display: flex; justify-content: space-between; font-size: .66rem; font-weight: 700; color: var(--muted); }
@@ -688,6 +691,7 @@
         <div class="hinfo" id="hireInfo">
           <div class="hblank" id="hireBlank">Choose a profession on the left</div>
           <div class="hname" id="hireName"></div>
+          <div class="hrole"><span id="hireRole"></span><span id="hireOf"></span></div>
           <div class="hmid">
             <div class="hleft">
               <div class="hsen" id="hireSen" title="Seniority"><div class="hsen-l"><span>Jnr</span><span>Doc</span><span>Con</span></div><div class="hsen-s"><i id="hireSenMk"></i></div></div>

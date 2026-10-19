@@ -1805,6 +1805,9 @@
       if (c) {
         const doc = c.k === 'd', rk = RH.rank(c);
         $('hireName').textContent = c.nm;
+        const quals = doc ? ['s', 'p', 'r'].filter(q => RH.hasQ(c, q)).map(q => RH.QUAL_NAME[q]) : [];
+        $('hireRole').textContent = (doc ? (rk === 'Junior' ? 'Junior doctor' : rk) : RH.typeName(c.k)) + (quals.length ? ' · ' + quals.join(', ') : '');
+        $('hireOf').textContent = `${hireI + 1} of ${cands.length}`;
         $('hireSen').classList.toggle('off', !doc);
         $('hireSen').title = doc ? rk : '';
         $('hireSenMk').style.left = (rk === 'Consultant' ? 92 : rk === 'Doctor' ? 50 : 8) + '%';
