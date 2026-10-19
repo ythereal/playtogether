@@ -669,7 +669,7 @@
     const kids = lines.slice(0, 3).map(([t, c]) => el('span', c, t));
     if (!lines.length && paused) kids.push(el('span', 'pause', 'Pause'));
     if (bar) { const pb = el('span', 'pbar'), fill = el('i'); fill.style.width = clamp(bar.v, 0, 1) * 100 + '%'; pb.append(fill); for (const tk of bar.ticks || []) { const b = el('b'); b.style.left = clamp(tk, 0, 1) * 100 + '%'; pb.append(b); } kids.push(pb); }
-    $('hudInfo').replaceChildren(...kids);
+    $('hudInfo').replaceChildren(...kids); $('hudInfo').classList.toggle('hasbar', !!bar);
   }
   // the lit buttons: each management button (and the bank's dollar) is lit exactly while its screen is open
   function litButtons() {

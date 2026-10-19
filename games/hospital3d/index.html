@@ -54,11 +54,14 @@
     .mbtn.flash::after { content: ''; position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 0 2px #0d2a52; }
     /* the info bar: three lines about whatever is under the mouse, with an optional progress bar */
     .th-info { flex: 1 1 0; min-width: 0; display: flex; align-items: center; padding: 3px 6px; background: #0a1736; border: 2px solid; border-color: #23282d #a3abb3 #a3abb3 #23282d; border-radius: 2px; box-shadow: inset 0 0 0 1px #1d2f5c; }
-    #hudInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; font: 600 .78rem/1.28 var(--font); color: #eef3ff; }
+    /* always three lines tall, however many it shows, so the panel doesn't grow and shrink as the mouse moves; the
+       progress bar sits at the right of the last line */
+    #hudInfo { position: relative; flex: 1; min-width: 0; height: 3.6em; overflow: hidden; display: flex; flex-direction: column; justify-content: center; font: 600 .74rem/1.2 var(--font); color: #eef3ff; }
+    #hudInfo.hasbar { padding-right: 108px; }
     #hudInfo span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #hudInfo .dim { color: #8ea6d6; font-weight: 500; }
     #hudInfo .pause { align-self: center; color: #6fa8ff; font-weight: 800; font-size: .95rem; letter-spacing: .06em; }
-    .pbar { position: relative; align-self: flex-end; width: 100px; height: 10px; margin-top: 2px; border: 1px solid #fff; background: #0a1736; }
+    .pbar { position: absolute; right: 0; bottom: .1em; width: 100px; height: 10px; border: 1px solid #fff; background: #0a1736; }
     .pbar i { position: absolute; left: 0; top: 0; bottom: 0; background: #ff8a1c; }
     .pbar b { position: absolute; top: -1px; bottom: -1px; width: 1px; background: #fff; }
     /* the management buttons always show beside the info bar (in the original they replaced it under the mouse);
