@@ -1568,11 +1568,22 @@
   cv.addEventListener('wheel', e => { e.preventDefault(); cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); }, { passive: false });
   $('camFlat').addEventListener('click', () => setFlat(!HI.getFlat()));
   $('camFit').addEventListener('click', fitView);
+  // full screen: the game takes the whole display, no browser chrome (where the browser allows it)
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function toggleFull() {
+    const d = document.documentElement;
+    if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else { const go = d.requestFullscreen || d.webkitRequestFullscreen; if (go) { const p = go.call(d); if (p && p.catch) p.catch(() => toast('This browser won\'t let the game go full screen here', 'dim')); } }
+  }
+  if (document.fullscreenEnabled || document.webkitFullscreenEnabled) $('camFull').hidden = false;
+  $('camFull').addEventListener('click', toggleFull);
+  const fsIcon = () => { $('camFull').textContent = fsEl() ? '🗗' : '⛶'; $('camFull').title = fsEl() ? 'Leave full screen (Esc)' : 'Full screen (Shift+F)'; };
+  document.addEventListener('fullscreenchange', fsIcon); document.addEventListener('webkitfullscreenchange', fsIcon);
   const keysDown = new Set();
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || !$('profile').hidden || modalOpen()) return;
     const k = e.key.toLowerCase();
-    if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
+    if (k === 'f' && e.shiftKey) toggleFull(); else if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
     else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 'd'].includes(k) || (k === 's' && !e.repeat && false)) { keysDown.add(k); e.preventDefault(); }
   });
   addEventListener('keyup', e => keysDown.delete(e.key.toLowerCase()));
