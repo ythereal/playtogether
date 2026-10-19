@@ -609,9 +609,10 @@
     if (h > 12) { R(x, 0, h - 3, w, 3, shade(col, -0.35)); R(x, 0, h - 3, w, q, shade(col, -0.05)); R(x, 0, h - 2.5, w, q, shade(col, -0.18)); }
     else { R(x, 0, h - 1, w, 1, shade(col, -0.35)); }
     if (decal && h > 12) decal(x, w, h);
-    if (gap) {   // a doorway: open below the lintel, with a wooden frame round it
+    if (gap) {   // a doorway: open below the lintel, with a wooden frame round it (none for the ward's glass doors)
       const dh = Math.min(h, DOOR_H), top = h - dh;
       x.clearRect(gap[0], top, gap[1] - gap[0], dh);
+      if (gap[2] === 'bare') return (wallCache[key] = c);
       R(x, gap[0] - 1, top - 1, 1, dh + 1, '#5a3a22'); R(x, gap[1], top - 1, 1, dh + 1, '#5a3a22'); R(x, gap[0] - 1, top - 1, gap[1] - gap[0] + 2, 1, '#5a3a22');
       R(x, gap[0] - 1, top - 1, gap[1] - gap[0] + 2, 0.5, '#7a5232');
     }
@@ -762,7 +763,8 @@
       // wide leaves hinged at the outer ends that meet in the middle, like a real double door
       const span = r && r.door ? RH.doorTiles(r).map(([tx, ty]) => (d === 0 || d === 2 ? tx : ty)).sort((a, b) => a - b) : [];
       const i = span.indexOf(d === 0 || d === 2 ? x : y), last = span.length - 1, wide = span.length > 1 && i >= 0;
-      const gap = wide ? [i === 0 ? 1 : 0, i === last ? 15 : 16] : [1, 15];
+      const ward = r && r.k === 'ward' && span.length === 3;   // the ward's glass doors bring their own blue frame
+      const gap = wide ? [i === 0 ? 1 : 0, i === last ? 15 : 16, ward ? 'bare' : ''] : [1, 15];
       const front = !tall && r ? r.id : 0, at = items.length;
       if (r) items.push(...wallPiece(ax, ay, bx, by, n[0], n[1], r.k + 'd' + gap.join('-'), WALLCOL[RH.ROOMS[r.k].wall], A.ROOM_STYLE[r.k].wall[1], null, tall, LOW_H, gap));
       if (!wide) items.push(swingDoor(ax, ay, bx, by, n, 14));
@@ -778,10 +780,13 @@
   // one 16px wall edge; `tall` back walls, low front walls
   function wallPiece(ax, ay, bx, by, nx, ny, key, col, style, deco, tall, low, gap) {
     const h = flat ? 4 : tall ? WALL_H : low;
-    const img = wallImg(key + (flat ? 'F' : tall ? 'T' : 'L') + (gap ? 'g' : ''), 16, h, col, style, deco, gap && !flat ? gap : null);
     const [a1] = rw(ax, ay), [b1] = rw(bx, by), [, a2] = rw(ax, ay), [, b2] = rw(bx, by);
     const alongX = Math.abs(a2 - b2) < 0.5;
     const flip = alongX ? a1 > b1 : a2 > b2;
+    // the image runs from whichever end is leftmost on screen, so a doorway's gap (measured from (ax, ay)) is mirrored
+    // with it; otherwise the frame post meant for the doorway's outer end lands in the middle of a wide doorway
+    const g = gap && flip ? [16 - gap[1], 16 - gap[0], gap[2]] : gap;
+    const img = wallImg(key + (flat ? 'F' : tall ? 'T' : 'L') + (g ? 'g' + g.join('-') : ''), 16, h, col, style, deco, g && !flat ? g : null);
     const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
     const q0 = rw(sx, sy), q1 = rw(ex, ey);
     void nx; void ny;
