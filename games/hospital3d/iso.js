@@ -15,7 +15,7 @@
   const OXF = OXF0 + GM, OYF = OYF0 + GM;          // flat (aerial) view origin
   const BW = Math.max(OX * 2, L + 16 + 2 * GM), BH = Math.max(Math.ceil(L * K) + OY + 30 + 2 * GM * KY, L + OYF + 40 + GM);
   const WALL_H = 34, LOW_H = WALL_H; // every wall stands full height, front walls included, as in Theme Hospital
-  const EXT_LOW = 18;                // the building's outer brick wall facing the camera stands about half height, as in Theme Hospital, so the entrance hall can be seen
+  const EXT_LOW = WALL_H;            // the building's outer brick wall stands full height too, level with the front doors, as in Theme Hospital
   // animation: game.js hands over the clock and where everyone is standing each frame (doors open for people)
   let now = 0, frameDt = 0, ppl = [];
   const frame = (t, dt, people) => { now = t; frameDt = dt; ppl = people || []; };
