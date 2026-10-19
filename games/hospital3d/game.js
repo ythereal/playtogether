@@ -529,7 +529,7 @@
     const ym = RH.yearMonth(SOLO ? view.month : Math.min(view.month, RH.MONTHS - 1));
     // the desk calendar: day and month, Theme Hospital style (the day ticks over in monthBar)
     hudMon = RH.MONTH_NAMES[ym.month]; hudDay = -1;
-    $('hudDate').innerHTML = `<b id="hudDay">1 ${hudMon}</b>`;
+    $('hudDate').innerHTML = `<b id="hudDay">1 ${hudMon}</b><small>${view.ph === 'ready' ? 'Opening soon' : 'Year ' + ym.year}</small>`;
     $('hudDate').title = view.ph === 'ready' ? 'The hospital opens soon' : `${RH.MONTH_NAMES[ym.month]}, year ${ym.year}`;
     // the bank balance in counter cells: whole dollars right-aligned in at least seven cells, a minus in front
     const digs = String(Math.abs(Math.round(h.cash))).padStart(7, ' ').split(''), cash = $('hudCash');
