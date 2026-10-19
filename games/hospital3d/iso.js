@@ -253,6 +253,64 @@
     autopsy: (x, y) => ({ x, y, w: 14, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 14, 10, 20, '#6b7a8c', { south: (ctx, w, h) => { R(ctx, 2, 2, w - 4, 8, '#1d2a3a'); R(ctx, 3, 3, 4, 2, '#e8533f'); R(ctx, 2, h - 6, w - 4, 3, '#5c6f85'); hazard(ctx, w, 2); } }); } }),
     flask: (x, y) => ({ x, y, w: 14, d: 8, draw: (c, X, Y) => { box(c, X + x, Y + y, 14, 8, 11, '#e8e0d0'); const [sx, sy] = px(X + x + 7, Y + y + 4); const fl = (dx, col) => { R(c, sx + dx, sy - 20, 2, 4, '#dfe8f4'); c.fillStyle = col; c.beginPath(); c.moveTo(sx + dx - 2, sy - 12); c.lineTo(sx + dx + 4, sy - 12); c.lineTo(sx + dx + 2, sy - 16); c.lineTo(sx + dx, sy - 16); c.fill(); }; fl(-5, '#7ee081'); fl(0, '#ff6b9a'); fl(4, '#6fd3ff'); } }),
   };
+  // ---------- detailed room equipment (2x1 tiles, the front facing south) ----------
+  const G = {
+    // the psychiatrist's couch: a buttoned leather chaise longue with a raised, rolled headrest and a bolster
+    chaise: (c, X, Y) => {
+      for (const [lx, ly] of [[3, 4], [29, 4], [3, 13], [29, 13]]) tube(c, X + lx, Y + ly, 3, '#5a3620');
+      rbox(c, X + 1.5, Y + 2.5, 29, 12, 3, '#6b2d3a', 2, 2.5);
+      rbox(c, X + 2, Y + 3, 28, 11, 2.5, '#8a3a4a', 3, 5, ctx => { ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(2, 1, 24, 2); ctx.fillStyle = '#5a2430'; for (let i = 8; i < 27; i += 4.5) for (let j = 3; j < 10; j += 3.5) { ctx.beginPath(); ctx.arc(i + (j % 7 ? 2 : 0), j, 0.5, 0, Math.PI * 2); ctx.fill(); } });
+      rbox(c, X + 1.5, Y + 2.5, 6, 12, 7, '#7a3442', 3, 5, ctx => { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(1, 1, 4, 10); });   // the headrest
+      rbox(c, X + 7.5, Y + 4, 3, 9, 2.5, '#a04a5a', 1.5, 7.5);                                                                                 // the bolster
+    },
+    // an examination couch: chrome legs on castors, a padded blue top with a raised head end and a roll of paper, a step
+    examcouch: (c, X, Y) => {
+      for (const [lx, ly] of [[4, 4], [28, 4], [4, 12], [28, 12]]) { tube(c, X + lx, Y + ly, 7); const [a, b] = px(X + lx, Y + ly); c.fillStyle = '#1b1720'; c.beginPath(); c.arc(a, b, 0.9, 0, Math.PI * 2); c.fill(); }
+      rbox(c, X + 3, Y + 7, 26, 2, 0.8, '#c8ced8', 0.8, 3);                                                                                   // the lower rail
+      rbox(c, X + 2, Y + 2.5, 28, 11, 2.5, '#2f6fa8', 2, 7, ctx => { ctx.fillStyle = '#3f84c4'; ctx.fillRect(0.5, 0.5, 27, 10); ctx.fillStyle = '#f4f4f0'; ctx.fillRect(7, 2.5, 21, 6); ctx.fillStyle = 'rgba(0,0,0,.08)'; for (let i = 10; i < 28; i += 5) ctx.fillRect(i, 2.5, 0.4, 6); });
+      rbox(c, X + 2, Y + 2.5, 7, 11, 2.5, '#2f6fa8', 2, 9.5, ctx => { ctx.fillStyle = '#4a92d0'; ctx.fillRect(0.5, 0.5, 6, 10); ctx.fillStyle = '#f4f4f0'; ctx.fillRect(1.5, 3, 4, 5); });   // the raised head end
+      cyl(c, X + 30.5, Y + 8, 1.6, 7, '#f4f4f0', 5.5);                                                                                        // the paper roll
+      rbox(c, X + 12, Y + 14, 8, 3, 2.5, '#9aa3b8', 0.8, 0, ctx => { ctx.fillStyle = '#5c6068'; for (let i = 1; i < 8; i += 1.5) ctx.fillRect(i, 0.5, 0.6, 2); });   // a step
+    },
+    // the pharmacy: a glass-fronted cabinet of medicines against the wall and a counter with a till, bottles and a mortar
+    pharmacy: (c, X, Y) => {
+      box(c, X + 1, Y + 0.5, 30, 5, 26, '#7a4c2a', { south: (ctx, w, h) => {
+        R(ctx, 1, 2, w - 2, h - 4, '#5a3620');
+        for (let k = 0; k < 4; k++) { const v = 3 + k * 5.5; R(ctx, 1.5, v + 4.5, w - 3, 0.8, '#8a5a34'); for (let i = 2.5; i < w - 3; i += 2.2) { const col = ['#e8533f', '#3c7bd6', '#39a85a', '#ffd23f', '#d64f8e', '#f4f0e6', '#7ad0d8'][Math.floor(i * 3 + k * 5) % 7], bh = 2.2 + ((i * 7 + k) % 3) * 0.6; R(ctx, i, v + 4.5 - bh, 1.5, bh, col); R(ctx, i, v + 4.5 - bh, 0.5, bh, shade(col, 0.4)); R(ctx, i + 0.3, v + 4.5 - bh - 0.5, 0.9, 0.5, '#f4f4f0'); } }
+        ctx.fillStyle = 'rgba(200,235,255,.22)'; ctx.fillRect(1.5, 2.5, w - 3, h - 5); ctx.fillStyle = 'rgba(255,255,255,.35)'; for (let i = 3; i < w; i += 7.5) ctx.fillRect(i, 3, 1, h - 7);
+        R(ctx, w / 2 - 0.4, 2, 0.8, h - 4, '#7a4c2a');
+      } });
+      rbox(c, X + 0.5, Y, 31, 6, 1.5, '#8a5a34', 1, 26);                                                                                       // the cornice
+      box(c, X + 2, Y + 7, 28, 7, 9, '#9a6a40', { south: (ctx, w, h) => { for (let i = 1; i < w - 1; i += 6.8) { R(ctx, i, 1.5, 6, h - 3, '#8a5a34'); R(ctx, i, 1.5, 6, 0.5, '#b07a4a'); R(ctx, i + 2.5, 4, 1, 0.5, '#d9b46a'); } } });
+      rbox(c, X + 1.5, Y + 6.5, 29, 8, 1.5, '#e8e4da', 1.5, 9, ctx => { ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(1, 1, 26, 1); });   // the counter top
+      rbox(c, X + 20, Y + 8, 7, 5, 4, '#5c6068', 1.2, 10.5, ctx => { ctx.fillStyle = '#2b2e3a'; ctx.fillRect(1, 0.6, 5, 1.6); ctx.fillStyle = '#7ee081'; ctx.fillRect(1.4, 0.9, 2.5, 0.8); ctx.fillStyle = '#c8ced8'; for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) ctx.fillRect(1.2 + i * 1.6, 2.7 + j * 1, 1, 0.6); });   // the till
+      for (const [bx, by, col] of [[6, 9, '#e8533f'], [8.5, 10.5, '#3c7bd6'], [10.5, 9, '#39a85a']]) { cyl(c, X + bx, Y + by, 0.9, 3, col, 10.5); cyl(c, X + bx, Y + by, 0.6, 0.6, '#f4f4f0', 13.5); }
+      cyl(c, X + 15, Y + 10, 1.6, 2, '#d9d4c7', 10.5); tube(c, X + 15.5, Y + 10, 2.5, '#8a8f99', 12);                                          // a pestle and mortar
+    },
+    // the Inflation machine: a gas tank, a pressure gauge (its needle twitching), a pump with a plunger that works up
+    // and down, and a hose to the inflation cap that comes down over the patient's head
+    inflate: (c, X, Y) => {
+      rbox(c, X + 1, Y + 1.5, 30, 13, 2, '#7a8696', 1.5, 0, ctx => { ctx.fillStyle = '#ffd23f'; for (let i = -2; i < 30; i += 4) { ctx.beginPath(); ctx.moveTo(i, 13); ctx.lineTo(i + 1.5, 13); ctx.lineTo(i + 3.5, 11.5); ctx.lineTo(i + 2, 11.5); ctx.fill(); } });
+      cyl(c, X + 8, Y + 7, 5, 20, '#f2c230', 2); cyl(c, X + 8, Y + 7, 5.05, 2, '#d0352a', 12); cyl(c, X + 8, Y + 7, 1.6, 2.5, '#8a8f99', 22);   // the gas tank and its valve
+      { const [sx, sy] = px(X + 8, Y + 7); c.fillStyle = '#1b1720'; c.font = 'bold 4px sans-serif'; c.textAlign = 'center'; c.fillText('AIR', sx - 1, sy - 9); c.textAlign = 'start'; }
+      rbox(c, X + 18, Y + 4, 10, 8, 10, '#3c6fb0', 1.8, 2, ctx => { ctx.fillStyle = '#2b2e3a'; ctx.fillRect(1, 1, 8, 6); });                   // the pump body
+      { const stroke = Math.abs(Math.sin(now * 2.4)) * 4; tube(c, X + 23, Y + 8, 5 + stroke, '#c8ced8', 12); rbox(c, X + 20, Y + 7.3, 6, 1.4, 1.2, '#2b2e3a', 0.6, 17 + stroke); }   // the plunger and its handle
+      box(c, X + 18.5, Y + 11.5, 9, 0.6, 5, '#2b2e3a', { south: (ctx, w, h) => { R(ctx, 1, 1, 1.5, 1.5, '#e8533f'); R(ctx, 3.5, 1, 1.5, 1.5, '#39a85a'); R(ctx, 6, 1, 1.5, 1.5, '#ffd23f'); } }, 4);   // the buttons
+      tube(c, X + 15, Y + 4, 24, '#8a8f99', 2);                                                                                                 // the gauge's stand
+      { const [gx, gy] = px(X + 15, Y + 4), cy = gy - 30, a = -2.4 + 1.6 + Math.sin(now * 3.1) * 0.25 + Math.sin(now * 7) * 0.05;
+        c.fillStyle = '#c8ced8'; c.beginPath(); c.arc(gx, cy, 6.2, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#1b1720'; c.lineWidth = 0.6; c.stroke();
+        c.fillStyle = '#fbfaf2'; c.beginPath(); c.arc(gx, cy, 5, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#e8533f'; c.lineWidth = 1.2; c.beginPath(); c.arc(gx, cy, 4, -0.6, 0.4); c.stroke();
+        c.strokeStyle = '#1b1720'; c.lineWidth = 0.4; for (let k = 0; k < 9; k++) { const t = -3.6 + k * 0.5; c.beginPath(); c.moveTo(gx + Math.cos(t) * 4.2, cy + Math.sin(t) * 4.2); c.lineTo(gx + Math.cos(t) * 4.9, cy + Math.sin(t) * 4.9); c.stroke(); }
+        c.strokeStyle = '#d0352a'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(gx, cy); c.lineTo(gx + Math.cos(a) * 4, cy + Math.sin(a) * 4); c.stroke(); c.fillStyle = '#1b1720'; c.beginPath(); c.arc(gx, cy, 0.7, 0, Math.PI * 2); c.fill(); }
+      // the hose, from the pump to the cap hanging over the patient's spot in front
+      { const [h1, h2] = px(X + 27, Y + 8), [m1, m2] = px(X + 28, Y + 18), [e1, e2] = px(X + 16, Y + 22);
+        c.strokeStyle = '#2b2e3a'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(h1, h2 - 8); c.bezierCurveTo(h1 + 6, h2 - 2, m1, m2 - 40, e1, e2 - 30); c.stroke();
+        c.strokeStyle = '#5c6068'; c.lineWidth = 0.6; c.stroke();
+        c.fillStyle = '#c8ced8'; c.beginPath(); c.ellipse(e1, e2 - 27.5, 4.6, 3.2, 0, Math.PI, 0); c.fill(); c.strokeStyle = '#1b1720'; c.lineWidth = 0.5; c.stroke();
+        c.fillStyle = '#d0352a'; c.fillRect(e1 - 4.6, e2 - 27.8, 9.2, 1); c.fillStyle = 'rgba(255,255,255,.6)'; c.fillRect(e1 - 2.5, e2 - 30, 1.5, 1); }
+    },
+  };
   // ---------- room objects ----------
   // Each painter draws its object in the canonical orientation (front facing south) with its footprint's top-left at
   // world (X, Y); objItem rotates it into place about the footprint's centre.
@@ -266,12 +324,12 @@
   };
   const OBJ_DRAW = {
     desk: rk => (rk === 'research' ? F.rdesk(7, 3) : F.desk(2, 2)),
-    cabinet: () => F.cabinet(3, 1), chair: () => F.chair(4, 4), screen: () => F.screenP(0, 3), trolley: () => F.examtable(3, 3),
+    cabinet: () => F.cabinet(3, 1), chair: () => F.chair(4, 4), screen: () => F.screenP(0, 3), trolley: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.examcouch }),
     cardio: () => F.treadmill(3, 2), scanner: () => F.scanner(1, 8), console: () => F.console(0, 4), ultra: () => F.ultra(4, 1),
-    bloodm: () => F.bloodm(0, 3), xray: () => F.xray(5, 10), shield: () => F.leadscreen(2, 6), couch: () => F.couch(0, 2, 32),
-    comfy: () => F.chair(4, 4, '#8a3a4a'), bed: () => F.bed(1, 3), pcab: () => [F.shelves(0, 0, 32), F.counter(2, 6, 28)],
+    bloodm: () => F.bloodm(0, 3), xray: () => F.xray(5, 10), shield: () => F.leadscreen(2, 6), couch: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.chaise }),
+    comfy: () => F.chair(4, 4, '#8a3a4a'), bed: () => F.bed(1, 3), pcab: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.pharmacy }),
     optable: () => [F.optable(1, 2), F.oplamp(15, 1)], sscreen: () => custom.sscreen(0, 7), sink: () => F.sink(3, 3), xview: () => custom.xview(2, 0),
-    inflator: () => F.inflator(0, 1), slicer: () => F.slicer(8, 1), cast: () => F.castm(8, 2), hairr: () => F.hairchair(1, 3), electro: () => F.coil(2, 2),
+    inflator: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.inflate }), slicer: () => F.slicer(8, 1), cast: () => F.castm(8, 2), hairr: () => F.hairchair(1, 3), electro: () => F.coil(2, 2),
     jellym: () => F.vat(4, 6), shower: () => F.shower(-1, 0), dnaf: () => F.dna(6, 1), sofa: () => F.sofa(7, 3), vgame: () => F.arcade(3, 3), pool: () => F.pool(3, 1),
     tv: () => custom.tv(2, 0), toilet: () => F.cubicle(0, 1), autopsy: () => F.autopsy(9, 3), computer: () => custom.computer(1, 3), atom: () => custom.atom(3, 3),
     lchair: () => F.lchair(4, 4), proj: () => custom.proj(4, 4), ext: () => F.ext(6, 0), rad: () => F.rad(1, 0), bin: () => F.bin(5, 1),
@@ -732,8 +790,24 @@
     return { get d() { const [tx, ty] = tipAt(open() * 1.45); return depth((hx + tx) / 2, (hy + ty) / 2) + 0.4; }, draw: c => {
       const want = near(mx + n[0] * 4, my + n[1] * 4, 6 + L / 2, 6 + L / 2) ? 1 : 0;
       let o = open(); o += (want - o) * Math.min(1, frameDt * (want ? 9 : 4)); doorOpen.set(key, o);
-      const [tx, ty] = tipAt(o * 1.45), [u1, u2] = px(hx, hy), [v1, v2] = px(tx, ty), hh = flat ? 3 : DOOR_H - 1;
-      ST(c, (v1 - u1) / L, (v2 - u2) / L, 0, 1, u1, u2 - hh); c.drawImage(leafImg(L), 0, 0, L, hh); reset(c);
+      const [tx, ty] = tipAt(o * 1.45), hh = flat ? 3 : DOOR_H - 1;
+      // a solid leaf: two faces 1.4 apart joined by its top and end edges; the face nearer the camera drawn last
+      const lx = (tx - hx) / L, ly = (ty - hy) / L, kx = -ly * 1.4, ky = lx * 1.4;
+      const P = (x, y, up) => { const [a, b] = px(x, y); return [a, b - up]; };
+      const quad = (pts, col) => { c.fillStyle = col; c.beginPath(); c.moveTo(...pts[0]); for (const q of pts.slice(1)) c.lineTo(...q); c.closePath(); c.fill(); c.strokeStyle = 'rgba(27,23,32,.55)'; c.lineWidth = 0.5; c.stroke(); };
+      const face = (ox, oy, img) => {
+        const [u1, u2] = px(hx + ox, hy + oy), [v1, v2] = px(tx + ox, ty + oy);
+        if (img) { ST(c, (v1 - u1) / L, (v2 - u2) / L, 0, 1, u1, u2 - hh); c.drawImage(leafImg(L), 0, 0, L, hh); reset(c); }
+        else quad([P(hx + ox, hy + oy, 0), P(tx + ox, ty + oy, 0), P(tx + ox, ty + oy, hh), P(hx + ox, hy + oy, hh)], '#8a5a34');
+      };
+      const nearFirst = depth((hx + tx) / 2 + kx, (hy + ty) / 2 + ky) > depth((hx + tx) / 2, (hy + ty) / 2);
+      const [fo, no] = nearFirst ? [[0, 0], [kx, ky]] : [[kx, ky], [0, 0]];
+      face(fo[0], fo[1], false);
+      if (!flat) {
+        quad([P(tx, ty, 0), P(tx + kx, ty + ky, 0), P(tx + kx, ty + ky, hh), P(tx, ty, hh)], '#7e5028');             // the end edge
+        quad([P(hx, hy, hh), P(tx, ty, hh), P(tx + kx, ty + ky, hh), P(hx + kx, hy + ky, hh)], '#d2a06a');            // the top edge
+      }
+      face(no[0], no[1], true);
     } };
   }
   // a mark on the edge on side d of tile (x, y): a coloured bar standing on the floor

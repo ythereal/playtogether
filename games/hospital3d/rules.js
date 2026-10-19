@@ -237,7 +237,7 @@
   const idx = (x, y) => y * W + x;
   const inMap = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
   const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0);
-  const outPath = (x, y) => x >= 0 && x < 2 && y >= 8 && y <= 10;
+  const outPath = (x, y) => x >= 0 && x < 2 && y === 9;   // everyone comes and goes through the middle (sliding) pair of the three door panels
   const inLobby = (x, y) => x >= LOBBY.x0 && x <= LOBBY.x1 && y >= LOBBY.y0 && y <= LOBBY.y1;
   const tileOf = v => Math.floor(v / T);
   const center = (tx, ty) => [tx * T + 8, ty * T + 8];
@@ -450,9 +450,19 @@
       const o = r.list[li]; let done = false;
       const rc = r.rect, cands = [];
       for (let y = rc.y; y < rc.y + rc.h; y++) for (let x = rc.x; x < rc.x + rc.w; x++) for (let rot = 0; rot < 4; rot++) cands.push([x, y, rot]);
-      // walls first for things that back onto walls; otherwise prefer the far side from the door
-      const [dx0, dy0] = r.door ? [r.door.x, r.door.y] : [rc.x, rc.y];
-      cands.sort((a, b) => (Math.abs(b[0] - dx0) + Math.abs(b[1] - dy0)) - (Math.abs(a[0] - dx0) + Math.abs(a[1] - dy0)));
+      // Laid out to be seen from the camera (which looks from the south-west): a staff desk stands against the north
+      // wall with the doctor behind it facing the camera; anything that backs onto a wall uses the far (north, east)
+      // walls; the GP's patient chair goes in front of the desk, facing the doctor. Otherwise: far from the door.
+      const [dx0, dy0] = r.door ? [r.door.x, r.door.y] : [rc.x, rc.y], B = OBJ[o];
+      const desk = r.objs.find(ob => ob.o === 'desk'), du = desk && objTiles('desk', desk.x, desk.y, desk.r).use;
+      const pref = ([x, y, rot]) => {
+        let v = 0;
+        if (B.use === 'front' && B.who === 's') v += (rot === 2 ? 60 : 0) + (y === rc.y + 1 ? 40 : 0);
+        if (B.back || B.side) v += (rot & 3) === 0 ? 30 : (rot & 3) === 1 ? 20 : 0;
+        if (r.k === 'gp' && o === 'chair' && du && desk.r === 2 && x === du[0] && y === desk.y + 1 && rot === 2) v += 200;
+        return v - (Math.abs(x - dx0) + Math.abs(y - dy0)) * -1;
+      };
+      cands.sort((a, b) => pref(b) - pref(a));
       for (const [x, y, rot] of cands) {
         if (!objCheck(h, r, o, x, y, rot).ok) continue;
         r.objs.push({ id: h._oid = (h._oid || 0) + 1, o, x, y, r: rot, w: 1 }); placed.push(li); done = true; break;

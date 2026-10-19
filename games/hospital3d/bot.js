@@ -8,10 +8,12 @@
   // think: seconds between decisions · reserve: cash it keeps back · plan: how far down the build list it goes
   // sloppy: chance of ignoring a chore on a given think · early: opens the doors before the timer runs out
   const LEVELS = {
-    easy:   { think: 6,   reserve: 3000, plan: 99, sloppy: 0.6,  early: false, skill: 0,   save: 0, list: 'easy' },
-    normal: { think: 3.5, reserve: 2500, plan: 22, sloppy: 0.3,  early: false, skill: 0.4, save: 0.8 },
-    hard:   { think: 1,   reserve: 1500, plan: 99, sloppy: 0,    early: true,  skill: 0.8, save: 1 },
+    easy:   { think: 6,   reserve: 3000, plan: 99, sloppy: 0.6,  early: false, skill: 0,   save: 0, list: 'easy', pace: 60, furnish: 20 },
+    normal: { think: 3.5, reserve: 2500, plan: 22, sloppy: 0.3,  early: false, skill: 0.4, save: 0.8, pace: 40, furnish: 14 },
+    hard:   { think: 1,   reserve: 1500, plan: 99, sloppy: 0,    early: true,  skill: 0.8, save: 1, pace: 26, furnish: 9 },
   };
+  // pace: game seconds it takes between rooms, like a person dragging out, dooring and windowing the next one;
+  // furnish: seconds it spends placing a room's furniture once the walls are up
   // save: how hard it banks money for the cash target as the months go by (it stops building to keep it)
   // the order it builds in: a working core first, then cures and better diagnosis as research unlocks them.
   // The easy bot is a poor manager: it never builds toilets, a staff room or research, so it runs a grubbier hospital.
@@ -24,12 +26,12 @@
   const roomsOf = (h, k) => Object.values(h.rooms).filter(r => r.k === k && r.phase !== 'wreck');
   const built = r => r.phase === 'built';
 
-  function newBrain(diff) { return { diff: LEVELS[diff] ? diff : 'normal', t: 0, skip: {} }; }
+  function newBrain(diff) { return { diff: LEVELS[diff] ? diff : 'normal', t: 0, skip: {}, next: 0, fur: {} }; }
 
   // called every simulation tick on the host; decides every few seconds of game time
   function tick(s, p, dt, brain) {
     if (s.ph !== 'play') return;
-    RH.stepAuto(s, p);                      // furnish and finish whatever it's building
+    furnish(s, p, brain);
     brain.t -= dt;
     if (brain.t > 0) return;
     const L = LEVELS[brain.diff];
@@ -44,6 +46,18 @@
     if (!h.open && s.t > 20 && (L.early || s.t > RH.GRACE - 15) && roomsOf(h, 'gp').some(r => built(r) && r.sts.length)) RH.openDoors(s, p);
   }
 
+  // the furniture goes in a while after the walls go up, at a person's pace
+  function furnish(s, p, brain) {
+    const h = s.h[p], L = LEVELS[brain.diff];
+    for (const r of Object.values(h.rooms)) {
+      if (!r.auto || r.phase !== 'furnish') continue;
+      if (brain.fur[r.id] == null) brain.fur[r.id] = s.t + L.furnish * (0.8 + rnd() * 0.4);
+      if (s.t < brain.fur[r.id]) continue;
+      RH.autoPlace(s, p, r.id);
+      if (RH.finishBuild(s, p, r.id)) RH.deleteRoom(s, p, r.id); else r.auto = false;
+      delete brain.fur[r.id];
+    }
+  }
   function money(s, p, h) {
     if (h.cash < 0 && h.loan + RH.LOAN_STEP <= RH.loanLimit(h)) RH.loan(s, p, 1);
     else if (h.loan > 0 && h.cash > 30000) RH.loan(s, p, -1);
@@ -74,7 +88,7 @@
   }
 
   function build(s, p, h, L, brain) {
-    if (RH.editing(h) || !h.desk) return;
+    if (RH.editing(h) || !h.desk || s.t < brain.next) return;
     const want = {};
     const plan = L.list === 'easy' ? EASY_PLAN : PLAN;
     for (let i = 0; i < Math.min(L.plan, plan.length); i++) {
@@ -89,6 +103,7 @@
       }
       const err = RH.quickBuild(s, p, k);
       if (err === 'No room on the floor') { brain.skip[k] = 1; continue; }
+      if (!err) brain.next = s.t + L.pace * (0.75 + rnd() * 0.5) * (i < 3 ? 0.6 : 1);   // the first few rooms come a little quicker
       return;
     }
   }
