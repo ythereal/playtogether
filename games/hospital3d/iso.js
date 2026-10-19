@@ -680,7 +680,8 @@
   };
   // a window in the brick front, seen from outside: white frame, dark glass catching the sky
   const frontWin = (x, w, h) => {
-    const q = 0.5, t = 4, b = h - 4;   // fits the wall's height
+    // a window in the upper part of the wall, on a stone sill with brick below (full-length panes read as doors)
+    const q = 0.5, t = 5, b = Math.min(h - 4, 19);
     R(x, 2, t, w - 4, b - t, '#f4f4f0'); R(x, 2, t, w - 4, q, '#ffffff');
     R(x, 3, t + 1, w - 6, b - t - 2, '#3e5c76'); R(x, 3, t + 1, w - 6, 2, '#86bcda'); R(x, 3, t + 3, w - 6, 0.8, '#5f88a6');
     x.globalAlpha = 0.5; for (let k = 0; k < Math.min(6, b - t - 3); k++) R(x, 4 + k * q, t + 2 + k, 1.5, q, '#ffffff'); x.globalAlpha = 1;
