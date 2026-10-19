@@ -480,7 +480,8 @@
     g(-GM + 42, -GM, 3, GH, '#dcd8cc'); g(-GM + 42, -GM, 3, q, '#ece9e0'); g(-GM + 42, -GM, q, GH, '#f0ede4'); g(-GM + 44.5, -GM, q, GH, '#9a978e');
     for (let Y = -GM + 40; Y < H * T + GM; Y += 90) { g(-GM + 37, Y, 4, 3, '#3e4045'); for (let k = 0; k < 4; k++) g(-GM + 37.5 + k, Y + q, q, 2, '#2a2c30'); }
     // a pavement round the building and a path from the road to the front doors
-    pave(24, -8, W * T - 24 + 8, H * T + 16);
+    pave(24, RH.WING.y0 * T - 8, RH.WING.x1 * T - 24 + 8, H * T - RH.WING.y0 * T + 16);   // the shallow front wing
+    pave(RH.WING.x1 * T - 8, -8, W * T - RH.WING.x1 * T + 16, H * T + 16);
     pave(-GM + 46, RH.LOT.path - 26, GM + 24 - 46 + 16, 52);
     // the car park: tarmac with white bay lines (cars nose-in towards the road) and a footpath beside it
     { const L = RH.LOT, X0 = -GM + 46, Y0 = L.y0 - 14, Y1 = L.y0 + L.n * 16 + 2;
@@ -910,7 +911,7 @@
     // the ambulance parked on the road
     items.push(bx(-86, 30, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { const on = Math.floor(now * 3) % 2; R(ctx, 3, 4, 7, 3, on ? '#7fb2ff' : '#2a5aa6'); R(ctx, 3, 20, 7, 3, on ? '#a8202a' : '#ff6a5a'); } }));
     // trees round the grounds (none on the road, the path or the pavement)
-    const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 120], [-34, 440], [-20, 10]];
+    const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 120], [-34, 440], [-20, 10], [56, 30], [118, 48]];
     for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
     // street lamps along the road and the path
     for (const [x, y] of [[-46, 200], [-46, -20], [-46, 60], [-2, 196], [-2, 290], [-2, 356], [40, 260], [136, 260], [40, 404], [136, 404]]) items.push(sprite('streetlamp', x, y, 3));

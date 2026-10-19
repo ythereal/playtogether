@@ -128,7 +128,7 @@
   function placeNear(s, p, h, kind) {
     const Lr = RH.layout(h), spots = [];
     for (let y = 0; y < RH.H; y++) for (let x = 2; x < RH.W; x++) {
-      if (Lr.room[RH.idx(x, y)]) continue;
+      if (!RH.indoor(x, y) || Lr.room[RH.idx(x, y)]) continue;
       const byWall = RH.DIRS.some(([dx, dy]) => RH.inMap(x + dx, y + dy) && Lr.room[RH.idx(x + dx, y + dy)] > 0);
       if (byWall) spots.push([x, y, Math.abs(x - RH.DOOR.mid) + Math.abs(y - RH.DOOR.y) + rnd() * 6]);
     }

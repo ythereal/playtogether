@@ -10,7 +10,7 @@
 // walls block movement except through doors. The lobby by the entrance (reception desk, waiting area) stays open.
 (function (root) {
   'use strict';
-  const VERSION = 6;   // 6: Theme Hospital's entrance hall: doors in the south wall by the corner, desk in that corner
+  const VERSION = 7;   // 7: the entrance wing is only six tiles deep, as in Theme Hospital (6: doors and desk by the front corner)
   const T = 16, W = 32, H = 26;
   const MONTH = 60;                 // real seconds per in-game month
   const DAY = MONTH / 30;           // the spec's daily happiness effects tick once per in-game day
@@ -55,10 +55,13 @@
   const lvlOK = (s, f) => !s.solo || s.solo.lvl >= LVL_FROM[f];
   const RIVAL_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Skynet', 'Marvin', 'Cerebro', 'Mother', 'Jayne'];
   // the lobby by the entrance: never built on (reception desk, idle staff, waiting patients)
-  const LOBBY = { x0: 2, y0: 6, x1: 7, y1: 11 };
+  const LOBBY = { x0: 2, y0: 8, x1: 7, y1: 11 };
   // Theme Hospital's entrance: the building's front corner (columns 2-8, rows 12 down) is a paved forecourt, and the
   // front doors (columns 3-5 of its north side) open from it into the entrance hall
   const NOTCH = { x1: 9, y0: 12 };
+  // ... and that front wing is shallow: its back (north) wall is only six tiles behind the doors, with lawn beyond it
+  // (columns 2-8, rows 0-5 are outside). The rest of the hospital runs the full depth of the map.
+  const WING = { x1: 9, y0: 6 };
   const DOOR = { x0: 3, x1: 5, mid: 4, y: 12 };   // the three door panels; everyone uses the middle (sliding) pair
   const DESK_TILES = [[3, 9], [3, 10]];
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // N E S W
@@ -244,7 +247,7 @@
   // ============================ the grid ============================
   const idx = (x, y) => y * W + x;
   const inMap = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
-  const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0);
+  const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0) && !(x < WING.x1 && y < WING.y0);
   const outPath = (x, y) => x === DOOR.mid && y === DOOR.y;   // everyone comes and goes through the middle (sliding) pair of the three door panels
   const inLobby = (x, y) => x >= LOBBY.x0 && x <= LOBBY.x1 && y >= LOBBY.y0 && y <= LOBBY.y1;
   const tileOf = v => Math.floor(v / T);
@@ -1079,7 +1082,7 @@
     const L = layout(h);
     for (let tries = 0; tries < 40; tries++) {
       const x = 2 + Math.floor(rnd() * (W - 2)), y = Math.floor(rnd() * H), i = idx(x, y);
-      if (!L.room[i] && !L.block[i] && !L.avoid[i] && !L.bp[i] && !L.near[i]) return [x * T + 4 + rnd() * 8, y * T + 4 + rnd() * 8];
+      if (indoor(x, y) && !L.room[i] && !L.block[i] && !L.avoid[i] && !L.bp[i] && !L.near[i]) return [x * T + 4 + rnd() * 8, y * T + 4 + rnd() * 8];
     }
     return [RECEP[0], RECEP[1] + 24];
   }
@@ -2216,7 +2219,7 @@
     for (const r of roomList(h)) if (r.auto && r.phase === 'furnish') { autoFurnish(h, r); const e = finishBuild(s, p, r.id); if (e) deleteRoom(s, p, r.id); else r.auto = false; }
   }
 
-  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, DOOR, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
+  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, WING, DOOR, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
     LEVELS, LVL_FROM, LAND_VALUE, stayOn, carrySnapshot, carryOver, MP_RESEARCH,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,
