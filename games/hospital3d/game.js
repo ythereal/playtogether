@@ -535,7 +535,7 @@
     const digs = String(Math.abs(Math.round(h.cash))).padStart(7, ' ').split(''), cash = $('hudCash');
     if (h.cash < 0) digs[Math.max(0, digs.lastIndexOf(' '))] = digs.includes(' ') ? '-' : (digs.unshift('-'), '-');
     cash.innerHTML = digs.map(c => `<i>${c === ' ' ? '&nbsp;' : c}</i>`).join(''); cash.classList.toggle('neg', h.cash < 0); cash.title = money(h.cash);
-    $('hudRepBar').style.left = clamp(h.rep / 10, 0, 100) + '%'; $('stRep').title = `Reputation ${h.rep} of 1000`;
+    $('hudRepBar').style.left = clamp(h.rep / 10, 0, 100) + '%'; $('hudRep').textContent = h.rep; $('stRep').title = `Reputation ${h.rep} of 1000`;
     $('hudCured').textContent = h.cured; $('curesBox').title = `Patients cured${h.seen ? `: ${RH.curePct(h)}% of those treated` : ''}`;
     $('tabMine').textContent = SOLO ? 'Mine' : `${nameOf(ME)}'s`;
     $('tabRival').textContent = `${nameOf(FRIEND)}'s`;
