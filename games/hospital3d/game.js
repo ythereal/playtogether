@@ -520,7 +520,7 @@
     const ym = RH.yearMonth(SOLO ? view.month : Math.min(view.month, RH.MONTHS - 1));
     // the desk calendar: day and month, Theme Hospital style (the day ticks over in monthBar)
     hudMon = RH.MONTH_NAMES[ym.month]; hudDay = -1;
-    $('hudDate').innerHTML = `<b id="hudDay">1 ${hudMon}</b><small>${view.ph === 'ready' ? 'Opening soon' : 'Year ' + ym.year}</small>`;
+    $('hudDate').innerHTML = `<b id="hudDay">1 ${hudMon}</b>`;
     $('hudDate').title = view.ph === 'ready' ? 'The hospital opens soon' : `${RH.MONTH_NAMES[ym.month]}, year ${ym.year}`;
     // the bank balance in counter cells: whole dollars right-aligned in at least seven cells, a minus in front
     const digs = String(Math.abs(Math.round(h.cash))).padStart(7, ' ').split(''), cash = $('hudCash');
@@ -531,18 +531,26 @@
     $('tabMine').textContent = SOLO ? 'Mine' : `${nameOf(ME)}'s`;
     $('tabRival').textContent = `${nameOf(FRIEND)}'s`;
     infoKey = ''; renderInfo();
-    $('openBtn').hidden = !(view.ph === 'play' && !h.open && view.t < RH.GRACE && tab === ME);
+    $('watch').hidden = !(view.ph === 'play' && !h.open && view.t < RH.GRACE && tab === ME);
   }
-  let hudMon = '', hudDay = -1, infoKey = '';
+  let hudMon = '', hudDay = -1, infoKey = '', watchN = -1;
+  { const g = $('watchSegs'), NS = 'http://www.w3.org/2000/svg';
+    for (let i = 0; i < 13; i++) { const a0 = (i / 13) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / 13) * Math.PI * 2 - Math.PI / 2, r = 13.5, p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', `M0 0L${(Math.cos(a0) * r).toFixed(2)} ${(Math.sin(a0) * r).toFixed(2)}A${r} ${r} 0 0 1 ${(Math.cos(a1) * r).toFixed(2)} ${(Math.sin(a1) * r).toFixed(2)}Z`); p.setAttribute('class', 'seg'); g.append(p); } }
   // the calendar's day: thirty to a month
   function monthBar(now) {
     if (!view) return;
     const t = view.ph === 'play' ? view.t + (host ? 0 : Math.min(1, (now - curAt) / 1000)) : 0;
     const day = Math.min(30, Math.floor(((t % RH.MONTH) / RH.MONTH) * 30) + 1), e = document.getElementById('hudDay');
     if (e && day !== hudDay) { hudDay = day; e.textContent = `${day} ${hudMon}`; }
-    if (!$('openBtn').hidden) $('openBtn').textContent = `Open the doors · ${Math.max(0, Math.ceil(RH.GRACE - view.t))}s`;
+    // the countdown watch: its thirteen segments fill red as the opening day comes round
+    if (!$('watch').hidden) {
+      const left = Math.max(0, Math.ceil(RH.GRACE - t)), n = Math.min(13, Math.floor((t / RH.GRACE) * 13));
+      if (n !== watchN) { watchN = n; [...$('watchSegs').children].forEach((g, i) => g.classList.toggle('on', i < n)); }
+      $('openBtn').title = `Open the hospital now (it opens by itself in ${left}s)`;
+    }
   }
-  let statusKey = '', barH = 0, advH = -1, hoverTxt = '', advisorOff = false, talkUntil = 0, faceFrame = -1;
+  let statusKey = '', barH = 0, advH = -1, hoverTxt = '', hoverInfo = null, editPick = false, advisorOff = false, talkUntil = 0, faceFrame = -1;
   function placeStatus() {
     const hgt = document.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); }
     const adv = $('advisor'), ah = adv.hidden || adv.style.visibility === 'hidden' ? 0 : adv.offsetHeight;
@@ -565,13 +573,13 @@
   const TUT = [
     { say: () => `Welcome to ${SOLO ? lvlInfo().nm : 'your new hospital'}! I'm your advisor. I'll show you how to get the place open before the first patients turn up${LOCAL ? ' (press P to pause while you read)' : ''}.`, next: 'Let\'s go' },
     { say: 'Patients need somewhere to check in. Tap the dashed outline just inside the front doors to buy a reception desk.', done: h => h.desk },
-    { say: 'A desk needs someone behind it. Open Staff and hire a Receptionist.', hl: 'staffBtn', done: h => h.staff.some(x => x.k === 'r' && !x.gone) },
-    { say: 'Every patient sees a GP first. Press Build, choose GP\'s Office and drag out a blueprint on the grey floor. I\'ll step aside while you build.', hl: 'buildBtn', done: h => builtK(h, 'gp') },
-    { say: 'Your GP\'s Office needs a doctor. Open Staff and hire one: more skill diagnoses faster but costs more.', hl: 'staffBtn', done: h => staffedK(h, 'gp') },
+    { say: 'A desk needs someone behind it. Press Hire staff (B) and hire a Receptionist.', hl: 'staffBtn', done: h => h.staff.some(x => x.k === 'r' && !x.gone) },
+    { say: 'Every patient sees a GP first. Press Build room (F), choose Diagnosis, then GP\'s Office, and drag out a blueprint on the grey floor. I\'ll step aside while you build.', hl: 'buildBtn', done: h => builtK(h, 'gp') },
+    { say: 'Your GP\'s Office needs a doctor. Press Hire staff (B) and hire one: more skill diagnoses faster but costs more.', hl: 'staffBtn', done: h => staffedK(h, 'gp') },
     { say: 'Most illnesses are cured with drugs. Build a Pharmacy, then hire a Nurse to run it.', hl: h => (builtK(h, 'pharm') ? 'staffBtn' : 'buildBtn'), done: h => staffedK(h, 'pharm') },
     { say: 'When the GP isn\'t sure what\'s wrong, patients go for tests. Build a General Diagnosis room: it needs a doctor too.', hl: h => (builtK(h, 'gendiag') ? 'staffBtn' : 'buildBtn'), done: h => staffedK(h, 'gendiag') },
-    { say: 'Patients get thirsty and impatient. Build Toilets, then use Corridor to put down a couple of benches and a drinks machine.', hl: h => (builtK(h, 'toilet') ? 'decorBtn' : 'buildBtn'), done: h => builtK(h, 'toilet') && Object.keys(h.decor).length >= 2 },
-    { say: 'You\'re ready! Press “Open the doors”, or wait for the timer. Tap any patient to see what\'s wrong with them.', hl: 'openBtn', done: h => h.open },
+    { say: 'Patients get thirsty and impatient. Build Toilets, then use Furnish corridor (G) to put down a couple of benches and a drinks machine.', hl: h => (builtK(h, 'toilet') ? 'decorBtn' : 'buildBtn'), done: h => builtK(h, 'toilet') && Object.keys(h.decor).length >= 2 },
+    { say: 'You\'re ready! Press the button on top of the watch to open now, or wait for it to fill. Tap any patient to see what\'s wrong with them.', hl: 'openBtn', done: h => h.open },
     { say: 'That\'s the basics. Hire a Handyman to keep the floors clean, and build a Staff Room before your staff wear out. I\'ll keep giving advice from down here. Good luck!', next: 'Got it' },
   ];
   const tutOn = () => tut >= 0 && view && view.ph === 'play' && tab === ME && !mismatch && room.connected;
@@ -640,12 +648,26 @@
   // hospitals stand
   function renderInfo() {
     if (!view) return;
-    const h = view.h[ME], r = view.h[FRIEND];
-    const lines = hoverTxt ? hoverTxt.split(' · ').map((t, i) => [t, i ? 'dim' : ''])
+    const h = view.h[ME], r = view.h[FRIEND], paused = LOCAL && !speed && view.ph === 'play';
+    const hv = hoverInfo && hoverInfo.lines.length ? hoverInfo : null;
+    const lines = editPick ? [['Edit room', ''], ['Click one of your rooms to change it', 'dim'], ['Escape cancels', 'dim']]
+      : hv ? hv.lines.map((t, i) => [t, i ? 'dim' : ''])
+      : paused ? []
       : [[tab === ME ? (SOLO ? `${lvlInfo().nm} · level ${view.solo.lvl}` : `${nameOf(ME)}'s hospital`) : `${nameOf(FRIEND)}'s hospital (rival)`, ''],
         [tab === ME ? `${nameOf(FRIEND)}: ${money(r.cash)} · reputation ${r.rep}` : `You: ${money(h.cash)} · reputation ${h.rep}`, 'dim']];
-    const key = JSON.stringify(lines); if (key === infoKey) return; infoKey = key;
-    $('hudInfo').replaceChildren(...lines.slice(0, 3).map(([t, c]) => el('span', c, t)));
+    const bar = !editPick && hv && hv.bar ? hv.bar : null;
+    const key = JSON.stringify([lines, bar, paused]); if (key === infoKey) return; infoKey = key;
+    const kids = lines.slice(0, 3).map(([t, c]) => el('span', c, t));
+    if (!lines.length && paused) kids.push(el('span', 'pause', 'Pause'));
+    if (bar) { const pb = el('span', 'pbar'), fill = el('i'); fill.style.width = clamp(bar.v, 0, 1) * 100 + '%'; pb.append(fill); for (const tk of bar.ticks || []) { const b = el('b'); b.style.left = clamp(tk, 0, 1) * 100 + '%'; pb.append(b); } kids.push(pb); }
+    $('hudInfo').replaceChildren(...kids);
+  }
+  // the lit buttons: each management button (and the bank's dollar) is lit exactly while its screen is open
+  function litButtons() {
+    const open = id => !$(id).hidden, staffOpen = open('staffSheet');
+    const lit = { bankBtn: open('bankSheet'), buildBtn: open('buildSheet'), decorBtn: open('decorSheet') || open('shopSheet'), editBtn: editPick,
+      staffBtn: staffOpen && staffTab !== 'pay', mgrBtn: staffOpen && staffTab === 'pay', mapBtn: HI.getFlat(), caseBtn: open('caseSheet'), resBtn: open('resSheet'), statBtn: open('statSheet'), polBtn: open('polSheet') };
+    for (const id in lit) $(id).classList.toggle('on', !!lit[id]);
   }
   function setStatus() {
     placeStatus(); renderInfo();
@@ -696,7 +718,7 @@
     for (const f of list) {
       const [a, b] = faxTitle(f), left = Math.max(0, f.t - view.t), len = FAX_LEN[f.k] || 30;
       const bt = el('button', 'faxbtn' + (left < 8 ? ' urgent' : ''));
-      const ico = el('span', 'ico', FAX_ICON[f.k] || '✉'); bt.append(ico, el('span', null, a), el('small', null, b + ` · ${Math.ceil(left)}s`));
+      bt.title = `${a}${b ? ': ' + b : ''} (${Math.ceil(left)}s left; M opens the first fax)`; bt.append(el('span', 'ico', FAX_ICON[f.k] || '✉'));
       const tm = el('span', 'tm'), ti = el('i'); ti.style.width = clamp(left / len, 0, 1) * 100 + '%'; tm.append(ti); bt.append(tm);
       bt.addEventListener('click', () => showFax(f.id));
       wrap.append(bt);
@@ -777,8 +799,9 @@
   const skillTxt = s => (s.k === 'd' ? `skill ${Math.round(s.sk * 1000)}` : `ability ${Math.round(s.sk * 100)}%`);
 
   // ---- build ----
-  let buildCat = 'diag';
-  function openBuild() { if (tab !== ME) setTab(ME); closeSheets(); lastErr = null; $('buildSheet').hidden = false; $('buildList').dataset.key = ''; refreshBuild(); }
+  let buildCat = null;
+  // the room picker opens with no department chosen, as in the original
+  function openBuild() { if (tab !== ME) setTab(ME); closeSheets(); lastErr = null; buildCat = null; buildSel = null; $('buildSheet').hidden = false; $('buildList').dataset.key = ''; refreshBuild(); }
   function refreshBuild() {
     if ($('buildSheet').hidden || !view) return;
     const h = view.h[ME];
@@ -790,15 +813,18 @@
     [...cats.children].forEach(b => b.classList.toggle('on', b.dataset.c === buildCat));
     // Rebuilt only when what it shows changes: replacing a button mid-press swallows the click.
     const list = $('buildList');
-    const kinds = RH.ROOM_ORDER.filter(k => RH.inCat(k, buildCat));
-    const key = [buildCat, !!busy].concat(kinds.map(k => (RH.unlocked(h, k) ? 1 : 0) + (h.cash < RH.roomCost(h, k) ? 0 : 2))).join('|');
+    // only rooms already discovered are listed, in a fixed order within each department
+    const kinds = buildCat ? RH.ROOM_ORDER.filter(k => RH.inCat(k, buildCat) && RH.unlocked(h, k)) : [];
+    $('buildHead').textContent = buildCat ? 'Pick room type' : 'Pick department';
+    const key = [buildCat, !!busy].concat(kinds.map(k => (h.cash < RH.roomCost(h, k) ? 0 : 2))).join('|');
     if (list.dataset.key !== key) {
       list.dataset.key = key; list.replaceChildren();
-      if (!kinds.includes(buildSel)) buildSel = kinds.find(k => RH.unlocked(h, k)) || kinds[0];
+      if (!kinds.includes(buildSel)) buildSel = null;
+      list.onpointerleave = () => { buildSel = null; [...list.children].forEach(x => x.classList.remove('sel')); buildPreview(); };
       for (const kind of kinds) {
         const R = RH.ROOMS[kind], open = RH.unlocked(h, kind), cost = RH.roomCost(h, kind);
         const cures = RH.DISEASES.filter(d => d.room === kind).map(d => d.name);
-        const b = el('button'); b.disabled = !!busy;   // locked rooms stay pointable, so their preview shows
+        const b = el('button'); b.disabled = !!busy;
         let what = '';
         if (kind === 'gp') what = 'First diagnosis for every patient. Consultants diagnose most cases in one visit.';
         else if (R.cat === 'diag') what = `Adds to the diagnosis % (finds ${R.det.split(' ').map(g => ({ pharm: 'drug', psych: 'mental', clinic: 'clinic', op: 'surgical' })[g]).join(', ')} illnesses). Fee ${money(R.fee)}.`;
@@ -812,9 +838,9 @@
         const need = R.staff ? ` Needs ${R.need ? 'two surgeons' : 'a ' + needWord(kind)}.` : '';
         const size = ` At least ${R.min}×${R.min}${R.swing ? ', double doors' : ''}.`;
         buildInfo[kind] = { name: R.name, cost, txt: open ? what + need + size : `Not researched yet (${RH.RESEARCH.cure.list.includes(kind) ? 'Cure' : 'Diagnosis'} Equipment). ` + what };
-        b.className = 'rrow' + (open ? '' : ' locked') + (h.cash < cost ? ' dear' : '') + (kind === buildSel ? ' sel' : ''); b.dataset.k = kind;
-        b.append(el('span', null, R.name), el('span', null, open ? money(cost) : 'Locked'));
-        // pointing at a room shows it in the preview pane and puts its price on the cost line
+        b.className = 'rrow' + (h.cash < cost ? ' dear' : '') + (kind === buildSel ? ' sel' : ''); b.dataset.k = kind; b.title = buildInfo[kind].txt;
+        b.append(el('span', null, R.name));
+        // pointing at a room shows it in the preview pane and puts its full price on the cost line
         const show = () => { buildSel = kind; [...list.children].forEach(x => x.classList.toggle('sel', x === b)); buildPreview(); };
         b.addEventListener('pointerenter', show); b.addEventListener('focus', show);
         // the cost check: refused with a hint about loans if you can't afford it
@@ -832,9 +858,31 @@
   let buildSel = null;
   const buildInfo = {};
   function buildPreview() {
-    const i = buildInfo[buildSel]; if (!i) return;
-    $('buildPrev').replaceChildren(el('b', null, i.name), el('small', null, i.txt));
-    $('buildCost').textContent = `Cost ${money(i.cost)}`;
+    const i = buildSel && buildInfo[buildSel];
+    $('buildCost').textContent = `Cost ${money(i ? i.cost : 0)}`;
+    drawRoomModel(i ? buildSel : null);
+  }
+  // the preview pane: the hovered room's main piece of equipment on the blueprint grid, turning slowly
+  let modelKind = null, modelTimer = 0;
+  function drawRoomModel(kind) {
+    modelKind = kind; clearInterval(modelTimer);
+    const c = $('buildModel'), x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+    $('buildPrev').classList.toggle('empty', !kind);
+    if (!kind) return;
+    // the room's biggest required piece (the GP's desk, the X-ray machine, the operating table)
+    const R = RH.ROOMS[kind], o = R.req.slice().sort((a, b) => RH.OBJ[b].fw * RH.OBJ[b].fd - RH.OBJ[a].fw * RH.OBJ[a].fd)[0];
+    let turn = 0;
+    const draw = () => {
+      if (modelKind !== kind || $('buildSheet').hidden) { clearInterval(modelTimer); return; }
+      const [fw, fd] = RH.objDims(o, turn), wx = 10 * T, wy = 10 * T, [sx, sy] = HI.px(wx + fw * 8, wy + fd * 8);
+      x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+      const W2 = c.width / HA.SS, H2 = c.height / HA.SS, ox = sx - W2 / 2, oy = sy - H2 * 0.62;
+      x.setTransform(HA.SS, 0, 0, HA.SS, -ox * HA.SS, -oy * HA.SS); HI.setOrigin(x, ox, oy);
+      try { for (const it of [].concat(HI.objItem(o, 10, 10, turn, kind, false))) it.draw(x); } catch (e) {}
+      HI.setOrigin(null, 0, 0);
+      turn = (turn + 1) & 3;
+    };
+    draw(); modelTimer = setInterval(draw, 1400);
   }
 
   // ---- a room ----
@@ -1218,8 +1266,11 @@
   const warmWord = w => (w < 0.6 ? 'cold' : w > 1.6 ? 'too hot' : w > 1.2 ? 'warm' : 'comfortable');
   $('decorRemove').addEventListener('click', () => { if (decorSpotSel) act('undecor', { c: decorSpotSel[0], r: decorSpotSel[1] }); $('decorSheet').hidden = true; });
   $('decorClose').addEventListener('click', () => { $('decorSheet').hidden = true; });
-  $('decorBtn').addEventListener('click', () => { if (tab !== ME) setTab(ME); if (myEdit()) { toast('Finish the room you\'re building first', 'dim'); return; } openOrder(); });
-  $('buildBtn').addEventListener('click', () => { if (!view || view.ph !== 'play') return; const r = myEdit(); if (r) { toast(`Finish the ${rname(r.k)} first`, 'dim'); return; } openBuild(); });
+  // Build, Furnish and Hire: pressing one while its window is open closes it
+  $('decorBtn').addEventListener('click', () => { if (!$('decorSheet').hidden || !$('shopSheet').hidden) { closeSheets(); return; } if (tab !== ME) setTab(ME); if (myEdit()) { toast('Finish the room you\'re building first', 'dim'); return; } editPick = false; openOrder(); });
+  $('buildBtn').addEventListener('click', () => { if (!$('buildSheet').hidden) { closeSheets(); return; } if (!view || view.ph !== 'play') return; const r = myEdit(); if (r) { toast(`Finish the ${rname(r.k)} first`, 'dim'); return; } editPick = false; openBuild(); });
+  // Edit room: the next click on one of your rooms opens it for editing
+  $('editBtn').addEventListener('click', () => { if (editPick) { editPick = false; setStatus(); return; } if (!view || view.ph !== 'play' || !mine()) return; if (tab !== ME) setTab(ME); if (myEdit()) { toast(`Finish the ${rname(myEdit().k)} first`, 'dim'); return; } closeSheets(); editPick = true; infoKey = ''; setStatus(); });
 
   // ---- staff ----
   let staffTab = 'd', lastPoolKey = '';
@@ -1597,12 +1648,26 @@
   $('bankClose').addEventListener('click', () => { $('bankSheet').hidden = true; });
   $('statClose').addEventListener('click', () => { $('statSheet').hidden = true; });
   const mine = () => { if (tab !== ME) setTab(ME); return !!view; };
-  $('staffBtn').addEventListener('click', () => { if (mine()) { closeSheets(); openStaff(); } });
-  $('caseBtn').addEventListener('click', () => { if (mine()) { closeSheets(); openCase(); } });
-  $('resBtn').addEventListener('click', () => { if (mine()) openResearch(); });
-  $('polBtn').addEventListener('click', () => { if (mine()) openPolicy(); });
-  $('bankBtn').addEventListener('click', () => { if (mine()) openBank(); });
-  $('statBtn').addEventListener('click', () => { if (mine()) openStatus(); });
+  // the management screens: a lit button closes its screen; opening one closes whatever else is open
+  const screen = (id, open, isOpen) => () => { if (!mine()) return; if (isOpen ? isOpen() : !$(id).hidden) { $(id).hidden = true; return; } editPick = false; closeSheets(); open(); };
+  const hireOpen = () => !$('staffSheet').hidden && staffTab !== 'pay', mgmtOpen = () => !$('staffSheet').hidden && staffTab === 'pay';
+  const SCREENS = {
+    bankMgr: screen('bankSheet', () => openBank('mgr'), () => !$('bankSheet').hidden && bankTab === 'mgr'),
+    bankStmt: screen('bankSheet', () => openBank('stmt'), () => !$('bankSheet').hidden && bankTab === 'stmt'),
+    hire: screen('staffSheet', () => openStaff(staffTab === 'pay' ? 'd' : null), hireOpen),
+    staff: screen('staffSheet', () => openStaff('pay'), mgmtOpen),
+    map: () => setFlat(!HI.getFlat()),
+    case: screen('caseSheet', openCase), res: screen('resSheet', openResearch), stat: screen('statSheet', () => openStatus()), pol: screen('polSheet', openPolicy),
+  };
+  $('bankBtn').addEventListener('click', SCREENS.bankMgr);
+  $('bankBtn').addEventListener('contextmenu', e => { e.preventDefault(); SCREENS.bankStmt(); });
+  $('staffBtn').addEventListener('click', SCREENS.hire);
+  $('mgrBtn').addEventListener('click', SCREENS.staff);
+  $('mapBtn').addEventListener('click', SCREENS.map);
+  $('caseBtn').addEventListener('click', SCREENS.case);
+  $('resBtn').addEventListener('click', SCREENS.res);
+  $('polBtn').addEventListener('click', SCREENS.pol);
+  $('statBtn').addEventListener('click', SCREENS.stat);
   $('profBtn').addEventListener('click', openProfile);
   $('profSave').addEventListener('click', saveProfile);
   $('profInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveProfile(); });
@@ -1625,11 +1690,14 @@
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || !$('profile').hidden) return;
     const k = e.key.toLowerCase();
-    if (k === 'escape') { if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); return; }
-    if (k === 'r' && !e.metaKey && !e.ctrlKey && myEdit() && myEdit().phase === 'furnish') { edRot = (edRot + 1) & 3; return; }
-    if (k === 'b' && !e.metaKey && !e.ctrlKey) { $('buildBtn').click(); return; }
-    const F = { f1: () => openBank('stmt'), f2: () => { closeSheets(); openCase(); }, f3: openPolicy, f4: openResearch, f5: () => openStatus(), f6: () => { closeSheets(); openStaff(); }, f7: () => openBank('mgr'), f8: () => openStatus() };
-    if (F[k]) { e.preventDefault(); if (view && mine()) F[k](); return; }
+    // Theme Hospital's keys: Escape or Q closes, F/G/V/B are the four build buttons, F1-F9 the management screens
+    const plain = !e.metaKey && !e.ctrlKey && !e.altKey;
+    if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); setStatus(); return; }
+    if ((k === 'r' || k === ' ') && plain && myEdit() && myEdit().phase === 'furnish') { e.preventDefault(); edRot = (edRot + 1) & 3; return; }
+    if (plain && !e.shiftKey) { const B = { f: 'buildBtn', g: 'decorBtn', v: 'editBtn', b: 'staffBtn' }; if (B[k]) { $(B[k]).click(); return; } }
+    if (k === 'm' && plain && view && (view.h[ME].fax || []).length) { showFax(view.h[ME].fax[0].id); return; }
+    const F = { f1: SCREENS.bankMgr, f2: SCREENS.bankStmt, f3: SCREENS.staff, f4: SCREENS.map, f5: SCREENS.case, f6: SCREENS.res, f7: SCREENS.stat, f9: SCREENS.pol };
+    if (F[k]) { e.preventDefault(); if (view) F[k](); return; }
     if (k === 'a' && e.shiftKey) { advisorOff = !advisorOff; setStatus(); return; }
     if (k === 'h' || k === '?') { if (!e.repeat) toggleLegend(); return; }
     if (k === 'tab') { e.preventDefault(); if (!SOLO) setTab(tab === ME ? FRIEND : ME); return; }
@@ -1703,7 +1771,7 @@
     const v = 520 * dt / cam.z;
     cam.x += dx * v; cam.y += dy * v; clampCam();
   }
-  function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (V)' : 'Aerial view (V)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
+  function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (F4)' : 'Town map: the whole hospital from above (F4)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
   try { if (localStorage.getItem('rh3d_flat') === '1') setFlat(true); } catch (e) {}
   addEventListener('resize', resize); resize(); fitView(); setTimeout(() => { resize(); fitView(); }, 300);
   const toBuf = (px, py) => [cam.x + (px - cw / 2) / cam.z, cam.y + (py - ch / 2) / cam.z];
@@ -1763,7 +1831,7 @@
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || !$('profile').hidden || modalOpen()) return;
     const k = e.key.toLowerCase();
-    if (k === 'f' && e.shiftKey) toggleFull(); else if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
+    if (k === 'f' && e.shiftKey) toggleFull(); else if (k === 'home') fitView();
     else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 'd'].includes(k) || (k === 's' && !e.repeat && false)) { keysDown.add(k); e.preventDefault(); }
   });
   addEventListener('keyup', e => keysDown.delete(e.key.toLowerCase()));
@@ -1780,6 +1848,12 @@
     if (!view || modalOpen()) return;
     const h = view.h[tab];
     if (tab === ME && view.ph === 'play' && edTap(bx, by)) return;
+    if (editPick) {   // Edit room: the room clicked opens for editing
+      const rm = roomAt(h, Math.floor(bx / T), Math.floor(by / T));
+      if (!rm || tab !== ME) { toast('Click one of your rooms to edit it, or press Escape', 'dim'); return; }
+      if (rm.phase !== 'built') { toast(`The ${rname(rm.k)} isn't finished yet`, 'dim'); return; }
+      editPick = false; act('edit', { id: rm.id }); ed = null; edLi = 0; setStatus(); return;
+    }
     const [tx, ty] = HI.px(bx, by);
     // rats first: tap to shoot
     if (tab === ME && view.ph === 'play') for (const rt of h.rats || []) {
@@ -1809,17 +1883,53 @@
     const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by), h = view.h[tab];
     edHoverW = [wx, wy];
     if (e.buttons) return;
-    let txt = '';
+    const info = myEdit() || (ed && ed.mode) ? null : hoverAt(h, bx, by, wx, wy);
+    const txt = info ? JSON.stringify(info) : '';
+    if (txt !== hoverTxt) { hoverTxt = txt; hoverInfo = info; setStatus(); }
+  });
+  cv.addEventListener('pointerleave', () => { edHoverW = null; if (hoverTxt) { hoverTxt = ''; hoverInfo = null; setStatus(); } });
+  // The info bar's lines for what's under the mouse, as in Theme Hospital: a person (with their fatigue or diagnosis
+  // as a progress bar), a machine room (name, strength, times used), a room (name, queue), the reception desk
+  function hoverAt(h, bx, by, wx, wy) {
+    const [tx, ty] = HI.px(bx, by), pol = h.pol || { guess: 80, term: 100, rest: 60 };
+    const hit = (list, kind) => { let best = null, bd = 1e9; for (const e of list || []) { if (e.incar) continue; const [x, y] = posOf(kind, e), [sx, sy] = HI.px(x, y); if (Math.abs(tx - sx) <= 8 && ty <= sy + 2 && ty >= sy - 24) { const d = Math.abs(tx - sx) + Math.abs(ty - (sy - 12)); if (d < bd) { bd = d; best = e; } } } return best; };
+    const roomOfQ = id => Object.values(h.rooms).find(r => (r.q || []).includes(id));
+    const pt = hit(h.pats, 'p');
+    if (pt) {
+      const D = RH.DISEASES[pt.dis] || {}, q = roomOfQ(pt.id);
+      const doing = pt.st === 'enter' ? 'Arriving' : pt.st === 'recep' ? 'At reception' : pt.st === 'queue' ? (q ? `Queueing for the ${rname(q.k)}` : 'Queueing') : pt.st === 'in' ? 'Being seen' : pt.st === 'wait' ? 'Waiting for you to decide' : pt.st === 'wc' ? 'In the toilet' : pt.st === 'trip' ? 'Buying a drink' : pt.st === 'leave' ? (pt.why === 'cured' ? 'Going home cured' : 'Leaving') : 'Wandering';
+      const lines = [`${pt.nm}: ${doing}`, pt.dx ? D.name || 'Diagnosed' : 'Diagnosis incomplete'];
+      if (pt.inf) lines.push(pt.vax ? 'Vaccinated' : 'Infected');
+      return { lines, bar: pt.dx ? null : { v: pt.dg || 0, ticks: [pol.guess / 100] } };
+    }
+    const st = hit(h.staff, 's');
+    if (st) {
+      const room = st.room != null ? h.rooms[st.room] : null;
+      const doing = st.mode === 'rest' ? 'Resting' : st.mode === 'train' ? 'Training' : st.mode === 'leave' ? 'Leaving' : st.desk ? 'On reception' : room ? `Working in the ${rname(room.k)}` : st.job ? 'Off to a job' : 'Wandering about';
+      const lines = [`${st.nm} · ${RH.typeName(st.k)}`, doing];
+      if (st.k === 'r') return { lines };
+      const tired = st.tired || 0;
+      lines.push(tired > 0.8 ? 'Exhausted' : tired > 0.5 ? 'Tired' : tired > 0.25 ? 'Getting tired' : 'Fresh');
+      return { lines, bar: { v: tired, ticks: [pol.rest / 100] } };
+    }
     const c = Math.floor(wx / T), r = Math.floor(wy / T), rm = roomAt(h, c, r);
     if (rm) {
       const R = RH.ROOMS[rm.k];
-      txt = rm.phase === 'wreck' ? `${R.name}: wrecked` : rm.phase !== 'built' ? `${R.name}: being built` : `${R.name} · ${qn(rm)} queuing` + (R.mach ? ` · machine strength ${rm.str}, used ${rm.used}` : '') + (rm.sts.length < (R.need || (R.staff ? 1 : 0)) ? ` · needs a ${needWord(rm.k)}` : '');
-    } else if (wx >= RH.DESK_TILES[0][0] * T - 4 && wx <= RH.DESK_TILES[0][0] * T + 16 && wy >= RH.DESK_TILES[0][1] * T - 4 && wy <= RH.DESK_TILES[0][1] * T + 32) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
-    else { const d = h.decor[RH.decorKey(c, r)]; if (d) txt = RH.DECOR[d].name + (d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' (dead: needs watering)' : ''); }
-    if (myEdit() || (ed && ed.mode)) txt = '';
-    if (txt !== hoverTxt) { hoverTxt = txt; setStatus(); }
-  });
-  cv.addEventListener('pointerleave', () => { edHoverW = null; if (hoverTxt) { hoverTxt = ''; setStatus(); } });
+      if (rm.phase === 'wreck') return { lines: [R.name, 'Wrecked by an explosion'] };
+      if (rm.phase !== 'built') return { lines: [R.name, 'Being built'] };
+      if (R.mach) return { lines: [RH.OBJ[R.p].name, `Strength ${rm.str}`, `Times used ${rm.used}`] };
+      const short = rm.sts.length < (R.need || (R.staff ? 1 : 0));
+      return { lines: [R.name, `Queue size ${qn(rm)}`, short ? `Needs a ${needWord(rm.k)}` : `Patients seen ${rm.n || 0}`] };
+    }
+    if (wx >= RH.DESK_TILES[0][0] * T - 4 && wx <= RH.DESK_TILES[0][0] * T + 16 && wy >= RH.DESK_TILES[0][1] * T - 4 && wy <= RH.DESK_TILES[0][1] * T + 32) {
+      if (!h.desk) return { lines: ['Reception desk', 'Click to buy it ($150)'] };
+      const atDesk = (h.pats || []).filter(p => p.st === 'recep').length, coming = (h.pats || []).filter(p => p.st === 'enter').length;
+      return { lines: ['Reception', `Queue size ${atDesk}`, `Queue expected ${coming}`] };
+    }
+    const d = h.decor[RH.decorKey(c, r)];
+    if (d) return { lines: [RH.DECOR[d].name].concat(d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ['Dead: needs watering'] : []) };
+    return null;
+  }
 
   // ============================ rendering ============================
   const P = (x, y, w, h, col) => { bctx.fillStyle = col; bctx.fillRect(x, y, w, h); };
@@ -2162,7 +2272,7 @@
     const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
     panKeys(dt); edgePan(dt);
     try {
-      render(now / 1000, dt); renderHud(); placeStatus(); advisorTick(now); monthBar(now);
+      render(now / 1000, dt); renderHud(); placeStatus(); advisorTick(now); monthBar(now); litButtons();
       if ((slow += dt) > 0.5) { slow = 0; setStatus(); renderFaxes(); if (host) refreshSheets(); }
     } catch (err) { console.error(err); }
     requestAnimationFrame(frame);

@@ -19,7 +19,11 @@
     .bar { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; align-items: stretch; gap: 6px; padding: 5px 6px; flex-wrap: wrap; color: #eaf6fa;
       background: linear-gradient(#3b80cc, #2563a9 50%, #1c4f8c); border: 2px solid #0d2a52; border-radius: 4px; box-shadow: inset 0 2px 0 #82b9ee, inset 0 -2px 0 #123c70, 0 4px 10px rgba(0,0,0,.35); }
     .th-money { display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; background: linear-gradient(#2a9c95, #1a7a75); border: 2px solid; border-color: #74d3cb #0c3f3c #0c3f3c #74d3cb; border-radius: 2px; }
-    .th-dollar { font: 900 2.2rem/1 Georgia, 'Times New Roman', serif; width: 1.05em; text-align: center; color: #fff8e0; text-shadow: 2px 0 #0c2a28, -2px 0 #0c2a28, 0 2px #0c2a28, 0 -2px #0c2a28, 2px 2px #0c2a28, -2px 2px #0c2a28, 3px 3px 0 rgba(0,0,0,.25); }
+    /* the bank button: the big dollar sign, lit while the bank manager or statement is open */
+    .th-dollar { appearance: none; width: 40px; height: 42px; padding: 0; cursor: pointer; font: 900 2.2rem/1 Georgia, 'Times New Roman', serif; color: #fff8e0; background: none; border: 2px solid transparent; border-radius: 2px;
+      text-shadow: 2px 0 #0c2a28, -2px 0 #0c2a28, 0 2px #0c2a28, 0 -2px #0c2a28, 2px 2px #0c2a28, -2px 2px #0c2a28, 3px 3px 0 rgba(0,0,0,.25); }
+    .th-dollar:hover { color: #fff; }
+    .th-dollar.on { color: #ffe36b; background: #136660; border-color: #0c3f3c #74d3cb #74d3cb #0c3f3c; }
     .th-acct { display: grid; gap: 4px; }
     .digits { display: flex; gap: 1px; padding: 2px; background: #4e565d; border: 1px solid #23282d; box-shadow: inset 0 1px 2px rgba(0,0,0,.5); }
     .digits i { font: 700 1.05rem/1.3 ui-monospace, 'SF Mono', Menlo, monospace; font-style: normal; width: .92em; text-align: center; background: linear-gradient(#ffffff 60%, #e2e0d8); color: #1b1720; border-radius: 1px; }
@@ -28,7 +32,7 @@
     .repm svg { width: 14px; height: 14px; flex: none; }
     .repm .track { position: relative; flex: 1; height: 8px; background: linear-gradient(90deg, #d0352a, #f2b233 50%, #49b84a); border: 1px solid #0c2a28; box-shadow: inset 0 1px 2px rgba(0,0,0,.35); }
     .repm .track b { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 0 1px #1b1720; }
-    .cal { display: grid; place-content: center; text-align: center; min-width: 64px; padding: 9px 8px 3px; background: #fffef6; color: #b8231b; border: 2px solid #23282d; border-radius: 3px; position: relative; line-height: 1; box-shadow: inset 0 -3px 0 #e6e1d2; }
+    .cal { display: grid; place-content: center; text-align: center; min-width: 64px; padding: 9px 8px 3px; background: #fffef6; color: #9a3418; border: 2px solid #23282d; border-radius: 3px; position: relative; line-height: 1; box-shadow: inset 0 -3px 0 #e6e1d2; }
     .cal::before { content: ''; position: absolute; left: 6px; right: 6px; top: 2px; height: 4px; background: repeating-linear-gradient(90deg, #4a4d55 0 2px, transparent 2px 5px); }
     .cal b { font: 800 1.3rem/1 var(--font); white-space: nowrap; }
     .cal small { display: block; margin-top: 2px; font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: #6b6878; }
@@ -37,23 +41,45 @@
       background: linear-gradient(#3579c6, #2460a8); color: #a9d4ff; font: 800 1.15rem var(--font); }
     .mbtn svg { width: 27px; height: 27px; }
     .mbtn:hover { color: #eef6ff; background: linear-gradient(#3e87d8, #2a6ab6); }
-    .mbtn:active { border-color: #0d2a52 #78b0ec #78b0ec #0d2a52; background: #1f5296; }
+    .mbtn:active, .mbtn.on { border-color: #0d2a52 #78b0ec #78b0ec #0d2a52; background: #1f5296; }
+    .mbtn.on { color: #ffe36b; }
     .mbtn kbd { position: absolute; right: 2px; bottom: 0; font: 600 .5rem var(--font); color: #84b6ea; }
     .mbtn.sm { width: 34px; height: 34px; font-size: .9rem; }
     .mbtn.flash::after { content: ''; position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 0 2px #0d2a52; }
-    .th-info { flex: 1 1 220px; min-width: 0; display: flex; gap: 6px; align-items: center; padding: 3px 5px; background: #0a1736; border: 2px solid; border-color: #23282d #a3abb3 #a3abb3 #23282d; border-radius: 2px; box-shadow: inset 0 0 0 1px #1d2f5c; }
-    #hudInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; font: 600 .8rem/1.3 var(--font); color: #eef3ff; }
+    /* the info bar: three lines about whatever is under the mouse, with an optional progress bar; while the mouse is
+       over the panel it turns into the management buttons (on touch screens the buttons always show) */
+    .th-info { flex: 1 0 300px; min-width: 0; display: flex; align-items: center; padding: 3px 6px; background: #0a1736; border: 2px solid; border-color: #23282d #a3abb3 #a3abb3 #23282d; border-radius: 2px; box-shadow: inset 0 0 0 1px #1d2f5c; }
+    #hudInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; font: 600 .78rem/1.28 var(--font); color: #eef3ff; }
     #hudInfo span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #hudInfo .dim { color: #8ea6d6; font-weight: 500; }
+    #hudInfo .pause { align-self: center; color: #6fa8ff; font-weight: 800; font-size: .95rem; letter-spacing: .06em; }
+    .pbar { position: relative; align-self: flex-end; width: 100px; height: 10px; margin-top: 2px; border: 1px solid #fff; background: #0a1736; }
+    .pbar i { position: absolute; left: 0; top: 0; bottom: 0; background: #ff8a1c; }
+    .pbar b { position: absolute; top: -1px; bottom: -1px; width: 1px; background: #fff; }
+    .th-info .mgmt { display: none; padding: 0; border: 0; background: none; }
+    @media (hover: hover) and (pointer: fine) { .bar:hover #hudInfo { display: none; } .bar:hover .th-info .mgmt { display: flex; } }
+    @media not ((hover: hover) and (pointer: fine)) { #hudInfo { display: none; } .th-info .mgmt { display: flex; } .th-info { flex: 0 0 auto; } }
     .th-tabs { display: grid; gap: 3px; }
     .tab { appearance: none; border: 1px solid #3a5a9a; background: #13295a; color: #8ea6d6; border-radius: 2px; padding: .1rem .55rem; font: 700 .72rem var(--font); cursor: pointer; white-space: nowrap; }
     .tab.on { background: #e8f0ff; color: #0a1736; border-color: #e8f0ff; }
     .tab.who { display: grid; place-items: center; padding: 2px; flex: none; }
     .tab.who canvas { width: 30px; height: 30px; image-rendering: pixelated; }
     .tab.who span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    .th-ctl { display: flex; align-items: center; gap: 4px; }
-    .th-ctl:not(:has(> :not([hidden]))) { display: none; }
+    /* our additions at the right end: who's playing, which hospital is in view, game speed, help */
+    .th-extra { display: flex; align-items: center; gap: 4px; padding: 3px 5px; background: #163f78; border: 2px solid; border-color: #0d2a52 #6fa8e6 #6fa8e6 #0d2a52; border-radius: 2px; }
     .brk { display: none; }
+    /* the countdown watch, bottom left above the panel */
+    .watch { position: fixed; left: 20px; bottom: calc(var(--barh, 70px) + 50px + env(safe-area-inset-bottom)); width: 52px; filter: drop-shadow(0 3px 3px rgba(0,0,0,.4)); }
+    .watch[hidden] { display: none; }
+    .watch svg { display: block; width: 52px; height: 52px; }
+    .watch .rim { fill: #c9ced4; stroke: #23282d; stroke-width: 1.5; }
+    .watch .face { fill: #fffef6; stroke: #8a9096; stroke-width: 1; }
+    .watch .seg { fill: #ece6d6; stroke: #b8b2a2; stroke-width: .4; }
+    .watch .seg.on { fill: #d0352a; stroke: #8a1f18; }
+    .watch .hub { fill: #23282d; }
+    .watch button { display: block; margin: 0 auto -3px; width: 16px; height: 12px; padding: 0; cursor: pointer; background: linear-gradient(#e3e7eb, #9aa1a8); border: 1.5px solid #23282d; border-radius: 3px 3px 1px 1px; }
+    .watch button:hover { background: linear-gradient(#fff, #c0c6cc); }
+    .watch button:active { transform: translateY(2px); }
     .cures { position: fixed; top: 8px; right: 12px; padding: 3px 12px 2px; background: #fffef6; color: #c4202a; font: 800 1.05rem var(--font); border: 3px solid; border-color: #e3e7eb #6a7077 #6a7077 #e3e7eb; outline: 1px solid #23282d; border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
     .cures b { font-variant-numeric: tabular-nums; margin-left: .3em; }
     .pt-btn.bar-btn { padding: .38rem .85rem; font-size: .88rem; }
@@ -106,14 +132,14 @@
     @media (max-width: 640px) { .editbar { padding: 6px 8px; } .eb-hint { font-size: .78rem; } }
 
     /* ---------- fax tray ---------- */
-    .faxes { position: fixed; left: 10px; bottom: calc(var(--barh, 70px) + var(--advh, 40px) + 20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column-reverse; gap: 6px; max-height: 50vh; }
-    .faxbtn { appearance: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 210px; padding: 6px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font: 600 .8rem var(--font); }
-    .faxbtn .ico { grid-row: span 2; font-size: 1.2rem; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); }
-    .faxbtn small { color: var(--muted); font-weight: 500; }
-    .faxbtn .tm { display: block; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; grid-column: 2; }
-    .faxbtn .tm i { display: block; height: 100%; background: var(--accent); }
-    .faxbtn.urgent { border-color: var(--accent); }
-    @media (max-width: 640px) { .faxbtn { width: 46px; grid-template-columns: auto; padding: 6px; } .faxbtn > span:not(.ico), .faxbtn small { display: none; } .faxbtn .ico { grid-row: auto; } }
+    /* fax icons come to rest along the panel's top edge, left to right, 30 px apart; a thin bar shows the time left */
+    .faxes { position: fixed; left: 9px; bottom: calc(var(--barh, 70px) + 8px + env(safe-area-inset-bottom)); display: flex; gap: 0; }
+    .faxbtn { appearance: none; cursor: pointer; position: relative; width: 30px; height: 28px; padding: 0; display: grid; place-items: center; font-size: 1rem; line-height: 1; animation: faxin .4s ease-out; }
+    .faxbtn .tm { position: absolute; left: 2px; right: 2px; bottom: 2px; height: 2px; background: #d9d1bd; }
+    .faxbtn .tm i { display: block; height: 100%; background: #c4302a; }
+    .faxbtn.urgent { animation: faxin .4s ease-out, faxurg 1s ease-in-out infinite; }
+    @keyframes faxin { from { transform: translateY(26px); opacity: 0; } }
+    @keyframes faxurg { 50% { box-shadow: 0 0 0 2px #ffd23f; } }
 
     .toasts { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 20; display: grid; gap: 4px; pointer-events: none; width: min(440px, calc(100% - 24px)); }
     .toast { background: var(--ink); color: var(--bg); border-radius: 10px; padding: 4px 10px; font-size: .85rem; font-weight: 600; opacity: .95; transition: opacity .4s, transform .4s; text-align: center; }
@@ -127,6 +153,9 @@
     .panel.float { inset: auto; top: 44px; left: 12px; display: block; padding: 0; background: none; backdrop-filter: none; pointer-events: none; }
     .panel.float .sheet { pointer-events: auto; width: min(470px, calc(100vw - 24px)); max-height: calc(100vh - var(--barh, 70px) - 70px); }
     .panel.float .sheet.wide { width: min(620px, calc(100vw - 24px)); }
+    /* the room picker opens in the middle of the screen, as in the original */
+    #buildSheet.panel.float { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    @media (max-width: 640px) { #buildSheet.panel.float { top: 40px; left: 6px; transform: none; } }
     @media (max-width: 640px) { .panel.float { top: 40px; left: 6px; right: 6px; } .panel.float .sheet, .panel.float .sheet.wide { width: auto; max-height: calc(100vh - var(--barh, 70px) - var(--advh, 0px) - 60px); } }
     .sheet { width: min(600px, 100%); max-height: calc(100% - 30px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 18px; }
     .sheet.wide { width: min(780px, 100%); }
@@ -261,11 +290,11 @@
     #buildCats button[data-c=treat] { background: #48b956; border-color: #98e6a2 #1f6a2a #1f6a2a #98e6a2; }
     #buildCats button[data-c=clinic] { background: #dcb63c; border-color: #f4e09a #8a6a12 #8a6a12 #f4e09a; }
     #buildCats button[data-c=fac] { background: #e2a08e; border-color: #f6d0c4 #94523e #94523e #f6d0c4; }
-    #buildCats button.on { filter: brightness(1.12); border-color: #3a3f44 rgba(255,255,255,.6) rgba(255,255,255,.6) #3a3f44; color: #fff; }
-    .bprev { min-height: 150px; padding: 8px; border: 3px ridge #bfc5cb; display: grid; align-content: end; gap: 3px;
+    /* the chosen department's label turns blue, as in the original */
+    #buildCats button.on { border-color: #3a3f44 rgba(255,255,255,.6) rgba(255,255,255,.6) #3a3f44; color: #1d3fb0; text-shadow: 0 1px 0 rgba(255,255,255,.55); }
+    .bprev { min-height: 150px; padding: 0; border: 3px ridge #bfc5cb; display: grid; place-items: center;
       background-color: #1f9a8f; background-image: linear-gradient(rgba(255,255,255,.24) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.24) 1px, transparent 1px); background-size: 12px 12px; }
-    .bprev b { font-size: 1rem; }
-    .bprev small { display: block; background: rgba(6,48,56,.72); padding: 5px 7px; font-size: .8rem; line-height: 1.35; color: #e6f8fa; }
+    .bprev canvas { width: 100%; aspect-ratio: 144 / 90; image-rendering: pixelated; }
     .rlist { display: grid; grid-template-rows: auto 1fr auto; border: 3px ridge #bfc5cb; background: #1b8395; min-height: 100%; }
     .rlist .rhead { padding: 6px 10px; font-weight: 800; letter-spacing: .03em; border-bottom: 2px solid #0a3e48; }
     #buildList { display: grid; align-content: start; }
@@ -280,16 +309,18 @@
     .xbtn { min-width: 64px; font-size: 1.1rem; }
     .xbtn b { color: #ff6a50; text-shadow: 0 1px 0 #5a120c; font-size: 1.3rem; line-height: 1; }
     @media (max-width: 640px) { .bgrid { grid-template-columns: 1fr; } #buildCats { grid-template-columns: 1fr 1fr; } #buildCats button { padding: .35rem .5rem; font-size: .82rem; } .bprev { display: none; } }
-    /* narrower screens: the panel splits into two rows, the screen buttons below the money, calendar and info panel */
+    /* narrower screens: the panel splits into two rows (money, date, build buttons and our extras over the info bar);
+       on phones the ten buttons share the bottom row */
     @media (max-width: 1240px) { .mbtn kbd { display: none; } .mbtn { width: 40px; height: 40px; } .mbtn svg { width: 25px; height: 25px; } }
-    @media (max-width: 1060px) { .brk { display: block; flex-basis: 100%; height: 0; } .th-money, .cal, .th-info, .th-ctl { order: 1; } .brk { order: 2; } .th-btns { order: 3; } .brk + .th-btns { margin-left: auto; } .bar { row-gap: 5px; } }
+    @media (max-width: 1100px) { .brk { display: block; flex-basis: 100%; height: 0; } .th-money, .cal, .th-btns, .th-extra { order: 1; } .th-extra { margin-left: auto; } .brk { order: 2; } .th-info { order: 3; } .bar { row-gap: 5px; } }
     @media (max-width: 640px) {
-      .bar { left: 4px; right: 4px; gap: 4px; padding: 4px; justify-content: space-between; }
-      .th-dollar { font-size: 1.5rem; } .digits i { font-size: .9rem; } .cal { min-width: 54px; padding: 8px 5px 2px; } .cal b { font-size: 1.05rem; }
-      #hudInfo { display: none; } .th-info { flex: 0 0 auto; } .tab.who canvas { width: 24px; height: 24px; }
-      .th-btns { padding: 2px; gap: 2px; } .mbtn { width: 33px; height: 33px; } .mbtn svg { width: 20px; height: 20px; } .mbtn.sm { width: 30px; height: 30px; }
-      .brk + .th-btns { margin-left: 0; }
+      .bar { left: 4px; right: 4px; gap: 4px; padding: 4px; }
+      .th-dollar { width: 30px; height: 34px; font-size: 1.5rem; } .digits i { font-size: .9rem; } .cal { min-width: 54px; padding: 8px 5px 2px; } .cal b { font-size: 1.05rem; }
+      .tab.who canvas { width: 24px; height: 24px; } .th-extra { padding: 2px 3px; }
+      .th-btns { order: 3; padding: 2px; gap: 2px; } .th-info { order: 3; padding: 2px; flex: 1 1 auto; justify-content: flex-end; }
+      .mbtn { width: 30px; height: 30px; } .mbtn svg { width: 19px; height: 19px; } .mbtn.sm { width: 28px; height: 28px; }
       .cures { top: 6px; right: 6px; font-size: .9rem; padding: 2px 8px 1px; }
+      .watch { left: 10px; bottom: calc(var(--barh, 70px) + var(--advh, 0px) + 22px + env(safe-area-inset-bottom)); }
     }
   </style>
 </head>
@@ -298,8 +329,8 @@
   <div class="ui">
     <div class="toasts" id="toasts"></div>
     <div class="camctl">
-      <button id="camFit" title="Back to the front doors (F)">⌂</button>
-      <button id="camFlat" title="Aerial view (V)">2D</button>
+      <button id="camFit" title="Back to the front doors (Home)">⌂</button>
+      <button id="camFlat" title="Town map: the whole hospital from above (F4)">2D</button>
       <button id="camFull" title="Full screen (Shift+F)" aria-label="Full screen" hidden><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
     </div>
     <div class="faxes" id="faxes"></div>
@@ -313,11 +344,12 @@
       <div class="bubble"><p class="status" id="status">Connecting…</p><div class="tut" id="tutBar" hidden></div></div>
       <canvas id="advFace" width="80" height="88" title="Your advisor (Shift+A hides them)"></canvas>
     </div>
-    <!-- Theme Hospital's control panel: the bank balance over the reputation gauge, the desk calendar, the building
-         buttons, the dark info panel (what's under the mouse), then the buttons for the hospital's screens -->
+    <!-- Theme Hospital's bottom panel, left to right as in the original: the bank button, the balance over the
+         reputation gauge, the date, the four build buttons, then the info bar (what's under the mouse), which turns
+         into the management buttons while the mouse is over the panel. Our additions sit at the right end. -->
     <div class="bar">
-      <div class="th-money" title="Bank balance (F1 statement, F7 bank manager)">
-        <span class="th-dollar" aria-hidden="true">$</span>
+      <div class="th-money">
+        <button class="th-dollar" id="bankBtn" title="Bank manager (F1) · right-click: bank statement (F2)" aria-label="Bank manager">$</button>
         <span class="th-acct">
           <span class="digits" id="hudCash" aria-label="Bank balance"></span>
           <span class="repm" id="stRep" title="Reputation"><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#e8604f" stroke="#0c2a28" stroke-width="1.2"/><circle cx="5" cy="5.6" r=".9" fill="#0c2a28"/><circle cx="9" cy="5.6" r=".9" fill="#0c2a28"/><path d="M4.4 10.2q2.6-2.4 5.2 0" fill="none" stroke="#0c2a28" stroke-width="1.2" stroke-linecap="round"/></svg><i class="track"><b id="hudRepBar"></b></i><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#7fd36a" stroke="#0c2a28" stroke-width="1.2"/><circle cx="5" cy="5.6" r=".9" fill="#0c2a28"/><circle cx="9" cy="5.6" r=".9" fill="#0c2a28"/><path d="M4.4 8.6q2.6 2.6 5.2 0" fill="none" stroke="#0c2a28" stroke-width="1.2" stroke-linecap="round"/></svg></span>
@@ -325,29 +357,35 @@
       </div>
       <span class="cal" id="hudDate"></span>
       <span class="th-btns">
-        <button class="mbtn" id="buildBtn" title="Build a room (B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"/><path d="M3 9v6l9 5 9-5V9"/><path d="M12 14v6"/><path d="M7.5 11.5v-3l4.5-2.5"/></svg><kbd>B</kbd></button>
-        <button class="mbtn" id="decorBtn" title="Furnish corridors: benches, plants, radiators"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 14h9l-1.2 7H8.7z"/><path d="M12 14V8.5"/><path d="M12 10.5C8.6 10.5 6.5 8.4 6.5 5c3.4 0 5.5 2.1 5.5 5.5z"/><path d="M12 9c0-3.2 2-5.2 5.5-5.2 0 3.4-2.1 5.2-5.5 5.2z"/></svg></button>
-        <button class="mbtn" id="staffBtn" title="Hire and manage staff (F6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7.5" r="3.6"/><path d="M4.5 21c0-4.4 3.3-7.4 7.5-7.4s7.5 3 7.5 7.4"/><path d="M12 14v4"/><path d="M10 16h4"/></svg><kbd>F6</kbd></button>
+        <button class="mbtn" id="buildBtn" title="Build room (F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"/><path d="M3 9v6l9 5 9-5V9"/><path d="M12 14v6"/><path d="M7.5 11.5v-3l4.5-2.5"/></svg><kbd>F</kbd></button>
+        <button class="mbtn" id="decorBtn" title="Furnish corridor (G)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 14h9l-1.2 7H8.7z"/><path d="M12 14V8.5"/><path d="M12 10.5C8.6 10.5 6.5 8.4 6.5 5c3.4 0 5.5 2.1 5.5 5.5z"/><path d="M12 9c0-3.2 2-5.2 5.5-5.2 0 3.4-2.1 5.2-5.5 5.2z"/></svg><kbd>G</kbd></button>
+        <button class="mbtn" id="editBtn" title="Edit room (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"/><path d="M3 9v6l9 5"/><path d="M14.5 19.5l5.5-5.5 2 2-5.5 5.5H14.5z"/></svg><kbd>V</kbd></button>
+        <button class="mbtn" id="staffBtn" title="Hire staff (B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7.5" r="3.6"/><path d="M3 21c0-4.4 3.1-7.4 7-7.4 1.6 0 3 .5 4.1 1.3"/><path d="M18.5 14v7"/><path d="M15 17.5h7"/></svg><kbd>B</kbd></button>
       </span>
-      <div class="th-info">
-        <button class="tab who" id="profBtn" title="Change your name or character"><canvas id="profMini" width="18" height="18"></canvas><span id="profName2">You</span></button>
-        <div id="hudInfo" aria-live="polite"></div>
-        <span class="th-tabs"><button class="tab on" id="tabMine" title="Your hospital (Tab switches)">Mine</button><button class="tab" id="tabRival" title="Look round the rival's hospital (Tab switches)">Rival</button></span>
-      </div>
       <span class="brk"></span>
-      <span class="th-btns">
-        <button class="mbtn" id="caseBtn" title="Drug Casebook: diseases and prices (F2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5 2.5 2.5 0 0 0 7.5 23H19"/><path d="M12 6.5v6"/><path d="M9 9.5h6"/></svg><kbd>F2</kbd></button>
-        <button class="mbtn" id="resBtn" title="Research (F4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.6A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.4-2.4L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><kbd>F4</kbd></button>
-        <button class="mbtn" id="polBtn" title="Hospital Policy (F3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V2.5h6V4"/><path d="M8.5 9.5h7"/><path d="M8.5 13h7"/><path d="M8.5 16.5h4.5"/></svg><kbd>F3</kbd></button>
-        <button class="mbtn" id="bankBtn" title="Bank Manager and Statement (F7 / F1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 4l9 5.5z"/><path d="M5.5 10v8"/><path d="M10 10v8"/><path d="M14 10v8"/><path d="M18.5 10v8"/><path d="M3 21h18"/></svg><kbd>F7</kbd></button>
-        <button class="mbtn" id="statBtn" title="Status: targets and league (F8)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17"/><path d="M8.5 16v-4"/><path d="M12.5 16V8"/><path d="M16.5 16v-6"/></svg><kbd>F8</kbd></button>
-        <button class="mbtn" id="helpBtn" title="How to play (H)">?</button>
-      </span>
-      <span class="th-ctl">
+      <div class="th-info">
+        <div id="hudInfo" aria-live="polite"></div>
+        <span class="th-btns mgmt">
+          <button class="mbtn" id="mgrBtn" title="Staff management (F3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2.5 20c0-3.6 2.4-6 5.5-6s5.5 2.4 5.5 6"/><path d="M13.6 14.4c.8-.3 1.8-.4 2.9-.4 3.1 0 5 2.4 5 6"/></svg><kbd>F3</kbd></button>
+          <button class="mbtn" id="mapBtn" title="Town map: the whole hospital from above (F4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5"/><path d="M15 6.5V20"/></svg><kbd>F4</kbd></button>
+          <button class="mbtn" id="caseBtn" title="Drug casebook (F5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5 2.5 2.5 0 0 0 7.5 23H19"/><path d="M12 6.5v6"/><path d="M9 9.5h6"/></svg><kbd>F5</kbd></button>
+          <button class="mbtn" id="resBtn" title="Research (F6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.6A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.4-2.4L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><kbd>F6</kbd></button>
+          <button class="mbtn" id="statBtn" title="Status (F7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17"/><path d="M8.5 16v-4"/><path d="M12.5 16V8"/><path d="M16.5 16v-6"/></svg><kbd>F7</kbd></button>
+          <button class="mbtn" id="polBtn" title="Policy (F9)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V2.5h6V4"/><path d="M8.5 9.5h7"/><path d="M8.5 13h7"/><path d="M8.5 16.5h4.5"/></svg><kbd>F9</kbd></button>
+        </span>
+      </div>
+      <span class="th-extra">
+        <button class="tab who" id="profBtn" title="Change your name or character"><canvas id="profMini" width="18" height="18"></canvas><span id="profName2">You</span></button>
+        <span class="th-tabs"><button class="tab on" id="tabMine" title="Your hospital (Tab switches)">Mine</button><button class="tab" id="tabRival" title="Look round the rival's hospital (Tab switches)">Rival</button></span>
         <span class="speed" id="speedBox" hidden><button class="mbtn sm" id="pauseBtn" title="Pause (P)">⏸</button><button class="mbtn sm" id="speedBtn" title="Speed (keys 1–5)">1×</button></span>
+        <button class="mbtn sm" id="helpBtn" title="How to play (H)">?</button>
         <button class="pt-btn bar-btn primary" id="startBtn" hidden>Start the match</button>
-        <button class="pt-btn bar-btn primary" id="openBtn" hidden>Open the doors</button>
       </span>
+    </div>
+    <!-- the countdown watch: thirteen segments fill red until the hospital opens; its top button opens it now -->
+    <div class="watch" id="watch" hidden>
+      <button id="openBtn" title="Open the hospital now" aria-label="Open the hospital now"></button>
+      <svg viewBox="-20 -20 40 40" aria-hidden="true"><circle r="17.5" class="rim"/><circle r="15" class="face"/><g id="watchSegs"></g><circle r="2" class="hub"/></svg>
     </div>
     <!-- the cures counter in the top corner -->
     <div class="cures" id="curesBox" title="Patients cured">Cures <b id="hudCured">0</b></div>
@@ -372,7 +410,7 @@
         <li>Tap the dashed outline by the entrance to buy a <b>reception desk</b>, then hire a <b>receptionist</b>. Without both, no patients come.</li>
         <li><b>Build</b> a room the way Theme Hospital does: drag a blueprint on the floor (each room has a minimum size), tap a wall for the door, add windows if you like, wait while the site clears and the walls go up, then place the furniture one piece at a time (Rotate turns it, or right-click; “Place for me” does it all). You pay for the furniture as it arrives and for the room itself when you finish. Rooms can't cut off any part of the hospital. Every patient starts at a <b>GP's Office</b>. If the GP isn't sure, they visit diagnosis rooms (General Diagnosis, Ward, Cardiogram…), each adding to their <b>diagnosis %</b>, then return to a GP. The higher the %, the better their chance of surviving the cure.</li>
         <li>Cures happen in the <b>Pharmacy</b> (drugs, with an effectiveness %), <b>Psychiatric</b> room (needs a psychiatrist), single-disease <b>clinics</b>, and the <b>Operating Theatre</b> (two surgeons; patients stay in a Ward first).</li>
-        <li>You have a few minutes to build before patients arrive. Press <b>Open the doors</b> to start early.</li>
+        <li>You have a few minutes to build before patients arrive. The <b>watch</b> at the bottom left counts down to opening day; press the button on top of it to open early.</li>
       </ul>
       <h4>Staff</h4>
       <ul class="tips">
@@ -395,7 +433,7 @@
       <h4>Winning</h4>
       <p class="tips" style="padding:0" id="legendWin"></p>
       <h4>Controls</h4>
-      <p class="tips" style="padding:0">Move the mouse to the edge of the screen (or drag, scroll or use the arrow keys) to look round the hospital, F to go back to the front doors, V for the flat aerial view of the whole hospital, Shift+F or the full-screen button for full screen, B to build, R or right-click to rotate furniture. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
+      <p class="tips" style="padding:0">Move the mouse to the edge of the screen (or drag, scroll or use the arrow keys) to look round the hospital, Home to go back to the front doors, Shift+F or the full-screen button for full screen. Theme Hospital's keys: F build room · G furnish corridor · V edit room · B hire staff · Space or R (or right-click) rotates furniture · F1 bank manager · F2 statement · F3 staff management · F4 town map (the whole hospital from above) · F5 casebook · F6 research · F7 status · F9 policy · M first fax · P pause, 1–5 speed · Escape or Q closes · Tab switches hospital · Shift+A hides the advisor · H help.</p>
       <h4>Diseases</h4>
       <table class="t" id="disTable"></table>
       <div class="row">
@@ -410,8 +448,8 @@
       <h2>Build a room</h2>
       <p class="sub" id="buildSub"></p>
       <div class="bgrid">
-        <div class="bcol"><div id="buildCats"></div><div class="bprev" id="buildPrev"></div></div>
-        <div class="rlist"><div class="rhead">Pick room type</div><div id="buildList"></div><div class="rcost" id="buildCost"></div></div>
+        <div class="bcol"><div id="buildCats"></div><div class="bprev empty" id="buildPrev"><canvas id="buildModel" width="144" height="90"></canvas></div></div>
+        <div class="rlist"><div class="rhead" id="buildHead">Pick department</div><div id="buildList"></div><div class="rcost" id="buildCost">Cost $0</div></div>
       </div>
       <p class="err" id="buildErr"></p>
       <div class="row"><button class="pt-btn pt-btn-ghost xbtn" id="buildClose" title="Cancel" aria-label="Cancel"><b>✕</b></button></div>
