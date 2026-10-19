@@ -115,7 +115,7 @@
     for (let y = 0; y < RH.H; y++) for (let x = 2; x < RH.W; x++) {
       if (Lr.room[RH.idx(x, y)]) continue;
       const byWall = RH.DIRS.some(([dx, dy]) => RH.inMap(x + dx, y + dy) && Lr.room[RH.idx(x + dx, y + dy)] > 0);
-      if (byWall) spots.push([x, y, Math.abs(x - 4) + Math.abs(y - 6) + rnd() * 6]);
+      if (byWall) spots.push([x, y, Math.abs(x - 4) + Math.abs(y - 9) + rnd() * 6]);
     }
     spots.sort((a, b) => a[2] - b[2]);
     for (const [x, y] of spots.slice(0, 60)) if (!RH.placeDecor(s, p, x, y, kind)) return;

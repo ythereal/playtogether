@@ -10,7 +10,7 @@
 // walls block movement except through doors. The lobby by the entrance (reception desk, waiting area) stays open.
 (function (root) {
   'use strict';
-  const VERSION = 3;
+  const VERSION = 4;   // 4: the building's front corner became the forecourt and the entrance moved beside it
   const T = 16, W = 32, H = 26;
   const MONTH = 60;                 // real seconds per in-game month
   const DAY = MONTH / 30;           // the spec's daily happiness effects tick once per in-game day
@@ -18,7 +18,7 @@
   const GRACE = 120;                // build timer: patients start arriving after this, or when you open the doors
   // the reception desk stands across the lobby facing the front doors: patients check in on the door side (RECEP),
   // the receptionist sits behind it (DESK_STAFF), so seen from the entrance they're never in front of the doors
-  const EXIT = [-16, 88], RECEP = [56, 94], DESK_STAFF = [88, 94];
+  const EXIT = [-16, 152], RECEP = [56, 142], DESK_STAFF = [88, 142];
   const PSPEED = 36, SSPEED = 44;
   const START_CASH = 40000, START_REP = 500;
   const TARGETS = { rep: 650, cash: 100000, pct: 65, cured: 200, value: 70000 };
@@ -48,8 +48,11 @@
   const lvlOK = (s, f) => !s.solo || s.solo.lvl >= LVL_FROM[f];
   const RIVAL_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Skynet', 'Marvin', 'Cerebro', 'Mother', 'Jayne'];
   // the lobby by the entrance: never built on (reception desk, idle staff, waiting patients)
-  const LOBBY = { x0: 2, y0: 3, x1: 5, y1: 9 };
-  const DESK_TILES = [[4, 5], [4, 6]];
+  const LOBBY = { x0: 2, y0: 6, x1: 5, y1: 11 };
+  // Theme Hospital's entrance: the building's front corner (columns 2-8, rows 12 down) is a paved forecourt, and the
+  // front doors (rows 8-10 of the west wall) open from it into the lobby beside that corner
+  const NOTCH = { x1: 9, y0: 12 };
+  const DESK_TILES = [[4, 8], [4, 9]];
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // N E S W
 
   // ---------- objects ----------
@@ -233,8 +236,8 @@
   // ============================ the grid ============================
   const idx = (x, y) => y * W + x;
   const inMap = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
-  const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H;
-  const outPath = (x, y) => x >= 0 && x < 2 && y >= 4 && y <= 6;
+  const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0);
+  const outPath = (x, y) => x >= 0 && x < 2 && y >= 8 && y <= 10;
   const inLobby = (x, y) => x >= LOBBY.x0 && x <= LOBBY.x1 && y >= LOBBY.y0 && y <= LOBBY.y1;
   const tileOf = v => Math.floor(v / T);
   const center = (tx, ty) => [tx * T + 8, ty * T + 8];
@@ -243,7 +246,7 @@
   const AVOID = new Set(['door', 'win', 'wait']);
   const walled = r => WALLED.has(r.phase);
   const isBuilt = r => r.phase === 'built';
-  const exitTile = () => [0, 5];
+  const exitTile = () => [0, 9];   // the path tile outside the middle of the front doors
   // the door's tiles inside the room (three for a swing door)
   function doorTiles(r) {
     if (!r.door) return [];
@@ -719,7 +722,7 @@
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
   const LAND_VALUE = (W - 2) * H * 25 + 20000;
-  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(x <= 3 && y >= 4 && y <= 6) && !(x === 5 && y >= 5 && y <= 6)) LOBBY_TILES.push([x, y]);
+  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(x <= 3 && y >= 8 && y <= 10) && !(x === 5 && y >= 8 && y <= 9)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
   function assign(h) {
@@ -2002,6 +2005,7 @@
     h.rooms = {};
     for (const k in c.rooms) {
       const r = c.rooms[k]; if (r.phase !== 'built') continue;
+      if (!rectTiles(r.rect).size || [...rectTiles(r.rect)].some(i => !indoor(i % W, Math.floor(i / W)))) continue;   // no longer inside the building
       Object.assign(r, { sts: [], p: null, prog: 0, n: 0, q: [], qt: [], dis: -1, users: [] });
       h.rooms[r.id] = r;
     }
@@ -2147,7 +2151,7 @@
     for (const r of roomList(h)) if (r.auto && r.phase === 'furnish') { autoFurnish(h, r); const e = finishBuild(s, p, r.id); if (e) deleteRoom(s, p, r.id); else r.auto = false; }
   }
 
-  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, DESK_TILES, DIRS,
+  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, DESK_TILES, DIRS,
     LEVELS, LVL_FROM, LAND_VALUE, stayOn, carrySnapshot, carryOver, MP_RESEARCH,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,

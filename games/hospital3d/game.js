@@ -1558,11 +1558,11 @@
   function fitView() {
     const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
     cam.z = viewZ();
-    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(120, 110); cam.x = bx; cam.y = by; }
+    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(120, 170); cam.x = bx; cam.y = by; }
     clampCam();
   }
   // pushing the mouse against an edge of the window scrolls the map, faster the closer it gets
-  const EDGE = 60;   // how close to an edge (px) the mouse must be to scroll
+  const EDGE = 100;  // how close to an edge (px) the mouse must be to scroll
   let mouse = null;
   addEventListener('mousemove', e => { mouse = { x: e.clientX, y: e.clientY }; });
   document.addEventListener('mouseleave', () => { mouse = null; });
@@ -1667,7 +1667,7 @@
       return;
     }
     selected = null;
-    if (tab === ME && bx >= 62 && bx <= 82 && by >= 76 && by <= 112) { openDesk(); return; }
+    if (tab === ME && bx >= 62 && bx <= 82 && by >= 124 && by <= 160) { openDesk(); return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
     const rm = roomAt(h, c, r);
     if (rm) { openRoom(rm.id); return; }
@@ -1686,7 +1686,7 @@
     if (rm) {
       const R = RH.ROOMS[rm.k];
       txt = rm.phase === 'wreck' ? `${R.name}: wrecked` : rm.phase !== 'built' ? `${R.name}: being built` : `${R.name} · ${qn(rm)} queuing` + (R.mach ? ` · machine strength ${rm.str}, used ${rm.used}` : '') + (rm.sts.length < (R.need || (R.staff ? 1 : 0)) ? ` · needs a ${needWord(rm.k)}` : '');
-    } else if (wx >= 30 && wx <= 66 && wy >= 86 && wy <= 112) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
+    } else if (wx >= 62 && wx <= 82 && wy >= 124 && wy <= 160) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
     else { const d = h.decor[RH.decorKey(c, r)]; if (d) txt = RH.DECOR[d].name + (d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' (dead: needs watering)' : ''); }
     if (myEdit() || (ed && ed.mode)) txt = '';
     if (txt !== hoverTxt) { hoverTxt = txt; setStatus(); }
