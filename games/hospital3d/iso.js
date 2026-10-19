@@ -488,30 +488,69 @@
   }
   // Theme Hospital's blueprint walls: see-through blue panels round the room's outline with a post at every tile,
   // full height on every side so the room's size reads at a glance. skip: 'x,y,d' edges to leave open (the door).
-  function ghostWalls(ctx, rc, alpha, skip) {
-    const segs = [], hh = flat ? 3 : WALL_H;
+  // returns depth-sorted scene items, so real walls and people overlap them correctly
+  function ghostWalls(rc, alpha, skip) {
+    const segs = [], hh = flat ? 3 : WALL_H, items = [];
     const edgeAt = (x, y, d) => (d === 0 ? [x * T, y * T, (x + 1) * T, y * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T]);
     for (let x = rc.x; x < rc.x + rc.w; x++) { segs.push([x, rc.y, 0]); segs.push([x, rc.y + rc.h - 1, 2]); }
     for (let y = rc.y; y < rc.y + rc.h; y++) { segs.push([rc.x, y, 3]); segs.push([rc.x + rc.w - 1, y, 1]); }
-    const list = segs.map(([x, y, d]) => { const e = edgeAt(x, y, d); return { e, open: skip && skip.has(x + ',' + y + ',' + d), dep: depth((e[0] + e[2]) / 2, (e[1] + e[3]) / 2) }; }).sort((a, b) => a.dep - b.dep);
     const posts = new Map();
-    for (const { e, open } of list) {
-      const [u1, u2] = px(e[0], e[1]), [v1, v2] = px(e[2], e[3]);
+    for (const [x, y, d] of segs) {
+      const e = edgeAt(x, y, d);
       for (const [wx, wy] of [[e[0], e[1]], [e[2], e[3]]]) posts.set(wx + ',' + wy, [wx, wy]);
-      if (open) continue;
-      ctx.fillStyle = `rgba(110,165,255,${0.2 * alpha})`;
-      ctx.beginPath(); ctx.moveTo(u1, u2); ctx.lineTo(v1, v2); ctx.lineTo(v1, v2 - hh); ctx.lineTo(u1, u2 - hh); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = `rgba(60,115,225,${0.9 * alpha})`; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(u1, u2 - hh); ctx.lineTo(v1, v2 - hh); ctx.stroke();
-      ctx.strokeStyle = `rgba(60,115,225,${0.35 * alpha})`; ctx.lineWidth = 0.5;
-      ctx.beginPath(); ctx.moveTo(u1, u2 - hh * 0.5); ctx.lineTo(v1, v2 - hh * 0.5); ctx.stroke();
+      if (skip && skip.has(x + ',' + y + ',' + d)) continue;
+      items.push({ d: Math.max(depth(e[0], e[1]), depth(e[2], e[3])) + 0.6, draw: ctx => {
+        const [u1, u2] = px(e[0], e[1]), [v1, v2] = px(e[2], e[3]);
+        ctx.fillStyle = `rgba(110,165,255,${0.2 * alpha})`;
+        ctx.beginPath(); ctx.moveTo(u1, u2); ctx.lineTo(v1, v2); ctx.lineTo(v1, v2 - hh); ctx.lineTo(u1, u2 - hh); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = `rgba(60,115,225,${0.9 * alpha})`; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(u1, u2 - hh); ctx.lineTo(v1, v2 - hh); ctx.stroke();
+        ctx.strokeStyle = `rgba(60,115,225,${0.35 * alpha})`; ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(u1, u2 - hh * 0.5); ctx.lineTo(v1, v2 - hh * 0.5); ctx.stroke();
+      } });
     }
-    for (const [wx, wy] of [...posts.values()].sort((a, b) => depth(a[0], a[1]) - depth(b[0], b[1]))) {
+    for (const [wx, wy] of posts.values()) items.push({ d: depth(wx, wy) + 0.65, draw: ctx => {
       const [sx, sy] = px(wx, wy);
       ctx.fillStyle = `rgba(40,90,200,${0.85 * alpha})`; ctx.fillRect(sx - 1, sy - hh, 2, hh);
       ctx.fillStyle = `rgba(190,215,255,${0.95 * alpha})`; ctx.fillRect(sx - 0.5, sy - hh, 0.5, hh);
       ctx.fillStyle = `rgba(40,90,200,${0.9 * alpha})`; ctx.fillRect(sx - 1.5, sy - hh - 1, 3, 1.5);
+    } });
+    return items;
+  }
+  // door and window previews: real joinery standing on the edge on side d of tile (x, y), as depth-sorted items.
+  // state: 'set' (placed), 'ok' (a good spot under the pointer, green glow), 'bad' (can't go there, red)
+  const joinCache = {};
+  function joinImg(kind, state) {
+    const key = kind + state; if (joinCache[key]) return joinCache[key];
+    const door = kind === 'door', w = 16, h = door ? 26 : 15, [c, x] = A.hcanvas(w, h), q = 0.5;
+    if (door) {
+      R(x, 1, 0, 14, h, '#5a3a22'); R(x, 1, 0, 14, q, '#7a5232');                       // frame
+      R(x, 2.5, 1.5, 11, h - 1.5, '#b07a4a'); R(x, 2.5, 1.5, 11, q, '#c8925e'); R(x, 2.5, 1.5, q, h - 1.5, '#c38a56');
+      for (const [py, ph] of [[3, 8], [13, 10]]) { R(x, 4, py, 8, ph, '#9a6438'); R(x, 4, py, 8, q, '#7e5028'); R(x, 4, py + ph - q, 8, q, '#c8925e'); R(x, 4, py, q, ph, '#7e5028'); }
+      R(x, 4.5, 3.5, 7, 4, '#9fd8ff'); R(x, 4.5, 3.5, 7, 1, '#c6eaff');                    // a little glass light
+      R(x, 11, 14, 1.5, 1, '#ffd23f'); R(x, 11, 14.5, 1.5, q, '#b8901c');                  // handle
+      R(x, 2.5, h - 1, 11, 1, '#3a2414');
+    } else {
+      R(x, 0.5, 0, 15, h - 2, '#f4f4f0'); R(x, 0.5, 0, 15, q, '#ffffff'); R(x, 15, 0, q, h - 2, '#c9c7c0');
+      R(x, 2, 1.5, 12, h - 5, '#8fd0ee'); R(x, 2, 1.5, 12, 3, '#c6eaff');
+      x.globalAlpha = 0.55; for (let k = 0; k < 5; k++) R(x, 3 + k * q, 2.5 + k, 2, q, '#ffffff'); x.globalAlpha = 1;
+      R(x, 7.5, 1.5, 1, h - 5, '#f4f4f0'); R(x, 2, 6, 12, 1, '#f4f4f0');
+      R(x, 0, h - 2, 16, 2, '#e6e4dc'); R(x, 0, h - 2, 16, q, '#ffffff'); R(x, 0, h - q, 16, q, '#a9a7a0');   // sill
     }
+    if (state !== 'set') { x.globalCompositeOperation = 'source-atop'; x.fillStyle = state === 'ok' ? 'rgba(80,220,110,.35)' : 'rgba(255,70,60,.5)'; x.fillRect(0, 0, w, h); x.globalCompositeOperation = 'source-over'; }
+    return (joinCache[key] = c);
+  }
+  function joinItem(x, y, d, kind, state) {
+    const img = joinImg(kind, state), h = img.lh, lift = kind === 'door' ? 0 : 9;
+    const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
+    const [a1, a2] = rw(ax, ay), [b1, b2] = rw(bx, by), alongX = Math.abs(a2 - b2) < 0.5, flip = alongX ? a1 > b1 : a2 > b2;
+    const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
+    return { d: Math.max(depth(ax, ay), depth(bx, by)) + 0.7, draw: c => {
+      const [u1, u2] = px(sx, sy), [v1, v2] = px(ex, ey), hh = flat ? 3 : h, up = flat ? 0 : lift;
+      if (state === 'ok' && !flat) { c.save(); c.shadowColor = 'rgba(110,255,140,.9)'; c.shadowBlur = 4; }
+      ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - hh - up); c.drawImage(img, 0, 0, 16, hh); reset(c);
+      if (state === 'ok' && !flat) c.restore();
+    } };
   }
   // a mark on the edge on side d of tile (x, y): a coloured bar standing on the floor
   function edgeMark(ctx, x, y, d, col, hgt) {
@@ -565,9 +604,18 @@
   }
   // the reception desk once it has been bought, or a dashed outline where it goes
   function deskItem(bought, t) {
-    if (!bought) return { d: depth(62, 106) - 40, draw: c => decal(c, 34, 96, ctx => { ctx.globalAlpha = 0.5 + Math.sin(t * 3) * 0.2; ctx.setLineDash([3, 2]); ctx.strokeStyle = '#7a4b2c'; ctx.lineWidth = 1.5; ctx.strokeRect(0.5, 0.5, 27, 9); ctx.setLineDash([]); ctx.globalAlpha = 1; }) };
-    return { d: depth(62, 106), draw: c => { box(c, 34, 96, 28, 10, 11, '#7a4b2c', { top: ctx => { R(ctx, 3, 2, 6, 4, '#f2ecdc'); R(ctx, 20, 2, 4, 3, '#e8533f'); }, south: (ctx, w, h) => { R(ctx, 2, 3, 10, 6, '#5a3620'); R(ctx, 16, 3, 10, 6, '#5a3620'); } }); box(c, 44, 97, 7, 5, 7, '#2b2e3a', { south: (ctx, w, h) => screen(ctx, 1, 1, w - 2, h - 2) }); box(c, 36, 92, 2, 2, 18, '#9aa3b8'); const [sx, sy] = px(37, 93); R(c, sx - 8, sy - 26, 16, 7, '#3c7bd6'); R(c, sx - 7, sy - 25, 14, 5, '#5a95e6'); R(c, sx - 1, sy - 25, 2, 5, '#fff'); R(c, sx - 3, sy - 23, 6, 1, '#fff'); } };
+    // a long counter across the lobby, facing the front doors; the receptionist sits on the far (east) side
+    if (!bought) return { d: depth(78, 108) - 40, draw: c => decal(c, 66, 80, ctx => { ctx.globalAlpha = 0.5 + Math.sin(t * 3) * 0.2; ctx.setLineDash([3, 2]); ctx.strokeStyle = '#7a4b2c'; ctx.lineWidth = 1.5; ctx.strokeRect(0.5, 0.5, 11, 27); ctx.setLineDash([]); ctx.globalAlpha = 1; }) };
+    return { d: depth(78, 108), draw: c => {
+      box(c, 66, 80, 12, 28, 11, '#7a4b2c', { top: (ctx, w) => { R(ctx, 1, 1, w - 2, 2, '#9a6a44'); }, south: (ctx, w, h) => { R(ctx, 2, 3, w - 4, 6, '#5a3620'); R(ctx, 2, 3, w - 4, 0.5, '#8a5a34'); }, east: (ctx, d, h) => { for (let u = 3; u < d - 3; u += 8) { R(ctx, u, 3, 6, 6, '#5a3620'); R(ctx, u, 3, 6, 0.5, '#8a5a34'); } } });
+      box(c, 67, 82, 3, 24, 13, '#9a6a44');                                  // the raised front ledge patients lean on
+      box(c, 72, 84, 5, 4, 1, '#f2ecdc'); box(c, 72, 96, 4, 3, 1, '#e8533f');  // papers, the guest book
+      box(c, 73, 90, 4, 5, 8, '#2b2e3a', { south: (ctx, w, h) => screen(ctx, 1, 1, w - 2, h - 2) });
+      box(c, 84, 82, 2, 2, 22, '#9aa3b8');                                   // the RECEPTION sign on its post
+      const [sx, sy] = px(85, 83); R(c, sx - 9, sy - 30, 18, 8, '#3c7bd6'); R(c, sx - 8, sy - 29, 16, 6, '#5a95e6'); R(c, sx - 1, sy - 29, 2, 6, '#fff'); R(c, sx - 3, sy - 27, 6, 2, '#fff');
+    } };
   }
+
   // mess: puddle decal or a dropped can
   function messItem(m) {
     if (m.k === 'puddle') return { d: depth(m.x, m.y) - 1, draw: c => decal(c, m.x, m.y, ctx => { ctx.fillStyle = 'rgba(236,206,72,.75)'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 4, -0.2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(255,240,160,.8)'; ctx.beginPath(); ctx.ellipse(-2, -1, 2.5, 1.2, 0, 0, Math.PI * 2); ctx.fill(); }) };
@@ -587,5 +635,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

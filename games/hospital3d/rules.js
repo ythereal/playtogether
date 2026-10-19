@@ -16,7 +16,9 @@
   const DAY = MONTH / 30;           // the spec's daily happiness effects tick once per in-game day
   const MONTHS = 24;                // two years; targets are checked at every quarter-end
   const GRACE = 120;                // build timer: patients start arriving after this, or when you open the doors
-  const EXIT = [-16, 88], RECEP = [56, 122], DESK_STAFF = [48, 86];
+  // the reception desk stands across the lobby facing the front doors: patients check in on the door side (RECEP),
+  // the receptionist sits behind it (DESK_STAFF), so seen from the entrance they're never in front of the doors
+  const EXIT = [-16, 88], RECEP = [56, 94], DESK_STAFF = [88, 94];
   const PSPEED = 36, SSPEED = 44;
   const START_CASH = 40000, START_REP = 500;
   const TARGETS = { rep: 650, cash: 100000, pct: 65, cured: 200, value: 70000 };
@@ -47,7 +49,7 @@
   const RIVAL_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Skynet', 'Marvin', 'Cerebro', 'Mother', 'Jayne'];
   // the lobby by the entrance: never built on (reception desk, idle staff, waiting patients)
   const LOBBY = { x0: 2, y0: 3, x1: 5, y1: 9 };
-  const DESK_TILES = [[2, 6], [3, 6]];
+  const DESK_TILES = [[4, 5], [4, 6]];
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // N E S W
 
   // ---------- objects ----------
@@ -706,7 +708,7 @@
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
   const LAND_VALUE = (W - 2) * H * 25 + 20000;
-  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(y <= 6 && x <= 3) && !(x === 3 && y === 7)) LOBBY_TILES.push([x, y]);
+  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(x <= 3 && y >= 4 && y <= 6) && !(x === 5 && y >= 5 && y <= 6)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
   function assign(h) {
@@ -998,7 +1000,7 @@
       const x = 2 + Math.floor(rnd() * (W - 2)), y = Math.floor(rnd() * H), i = idx(x, y);
       if (!L.room[i] && !L.block[i] && !L.avoid[i] && !L.bp[i] && !L.near[i]) return [x * T + 4 + rnd() * 8, y * T + 4 + rnd() * 8];
     }
-    return [RECEP[0] + 16, RECEP[1] + 16];
+    return [RECEP[0], RECEP[1] + 24];
   }
   function vipOffer(s, p) { const h = s.h[p]; h.fax.push({ id: s.nextId++, k: 'vip', who: pick(VIPS), t: s.t + 30 }); }
   function startVip(s, p, who) {
@@ -1690,7 +1692,7 @@
         for (const pt of h.pats) if (pt.mk && !pt.vax) { pt.vt = (pt.vt || 0) + dt * Math.min(2, nurses); if (pt.vt >= 3) { pt.vax = 1; s.ev.push({ k: 'vax', p, id: pt.id }); } }
         if (s.t >= e.t && !h.vis.some(v => v.k === 'insp')) {
           const v = { id: s.nextId++, k: 'insp', x: EXIT[0], y: EXIT[1], path: [], f: 3, mv: 0, t: 0 };
-          route(h, v, RECEP[0] + 12, RECEP[1] + 8); h.vis.push(v); e.phase = 'insp'; s.ev.push({ k: 'inspector', p });
+          route(h, v, RECEP[0] - 8, RECEP[1] + 14); h.vis.push(v); e.phase = 'insp'; s.ev.push({ k: 'inspector', p });
         }
       } else if (e.phase === 'declared' && s.t >= e.t) { for (const x of h.pats) x.inf = 0; h.epi = null; }
     }
@@ -1836,6 +1838,9 @@
   function stepPatients(s, p, dt) {
     const h = s.h[p];
     const crowd = h.pats.filter(x => x.st === 'queue' || x.st === 'recep').length;
+    // the receptionist goes behind the desk (also after a save from before the desk moved) and faces the doors
+    const desker = h.staff.find(x => x.desk && !x.gone && !x.path.length && x.mode !== 'rest' && x.mode !== 'train');
+    if (desker) { if (Math.hypot(desker.x - DESK_STAFF[0], desker.y - DESK_STAFF[1]) > 3) route(h, desker, DESK_STAFF[0], DESK_STAFF[1]); else desker.f = 2; }
     const recep = h.staff.find(x => x.desk && !x.gone && !x.path.length);
     for (let i = h.pats.length - 1; i >= 0; i--) {
       const pt = h.pats[i];
@@ -1903,7 +1908,7 @@
         if (tr && !hasObj(tr, 'sink')) pt.pat -= 10;
         pt.bl = 0; leaveFacility(h, pt); pt.st = 'queue';
         const r = h.rooms[pt.slot];
-        if (r && isBuilt(r)) { const [qx, qy] = queuePos(h, r, r.q.indexOf(pt.id)); route(h, pt, qx, qy); } else { pt.st = 'recep'; pt.t = 0.2; route(h, pt, RECEP[0] + 10, RECEP[1]); }
+        if (r && isBuilt(r)) { const [qx, qy] = queuePos(h, r, r.q.indexOf(pt.id)); route(h, pt, qx, qy); } else { pt.st = 'recep'; pt.t = 0.2; route(h, pt, RECEP[0] - 6, RECEP[1]); }
         continue;
       }
       if (inCorridor(h, pt) && h.mess.length < MAX_MESS) {

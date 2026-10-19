@@ -199,6 +199,8 @@
     .sheet { padding: 0 16px 14px; }
     .sheet h2 { position: sticky; top: 0; z-index: 2; margin: 0 -16px 10px; padding: 8px 16px; font-size: 1.1rem; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.4); background: linear-gradient(#2a8aa6, #1c6a84); border-bottom: 2px solid #0c3a4a; }
     .sheet .sub { color: #3d5560; }
+    /* each window's action buttons stay pinned to its bottom edge however far the content is scrolled */
+    .sheet > .row:last-child { position: sticky; bottom: -14px; z-index: 2; margin: 14px -16px -14px; padding: 10px 16px; background: #dcecf0; border-top: 2px solid #b9d8e0; box-shadow: 0 -4px 8px rgba(12,58,74,.08); }
     .sheet h4 { color: #1c6a84; }
     .item, .lvl, .avatar { background: #fff; border: 2px solid #b9d8e0; border-radius: 6px; color: var(--ink); }
     .lvl:hover:not(:disabled), button.item:hover:not(:disabled), .avatar:hover { border-color: #2a8aa6; }

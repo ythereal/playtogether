@@ -1604,7 +1604,7 @@
       return;
     }
     selected = null;
-    if (tab === ME && bx >= 30 && bx <= 66 && by >= 86 && by <= 112) { openDesk(); return; }
+    if (tab === ME && bx >= 62 && bx <= 82 && by >= 76 && by <= 112) { openDesk(); return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
     const rm = roomAt(h, c, r);
     if (rm) { openRoom(rm.id); return; }
@@ -1668,6 +1668,7 @@
     return { o, x, y, r: edRot, k: r.k, ok: c.ok, check: c };
   }
   const OK_FILL = 'rgba(80,150,255,.38)', BAD_FILL = 'rgba(255,90,70,.42)';
+  const ghosts3d = [];   // blueprint walls: drawn with the depth-sorted scene, not on the floor
   function drawBuildOverlays(h, t, mine) {
     const pulse = 0.65 + Math.sin(t * 4) * 0.2;
     for (const key in h.rooms) {
@@ -1676,9 +1677,9 @@
       if (mine && r.phase === 'bp') continue;   // drawn from the editor's copy below
       for (let y = r.rect.y; y < r.rect.y + r.rect.h; y++) for (let x = r.rect.x; x < r.rect.x + r.rect.w; x++) HI.tileQuad(bctx, x, y, r.phase === 'wait' ? `rgba(80,150,255,${0.25 + 0.15 * pulse})` : 'rgba(80,150,255,.3)', 'rgba(60,110,200,.35)');
       HI.rectOutline(bctx, r.rect, '#3c7bd6', r.phase === 'bp');
-      HI.ghostWalls(bctx, r.rect, r.phase === 'wait' ? pulse + 0.2 : 1, r.door ? new Set(RH.doorTiles(r).map(([x, y]) => x + ',' + y + ',' + r.door.d)) : null);
-      if (r.door) for (const [x, y] of RH.doorTiles(r)) HI.edgeMark(bctx, x, y, r.door.d, '#6fd38a', 10);
-      for (const w of r.wins) HI.edgeMark(bctx, w[0], w[1], w[2], '#9fd8ff', 8);
+      ghosts3d.push(...HI.ghostWalls(r.rect, r.phase === 'wait' ? pulse + 0.2 : 1, r.door ? new Set(RH.doorTiles(r).map(([x, y]) => x + ',' + y + ',' + r.door.d)) : null));
+      if (r.door) for (const [x, y] of RH.doorTiles(r)) ghosts3d.push(HI.joinItem(x, y, r.door.d, 'door', 'set'));
+      for (const w of r.wins) ghosts3d.push(HI.joinItem(w[0], w[1], w[2], 'win', 'set'));
     }
     if (!mine || !view || view.ph !== 'play') return;
     const tg = edTarget();
@@ -1686,14 +1687,14 @@
       const v = bpValid(tg), small = tg.rect.w < RH.ROOMS[tg.kind].min || tg.rect.h < RH.ROOMS[tg.kind].min;
       for (const [x, y, good] of v.tiles) HI.tileQuad(bctx, x, y, good && !small && (v.ok || v.why.startsWith('Too small') || true) && good ? (v.ok ? OK_FILL : small ? BAD_FILL : 'rgba(255,170,60,.42)') : BAD_FILL, 'rgba(255,255,255,.35)');
       HI.rectOutline(bctx, tg.rect, v.ok ? '#3c7bd6' : '#e8533f', false);
-      if (v.ok) HI.ghostWalls(bctx, tg.rect, 1, null);
+      if (v.ok) ghosts3d.push(...HI.ghostWalls(tg.rect, 1, null));
     }
     if (tg && (tg.phase === 'door' || tg.phase === 'win') && edHoverW) {
       const e = nearestEdge(tg.rect, edHoverW[0], edHoverW[1]);
       if (e) {
         const r = tg.room, nearDoor = r.door && Math.abs(e[0] - r.door.x) + Math.abs(e[1] - r.door.y) <= 1 && e[2] === r.door.d;
-        if (tg.phase === 'win' && !nearDoor) HI.edgeMark(bctx, e[0], e[1], e[2], RH.winCheck(view.h[ME], r, e[0], e[1], e[2]) || r.wins.some(w => w[0] === e[0] && w[1] === e[1] && w[2] === e[2]) ? 'rgba(159,216,255,.95)' : 'rgba(255,90,70,.8)', 16);
-        else { const c = RH.doorCheck(view.h[ME], r, e[0], e[1], e[2]); for (const [x, y, good] of c.tiles) HI.edgeMark(bctx, x, y, e[2], good ? 'rgba(110,211,138,.95)' : 'rgba(255,90,70,.85)', 18); }
+        if (tg.phase === 'win' && !nearDoor) ghosts3d.push(HI.joinItem(e[0], e[1], e[2], 'win', RH.winCheck(view.h[ME], r, e[0], e[1], e[2]) || r.wins.some(w => w[0] === e[0] && w[1] === e[1] && w[2] === e[2]) ? 'ok' : 'bad'));
+        else { const c = RH.doorCheck(view.h[ME], r, e[0], e[1], e[2]); for (const [x, y, good] of c.tiles) ghosts3d.push(HI.joinItem(x, y, e[2], 'door', good ? 'ok' : 'bad')); }
       }
     }
     if (tg && tg.phase === 'furnish') {
@@ -1714,8 +1715,9 @@
     // floors
     HI.floorAt(bctx, groundC, -HI.GM, -HI.GM);
     if (h) for (const key in h.rooms) { const r = h.rooms[key]; if (RH.walled(r)) HI.floorAt(bctx, HI.roomFloor(r.k, r.rect.w, r.rect.h), r.rect.x * T, r.rect.y * T); }
+    ghosts3d.length = 0;
     if (h) drawBuildOverlays(h, t, mine);
-    const objs = HI.outside();
+    const objs = HI.outside().concat(ghosts3d);
     if (h) {
       objs.push(...HI.hospitalWalls(h));
       for (const key in h.rooms) {
