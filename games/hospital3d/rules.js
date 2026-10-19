@@ -2124,7 +2124,7 @@
     for (let y = 0; y + m <= H; y++) for (let x = 2; x + m <= W; x++) {
       const rc = { x, y, w: m, h: m };
       if (!bpCheck(h, kind, rc, -1).ok) continue;
-      for (let d = 0; d < 4; d++) {
+      for (const d of [2, 3, 1, 0]) {   // a door on a wall facing the camera (south, west) where it can be
         const cx = d % 2 === 0 ? x + (m >> 1) : d === 1 ? x + m - 1 : x, cy = d % 2 === 1 ? y + (m >> 1) : d === 2 ? y + m - 1 : y;
         const r = { k: kind, rect: rc, objs: [], id: -5, door: null };
         if (doorCheck(h, r, cx, cy, d).ok) return { rc, door: [cx, cy, d] };

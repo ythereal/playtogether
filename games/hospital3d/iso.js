@@ -120,6 +120,41 @@
     if (faces.north && faceing(0, -1)) paint(faces.north, x, y, 1, 0, w);
     if (faces.west && faceing(-1, 0)) paint(faces.west, x, y, 0, 1, d);
   }
+  // ---------- rounded shapes (less boxy furniture) ----------
+  // rbox: a block whose footprint is a rounded rectangle (corner radius rad), shaded round its curve; top(ctx, w, d)
+  // paints its top in world units. cyl: an upright cylinder centred on (x, y). tube: a thin leg or rail.
+  function rbox(ctx, x, y, w, d, h, col, rad, lift, top) {
+    const L0 = flat ? 0 : lift || 0; h = flat ? 0 : h; rad = Math.max(0.01, Math.min(rad || 0, w / 2, d / 2));
+    const pts = [];
+    for (const [cx, cy, a0] of [[x + w - rad, y + rad, -Math.PI / 2], [x + w - rad, y + d - rad, 0], [x + rad, y + d - rad, Math.PI / 2], [x + rad, y + rad, Math.PI]])
+      for (let i = 0; i <= 4; i++) { const a = a0 + i * Math.PI / 8; pts.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]); }
+    const sc = pts.map(([a, b]) => px(a, b)), up = p => [p[0], p[1] - L0 - h], dn = p => [p[0], p[1] - L0];
+    const [o1, o2] = rw(x + w / 2, y + d / 2);
+    // the sides: every outline segment facing the camera, lit by how far it turns from the light
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length, [mx, my] = [(pts[i][0] + pts[j][0]) / 2, (pts[i][1] + pts[j][1]) / 2], [v1, v2] = rw(mx, my);
+      const ln = Math.hypot(v1 - o1, v2 - o2) || 1, nx = (v1 - o1) / ln, ny = (v2 - o2) / ln;
+      if (!flat && nx + ny <= 0) continue;                    // facing away from the camera
+      ctx.fillStyle = shade(col, -0.34 * Math.min(1, Math.max(0, (nx - ny + 1) / 2)));   // south-facing full colour, east-facing in shadow
+      ctx.beginPath(); const a = dn(sc[i]), b = dn(sc[j]), c2 = up(sc[j]), d2 = up(sc[i]); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c2[0], c2[1]); ctx.lineTo(d2[0], d2[1]); ctx.closePath(); ctx.fill();
+    }
+    // the outline of the silhouette, then the top
+    ctx.strokeStyle = 'rgba(27,23,32,.6)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); sc.forEach((p, i) => { const q = up(p); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.closePath();
+    ctx.fillStyle = shade(col, 0.16); ctx.fill(); ctx.stroke();
+    if (top) {
+      const [t1, t2] = px(x, y), [a1, a2] = px(x + 1, y), [b1, b2] = px(x, y + 1);
+      ctx.save(); ST(ctx, a1 - t1, a2 - t2, b1 - t1, b2 - t2, t1, t2 - L0 - h); ctx.beginPath(); ctx.roundRect(0, 0, w, d, rad); ctx.clip(); top(ctx, w, d); reset(ctx); ctx.restore();
+    }
+  }
+  function cyl(ctx, x, y, r, h, col, lift) {
+    const L0 = flat ? 0 : lift || 0, [sx, sy] = px(x, y), rx = r * KX * Math.SQRT2 * (flat ? 0.7 : 1), ry = r * KY * Math.SQRT2 * (flat ? 1.4 : 1); h = flat ? 0 : h;
+    const g = ctx.createLinearGradient(sx - rx, 0, sx + rx, 0); g.addColorStop(0, shade(col, 0.22)); g.addColorStop(0.35, col); g.addColorStop(1, shade(col, -0.38));
+    ctx.fillStyle = g; ctx.strokeStyle = 'rgba(27,23,32,.6)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.ellipse(sx, sy - L0, rx, ry, 0, 0, Math.PI); ctx.lineTo(sx - rx, sy - L0 - h); ctx.ellipse(sx, sy - L0 - h, rx, ry, 0, Math.PI, 0, true); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = shade(col, 0.2); ctx.beginPath(); ctx.ellipse(sx, sy - L0 - h, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  const tube = (ctx, x, y, h, col, lift) => cyl(ctx, x, y, 0.55, h, col || '#c8ced8', lift);
   // small decal painters (local units)
   const screen = (ctx, u, v, w, h) => { R(ctx, u, v, w, h, '#1d2a3a'); R(ctx, u + 1, v + 1, Math.max(1, w / 2), 1, '#6fd3ff'); R(ctx, u + 1, v + 3, Math.max(1, w - 3), 1, '#2f5a7a'); R(ctx, u + w - 3, v + h - 2, 2, 1, '#e8533f'); };
   const buttons = (ctx, u, v) => { R(ctx, u, v, 2, 2, '#e8533f'); R(ctx, u + 3, v, 2, 2, '#39a85a'); R(ctx, u + 6, v, 2, 2, '#ffd23f'); };
@@ -132,42 +167,52 @@
   const glow = (c, sx, sy, r, col) => { const g = c.createRadialGradient(sx, sy, 0, sx, sy, r); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(sx - r, sy - r, r * 2, r * 2); };
   // a swivel office chair in an 8x8 footprint at world (x, y); its back on the south side, so it faces north
   function officeChair(c, x, y) {
-    box(c, x + 0.5, y + 3.5, 7, 1, 1, '#2b2e3a'); box(c, x + 3.5, y + 0.5, 1, 7, 1, '#2b2e3a');      // the star base
-    box(c, x + 3.5, y + 3.5, 1, 1, 2, '#5c6068');                                                    // gas lift
-    box(c, x + 1, y + 1, 6, 6, 2, '#2f5fa8', { top: ctx => { R(ctx, 0.5, 0.5, 5, 5, '#3f74c4'); R(ctx, 0.5, 0.5, 5, 0.5, '#7aa6e8'); } }, 2);
-    box(c, x + 1, y + 6, 6, 1.5, 9, '#2f5fa8', { north: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 2, '#3f74c4'); R(ctx, 0.5, 0.5, w - 1, 0.5, '#7aa6e8'); } }, 4);
+    const cx = x + 4, cy = y + 4;
+    for (const [dx, dy] of [[0, -3.2], [3, -1], [1.9, 2.6], [-1.9, 2.6], [-3, -1]]) { const [a1, a2] = px(cx, cy), [b1, b2] = px(cx + dx, cy + dy); c.strokeStyle = '#2b2e3a'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(a1, a2 - 0.8); c.lineTo(b1, b2 - 0.6); c.stroke(); c.fillStyle = '#1b1720'; c.beginPath(); c.arc(b1, b2 - 0.3, 0.7, 0, Math.PI * 2); c.fill(); }
+    cyl(c, cx, cy, 0.6, 3, '#8a8f99', 0.6);                                                          // gas lift
+    rbox(c, x + 0.8, y + 0.8, 6.4, 6, 2, '#2f5fa8', 2.4, 3, ctx => { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.roundRect(1, 1, 4, 3, 1.5); ctx.fill(); });
+    rbox(c, x + 1.2, y + 6.2, 5.6, 1.4, 8, '#2f5fa8', 0.7, 4.5);                                      // the curved back
+  }
+
+  // a fire extinguisher: a red cylinder with a white label, a black cap and hose
+  function extinguisher(c, x, y) {
+    cyl(c, x, y, 1.7, 11, '#d0352a'); cyl(c, x, y, 1.75, 2.2, '#f4f0e6', 5); cyl(c, x, y, 0.9, 1.6, '#2b2e3a', 11);
+    const [sx, sy] = px(x, y); c.strokeStyle = '#1b1720'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(sx, sy - 12.5); c.quadraticCurveTo(sx + 3, sy - 13, sx + 2.4, sy - 8); c.stroke();
   }
   const F = {
     // the doctor's desk: drawers and a kneehole on the doctor's side (south), a plain modesty panel facing the patient,
     // the monitor turned to the doctor, and the doctor's blue office chair tucked in on their side
     desk: (x, y) => ({ x, y, w: 28, d: 12, draw: (c, X, Y) => {
-      box(c, X + x, Y + y, 28, 12, 11, '#8a5a34', {
-        top: ctx => { R(ctx, 0, 0, 28, 12, '#9a6a40'); R(ctx, 0, 0, 28, 0.5, '#b5824f'); R(ctx, 3, 2, 7, 5, '#f2ecdc'); R(ctx, 4, 3, 5, 0.5, '#bdb5a2'); R(ctx, 4, 4.5, 4, 0.5, '#bdb5a2'); R(ctx, 12, 8, 9, 2.5, '#d9d4c7'); for (let i = 12.5; i < 21; i += 1.5) R(ctx, i, 8.5, 1, 0.5, '#8a8f99'); R(ctx, 23, 2, 3, 3, '#3c7bd6'); R(ctx, 23.5, 1, 0.5, 2, '#e8533f'); R(ctx, 24.5, 1, 0.5, 2, '#2b2e3a'); },
-        south: (ctx, w, h) => { R(ctx, 2, 2, 7, h - 3, '#7a4c2a'); for (let v = 3; v < h - 2; v += 3) { R(ctx, 2.5, v, 6, 2.5, '#94603a'); R(ctx, 5, v + 1, 1.5, 0.5, '#d9b46a'); } R(ctx, 10, 2, 9, h - 2, '#3a2414'); R(ctx, 20, 2, 6, h - 3, '#7a4c2a'); R(ctx, 20.5, 3, 5, 3, '#94603a'); R(ctx, 22.5, 4, 1.5, 0.5, '#d9b46a'); R(ctx, 0, 0, w, 1, '#b5824f'); },
-        north: (ctx, w, h) => { R(ctx, 0, 0, w, 1, '#b5824f'); R(ctx, 2, 2, w - 4, h - 4, '#7a4c2a'); R(ctx, 2, 2, w - 4, 0.5, '#5a3620'); },
-      });
-      box(c, X + x + 15, Y + y + 2.5, 5, 2, 1, '#3a3d44', null, 11);                            // monitor foot
-      box(c, X + x + 12, Y + y + 2.5, 11, 2, 9, '#d9d4c7', { south: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 2, '#1d2a3a'); const f = Math.floor(now * 2 + X) % 4; R(ctx, 1.5, 1.5, w / 2, 1, '#6fd3ff'); R(ctx, 1.5, 3.5, w - 4 - f, 0.5, '#7ee081'); R(ctx, 1.5, 5, w - 7 + f, 0.5, '#7ee081'); if (Math.floor(now * 3) % 2) R(ctx, 1.5 + (w - 7 + f), 5, 0.8, 0.5, '#e8ffe8'); }, north: (ctx, w, h) => { R(ctx, 2, 2, w - 4, h - 4, '#bdb8aa'); for (let i = 3; i < w - 3; i += 1.5) R(ctx, i, 3, 0.5, 2, '#8a8f99'); } }, 11);
+      const ox = X + x, oy = Y + y;
+      box(c, ox + 1, oy + 1, 9, 10, 9, '#7a4c2a', { south: (ctx, w, h) => { for (let v = 1; v < h - 1; v += 2.8) { R(ctx, 0.8, v, w - 1.6, 2.3, '#94603a'); R(ctx, 0.8, v, w - 1.6, 0.5, '#a8744a'); R(ctx, w / 2 - 1, v + 1, 2, 0.5, '#d9b46a'); } } });   // the drawer pedestal
+      tube(c, ox + 26, oy + 2, 9, '#5a3620'); tube(c, ox + 26, oy + 10, 9, '#5a3620');                     // legs
+      box(c, ox + 11, oy + 1, 15, 1, 7, '#7a4c2a', null, 2);                                              // the modesty panel
+      rbox(c, ox, oy, 28, 12, 2, '#9a6a40', 2.5, 9, ctx => { ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(0, 0, 28, 1); R(ctx, 3, 3, 7, 5, '#f2ecdc'); R(ctx, 4, 4, 5, 0.5, '#bdb5a2'); R(ctx, 4, 5.5, 4, 0.5, '#bdb5a2'); R(ctx, 12, 8, 9, 2.5, '#d9d4c7'); for (let i = 12.5; i < 21; i += 1.5) R(ctx, i, 8.5, 1, 0.5, '#8a8f99'); });
+      cyl(c, ox + 24, oy + 3, 1.3, 3, '#3c7bd6', 11); R(c, ...px(ox + 24, oy + 3).map((v, k) => v - (k ? 17 : 0.4)), 0.6, 3, '#e8533f');   // a pen pot
+      cyl(c, ox + 17.5, oy + 3.5, 2, 0.8, '#3a3d44', 11); tube(c, ox + 17.5, oy + 3.5, 3, '#5c6068', 11);     // the monitor's foot and neck
+      rbox(c, ox + 12, oy + 3, 11, 1.6, 9, '#d9d4c7', 0.7, 13);
+      box(c, ox + 12.6, oy + 3.4, 9.8, 0.6, 7, '#1d2a3a', { south: (ctx, w, h) => { const f = Math.floor(now * 2 + X) % 4; R(ctx, 1, 1, w / 2, 1, '#6fd3ff'); R(ctx, 1, 3, w - 3 - f, 0.5, '#7ee081'); R(ctx, 1, 4.5, w - 6 + f, 0.5, '#7ee081'); } }, 14);
     } }),
     rdesk: (x, y) => ({ x, y, w: 18, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 18, 10, 11, '#6c6f78', { top: ctx => { R(ctx, 2, 2, 5, 4, '#f2ecdc'); R(ctx, 3, 7, 7, 1, '#2b2e3a'); }, south: drawers }); box(c, X + x + 8, Y + y + 1, 8, 5, 9, '#d9d4c7', { south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, h - 3, '#1d2a3a'); R(ctx, 2, 2, 3, 1, '#7ee081'); R(ctx, 2, 4, 4, 1, '#7ee081'); } }); } }),
     // a visitor's chair: wooden legs, a padded seat, the back on its north side so it faces south
     chair: (x, y, col) => ({ x, y, w: 8, d: 8, draw: (c, X, Y) => {
       const cc = col || '#2f9a5a';   // patients' chairs are green, like the corridor benches; staff chairs are blue
-      for (const [lx, ly] of [[0.5, 0.5], [6.5, 0.5], [0.5, 6.5], [6.5, 6.5]]) box(c, X + x + lx, Y + y + ly, 1, 1, 2, '#6b4320');
-      box(c, X + x, Y + y, 8, 8, 2, cc, { top: ctx => { R(ctx, 1, 1, 6, 6, shade(cc, 0.15)); R(ctx, 1, 1, 6, 0.5, shade(cc, 0.35)); } }, 2);
-      box(c, X + x, Y + y, 8, 1.5, 10, shade(cc, -0.1), { south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, h - 5, shade(cc, 0.12)); R(ctx, 1, 1, w - 2, 0.5, shade(cc, 0.3)); } }, 2);
+      for (const [lx, ly] of [[1.2, 1.2], [6.8, 1.2], [1.2, 6.8], [6.8, 6.8]]) tube(c, X + x + lx, Y + y + ly, 3, '#c8ced8');
+      rbox(c, X + x + 0.5, Y + y + 0.5, 7, 7, 1.5, cc, 2, 2.5, ctx => { ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.beginPath(); ctx.roundRect(1, 1.5, 5, 4, 1.5); ctx.fill(); });
+      tube(c, X + x + 1.2, Y + y + 0.8, 8, '#c8ced8', 3); tube(c, X + x + 6.8, Y + y + 0.8, 8, '#c8ced8', 3);
+      rbox(c, X + x + 0.5, Y + y + 0.2, 7, 1.4, 5, cc, 0.7, 6);
     } }),
     // a filing cabinet: four labelled drawers with handles on its front (south)
-    cabinet: (x, y) => ({ x, y, w: 10, d: 10, draw: (c, X, Y) => box(c, X + x, Y + y, 10, 10, 22, '#7d838e', { top: ctx => { R(ctx, 0, 0, 10, 10, '#9aa1ac'); R(ctx, 0, 0, 10, 0.5, '#b8bec8'); }, south: (ctx, w, h) => { for (let i = 0; i < 4; i++) { const v = 1 + i * 5.2; R(ctx, 1, v, w - 2, 4.5, '#8e95a0'); R(ctx, 1, v, w - 2, 0.5, '#aab1bc'); R(ctx, 1, v + 4, w - 2, 0.5, '#5c6270'); R(ctx, 3.5, v + 1, 3, 1.2, '#f4f0e6'); R(ctx, 4, v + 2.6, 2, 0.8, '#3a3d44'); } } }) }),
+    cabinet: (x, y) => ({ x, y, w: 10, d: 10, draw: (c, X, Y) => { box(c, X + x + 0.5, Y + y + 0.5, 9, 9, 21, '#7d838e', { south: (ctx, w, h) => { for (let i = 0; i < 4; i++) { const v = 1 + i * 5; R(ctx, 0.8, v, w - 1.6, 4.4, '#8e95a0'); R(ctx, 0.8, v, w - 1.6, 0.5, '#aab1bc'); R(ctx, 0.8, v + 3.9, w - 1.6, 0.5, '#5c6270'); R(ctx, 3, v + 1, 3, 1.2, '#f4f0e6'); R(ctx, 3.5, v + 2.6, 2, 0.8, '#3a3d44'); } } }); rbox(c, X + x, Y + y, 10, 10, 1, '#9aa1ac', 1.5, 21); } }),
     shelves: (x, y, w) => ({ x, y, w, d: 6, draw: (c, X, Y) => box(c, X + x, Y + y, w, 6, 20, '#8b5a2b', { south: bottles }) }),
     counter: (x, y, w) => ({ x, y, w, d: 10, draw: (c, X, Y) => box(c, X + x, Y + y, w, 10, 11, '#e8e0d0', { top: ctx => { R(ctx, 2, 2, 4, 3, '#3c7bd6'); R(ctx, 8, 3, 5, 2, '#f4f0e6'); R(ctx, w - 7, 2, 4, 3, '#39a85a'); }, south: (ctx, w2, h) => { R(ctx, 0, 3, w2, 1, '#bbb3a4'); R(ctx, 3, 5, w2 / 2 - 4, h - 7, '#d6cdbc'); R(ctx, w2 / 2 + 1, 5, w2 / 2 - 4, h - 7, '#d6cdbc'); } }) }),
     sink: (x, y) => ({ x, y, w: 10, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 10, 10, 11, '#c0c4cc', { top: ctx => { R(ctx, 2, 2, 6, 6, '#9fd8ff'); R(ctx, 4, 1, 2, 1, '#6a7078'); } }); box(c, X + x + 2, Y + y, 6, 1, 20, '#dfe4f2', { south: (ctx, w, h) => R(ctx, 1, 1, w - 2, h - 2, '#9fd8ff') }); } }),
-    bed: (x, y) => ({ x, y, w: 14, d: 26, draw: (c, X, Y) => { box(c, X + x, Y + y, 14, 2, 14, '#5a3a22'); box(c, X + x, Y + y + 2, 14, 24, 8, '#f4f4f8', { top: sheet }); } }),
+    bed: (x, y) => ({ x, y, w: 14, d: 26, draw: (c, X, Y) => { const ox = X + x, oy = Y + y; for (const [lx, ly] of [[1.5, 3], [12.5, 3], [1.5, 25], [12.5, 25]]) tube(c, ox + lx, oy + ly, 3, '#9aa3b8'); rbox(c, ox, oy, 14, 2, 14, '#c8ced8', 1, 0); rbox(c, ox + 0.5, oy + 2, 13, 23.5, 2, '#9aa3b8', 1.5, 3); rbox(c, ox + 1, oy + 2.5, 12, 22.5, 3, '#f4f4f8', 2.5, 5); rbox(c, ox + 2.5, oy + 3.5, 9, 5, 1.5, '#ffffff', 2.4, 8); rbox(c, ox + 0.8, oy + 11, 12.4, 14, 1.2, '#7fb7e6', 2.5, 8, ctx => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 12.4, 1.2); ctx.fillStyle = 'rgba(0,0,0,.08)'; for (let j = 3; j < 14; j += 3) ctx.fillRect(0, j, 12.4, 0.5); }); } }),
     bedside: (x, y) => ({ x, y, w: 8, d: 8, draw: (c, X, Y) => box(c, X + x, Y + y, 8, 8, 10, '#8b5a2b', { top: ctx => { R(ctx, 2, 2, 4, 4, '#ff6b9a'); R(ctx, 3, 1, 2, 1, '#39a85a'); } }) }),
     curtain: (x, y, col) => ({ x, y, w: 2, d: 14, draw: (c, X, Y) => box(c, X + x, Y + y, 2, 14, 18, col || '#bfe3df', { east: (ctx, d, h) => { for (let v = 2; v < h; v += 4) R(ctx, 0, v, d, 1, shade(col || '#bfe3df', -0.08)); R(ctx, 0, 0, d, 1, '#9aa3b8'); } }) }),
     screenP: (x, y) => ({ x, y, w: 16, d: 2, draw: (c, X, Y) => box(c, X + x, Y + y, 16, 2, 20, '#f2e8d4', { south: (ctx, w, h) => { R(ctx, 0, 0, w, 2, '#9aa3b8'); for (let u = 5; u < w; u += 5) R(ctx, u, 0, 1, h, '#c9bfa8'); R(ctx, 0, h - 3, w, 3, '#9aa3b8'); } }) }),
-    couch: (x, y, w) => ({ x, y, w: w || 32, d: 12, draw: (c, X, Y) => { const ww = w || 32; box(c, X + x, Y + y, ww, 3, 13, '#6b2d3a'); box(c, X + x, Y + y + 3, ww, 9, 7, '#8a3a4a', { top: ctx => { R(ctx, 2, 1, ww - 4, 6, '#a04a5a'); R(ctx, 4, 2, 6, 4, '#f2d9a4'); } }); box(c, X + x, Y + y + 3, 2, 9, 10, '#6b2d3a'); box(c, X + x + ww - 2, Y + y + 3, 2, 9, 10, '#6b2d3a'); } }),
-    sofa: (x, y) => ({ x, y, w: 18, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 18, 3, 13, '#2f6b74'); box(c, X + x, Y + y + 3, 18, 7, 6, '#3f8a94', { top: ctx => { R(ctx, 1, 1, 7, 4, '#5aa8b2'); R(ctx, 10, 1, 7, 4, '#5aa8b2'); } }); box(c, X + x, Y + y + 3, 2, 7, 9, '#2f6b74'); box(c, X + x + 16, Y + y + 3, 2, 7, 9, '#2f6b74'); } }),
+    couch: (x, y, w) => ({ x, y, w: w || 32, d: 12, draw: (c, X, Y) => { const ww = w || 32, ox = X + x, oy = Y + y; rbox(c, ox, oy, ww, 4, 13, '#6b2d3a', 2, 0); rbox(c, ox, oy + 3, ww, 9, 4, '#7a3444', 2, 0); for (let i = 0; i < 3; i++) rbox(c, ox + 2.5 + i * (ww - 5) / 3, oy + 3.5, (ww - 5) / 3 - 0.4, 8, 2.5, '#a04a5a', 2.5, 4); rbox(c, ox + 3, oy + 4, 6, 4, 2, '#f2d9a4', 2, 6.5); rbox(c, ox, oy + 2, 3, 10, 9, '#6b2d3a', 1.5, 0); rbox(c, ox + ww - 3, oy + 2, 3, 10, 9, '#6b2d3a', 1.5, 0); } }),
+    sofa: (x, y) => ({ x, y, w: 18, d: 10, draw: (c, X, Y) => { const ox = X + x, oy = Y + y; rbox(c, ox, oy, 18, 3.5, 13, '#2f6b74', 1.8, 0); rbox(c, ox, oy + 3, 18, 7, 3.5, '#357a84', 1.8, 0); rbox(c, ox + 2.2, oy + 3.3, 6.6, 6.2, 2.5, '#4f98a2', 2.4, 3.5); rbox(c, ox + 9.2, oy + 3.3, 6.6, 6.2, 2.5, '#4f98a2', 2.4, 3.5); rbox(c, ox, oy + 2, 2.4, 8, 9, '#2f6b74', 1.2, 0); rbox(c, ox + 15.6, oy + 2, 2.4, 8, 9, '#2f6b74', 1.2, 0); } }),
     examtable: (x, y) => ({ x, y, w: 26, d: 10, draw: (c, X, Y) => { box(c, X + x + 2, Y + y + 3, 3, 4, 6, '#9aa3b8'); box(c, X + x + 21, Y + y + 3, 3, 4, 6, '#9aa3b8'); box(c, X + x, Y + y, 26, 10, 10, '#4a8fb8', { top: ctx => { R(ctx, 1, 1, 24, 8, '#5fa7d0'); R(ctx, 1, 1, 6, 8, '#f4f4f8'); R(ctx, 8, 2, 16, 6, '#f4f4f8'); } }); } }),
     scale: (x, y) => ({ x, y, w: 8, d: 8, draw: (c, X, Y) => { box(c, X + x, Y + y, 8, 8, 2, '#c8ced8'); box(c, X + x + 3, Y + y, 2, 2, 22, '#9aa3b8'); const [sx, sy] = px(X + x + 4, Y + y + 1); R(c, sx - 4, sy - 26, 8, 6, '#f4f4f0'); R(c, sx - 3, sy - 25, 6, 4, '#2b2e3a'); R(c, sx - 1, sy - 24, 3, 1, '#e8533f'); } }),
     bookshelf: (x, y) => ({ x, y, w: 22, d: 6, draw: (c, X, Y) => box(c, X + x, Y + y, 22, 6, 24, '#5a3a22', { south: (ctx, w, h) => { for (let v = 3; v < h - 2; v += 7) { R(ctx, 1, v, w - 2, 6, '#2b1b10'); for (let u = 2; u < w - 2; u += 3) R(ctx, u, v + 1 + ((u * 7 + v) % 3), 2, 5 - ((u * 7 + v) % 3), ['#8b2a2a', '#2f5e3a', '#2a4a7a', '#8a6a2a', '#5a2a6a'][(u + v) % 5]); } } }) }),
@@ -183,8 +228,8 @@
     oplamp: (x, y) => ({ x, y, w: 2, d: 2, draw: (c, X, Y) => { box(c, X + x, Y + y, 2, 2, 30, '#9aa3b8'); const [sx, sy] = px(X + x + 1, Y + y + 1); R(c, sx - 12, sy - 36, 24, 5, '#9aa3b8'); R(c, sx - 10, sy - 31, 20, 3, '#ffd23f'); R(c, sx - 8, sy - 29, 16, 1, '#fff6c0'); } }),
     lamp: (x, y) => ({ x, y, w: 4, d: 4, draw: (c, X, Y) => bill(c, A.furniture('lamp'), X + x + 2, Y + y + 4) }),
     plant: (x, y, dry) => ({ x, y, w: 8, d: 8, draw: (c, X, Y) => { shadow(c, X + x + 4, Y + y + 6, 5); bill(c, A.furniture(dry ? 'deadplant' : 'plant'), X + x + 4, Y + y + 7); } }),
-    bin: (x, y) => ({ x, y, w: 6, d: 6, draw: (c, X, Y) => box(c, X + x, Y + y, 6, 6, 8, '#6b7280', { top: ctx => R(ctx, 1, 1, 4, 4, '#3a3f48') }) }),
-    ext: (x, y) => ({ x, y, w: 4, d: 4, draw: (c, X, Y) => { box(c, X + x, Y + y, 4, 4, 13, '#d0352a', { south: (ctx, w, h) => { R(ctx, 0, 3, w, 3, '#f4f0e6'); R(ctx, 1, 4, 2, 1, '#d0352a'); } }); const [sx, sy] = px(X + x + 2, Y + y + 2); R(c, sx - 1, sy - 16, 3, 2, OUT); R(c, sx + 2, sy - 15, 2, 1, OUT); } }),
+    bin: (x, y) => ({ x, y, w: 6, d: 6, draw: (c, X, Y) => { cyl(c, X + x + 3, Y + y + 3, 2.6, 7, '#6b7280'); cyl(c, X + x + 3, Y + y + 3, 2.8, 1, '#8a919c', 7); } }),
+    ext: (x, y) => ({ x, y, w: 4, d: 4, draw: (c, X, Y) => extinguisher(c, X + x + 2, Y + y + 2) }),
     rad: (x, y) => ({ x, y, w: 14, d: 3, draw: (c, X, Y) => box(c, X + x, Y + y, 14, 3, 9, '#f4f4f0', { south: (ctx, w, h) => { for (let u = 1; u < w; u += 2) R(ctx, u, 1, 1, h - 2, '#d2d2cf'); } }) }),
     // ---- diagnosis machines ----
     treadmill: (x, y) => ({ x, y, w: 26, d: 12, draw: (c, X, Y) => { box(c, X + x, Y + y, 26, 12, 4, '#3a3f48', { top: ctx => { R(ctx, 2, 2, 22, 8, '#1d2029'); for (let u = 3; u < 24; u += 3) R(ctx, u, 2, 1, 8, '#2b2e3a'); } }); box(c, X + x + 2, Y + y, 2, 2, 18, '#9aa3b8'); box(c, X + x + 2, Y + y + 10, 2, 2, 18, '#9aa3b8'); box(c, X + x + 1, Y + y, 4, 12, 3, '#9aa3b8'); const [sx, sy] = px(X + x + 3, Y + y + 6); R(c, sx - 5, sy - 28, 10, 7, '#2b2e3a'); R(c, sx - 4, sy - 27, 8, 5, '#1d2a3a'); c.strokeStyle = '#7ee081'; c.lineWidth = 1; c.beginPath(); c.moveTo(sx - 4, sy - 24); c.lineTo(sx - 2, sy - 24); c.lineTo(sx - 1, sy - 27); c.lineTo(sx, sy - 22); c.lineTo(sx + 1, sy - 24); c.lineTo(sx + 4, sy - 24); c.stroke(); } }),
@@ -274,14 +319,15 @@
   const DECOR_DRAW = {
     plant: (c, x, y, dry) => { shadow(c, x, y + 4, 5); bill(c, A.furniture(dry ? 'deadplant' : 'plant'), x, y + 5); },
     bench: (c, x, y) => {
-      for (const lx of [-6.5, 5.5]) { box(c, x + lx, y - 2, 1, 1, 2, '#c8ced8'); box(c, x + lx, y + 2.5, 1, 1, 2, '#c8ced8'); }
-      box(c, x - 7, y - 2, 14, 5, 1, '#b8c0cc', null, 2);
-      for (let i = 0; i < 3; i++) box(c, x - 7 + i * 4.7, y - 2, 4.4, 5, 2, '#2fa04a', { top: ctx => { R(ctx, 0.5, 0.5, 3.4, 4, '#3fbc5c'); R(ctx, 0.5, 0.5, 3.4, 0.5, '#6fd88a'); } }, 3);
-      box(c, x - 7, y - 3, 14, 1, 8, '#2fa04a', { south: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 1, '#3fbc5c'); R(ctx, 0.5, 0.5, w - 1, 0.5, '#6fd88a'); for (let i = 4.7; i < w; i += 4.7) R(ctx, i, 0, 0.5, h, '#257f3a'); } }, 4);
+      // Theme Hospital's waiting bench: green padded seats and backs on a chrome tube frame
+      for (const lx of [-6, 6]) { tube(c, x + lx, y - 1.5, 3); tube(c, x + lx, y + 2, 3); tube(c, x + lx, y - 2.6, 8, null, 3); }
+      rbox(c, x - 7, y - 2.2, 14, 4.6, 0.6, '#b8c0cc', 0.8, 2.6);
+      for (let i = 0; i < 3; i++) rbox(c, x - 6.8 + i * 4.6, y - 2, 4.3, 4.4, 1.6, '#2fa04a', 1.6, 3.2, ctx => { ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); ctx.roundRect(0.6, 0.6, 3, 2, 1); ctx.fill(); });
+      for (let i = 0; i < 3; i++) rbox(c, x - 6.8 + i * 4.6, y - 3.2, 4.3, 1.2, 5, '#2fa04a', 0.6, 5.2);
     },
     radiator: (c, x, y) => box(c, x - 7, y - 2, 14, 3, 8, '#f4f4f0', { south: (ctx, w, h) => { for (let u = 1; u < w; u += 2) R(ctx, u, 1, 1, h - 2, '#d2d2cf'); } }),
-    ext: (c, x, y) => { box(c, x - 2, y - 2, 4, 4, 13, '#d0352a', { south: (ctx, w, h) => { R(ctx, 0, 3, w, 3, '#f4f0e6'); } }); const [sx, sy] = px(x, y); R(c, sx - 1, sy - 16, 3, 2, OUT); },
-    drinks: (c, x, y) => box(c, x - 5, y - 4, 10, 8, 22, '#c43c2c', { south: (ctx, w, h) => { R(ctx, 1, 2, w - 2, 11, '#1d2a3a'); for (let j = 0; j < 2; j++) for (let i = 0; i < 3; i++) R(ctx, 2 + i * 3, 4 + j * 5, 2, 3, ['#ffd23f', '#39a85a', '#3c7bd6'][(i + j) % 3]); R(ctx, 2, h - 6, w - 4, 3, '#1d2a3a'); R(ctx, w - 3, 14, 2, 1, '#ffd23f'); } }),
+    ext: (c, x, y) => extinguisher(c, x, y),
+    drinks: (c, x, y) => { box(c, x - 5, y - 4, 10, 8, 21, '#c43c2c', { south: (ctx, w, h) => { R(ctx, 1, 2, w - 2, 11, '#1d2a3a'); for (let j = 0; j < 2; j++) for (let i = 0; i < 3; i++) R(ctx, 2 + i * 3, 4 + j * 5, 2, 3, ['#ffd23f', '#39a85a', '#3c7bd6'][(i + j) % 3]); R(ctx, 2, h - 6, w - 4, 3, '#1d2a3a'); R(ctx, w - 3, 14, 2, 1, '#ffd23f'); } }); rbox(c, x - 5.3, y - 4.3, 10.6, 8.6, 1.5, '#d84a3a', 2, 21); },
   };
   // a corridor object on tile (c, r): turned so its back is against a neighbouring wall (one behind it, from the
   // viewer, if there is one) and nudged up to it; sorted by the tile's centre

@@ -88,6 +88,7 @@
     .chip { display: inline-flex; align-items: center; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface-2); overflow: hidden; }
     .chip.on { border-color: var(--accent-2); box-shadow: inset 0 0 0 1px var(--accent-2); }
     .chip button { appearance: none; border: 0; background: none; color: var(--ink); font: 600 .8rem var(--font); cursor: pointer; padding: .22rem .55rem; }
+    .chip .chip-n { font: 800 .72rem var(--font); color: #fff; background: #2a8aa6; border-radius: 999px; padding: 0 .4rem; margin-right: .3rem; }
     .chip .chip-x { color: var(--muted); padding: .22rem .45rem; border-left: 1px solid var(--line); }
     .eb-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
     @media (max-width: 640px) { .editbar { padding: 6px 8px; } .eb-hint { font-size: .78rem; } }
@@ -343,7 +344,7 @@
       <p class="sub" id="decorSub"></p>
       <div class="list" id="decorList"></div>
       <p class="err" id="decorErr"></p>
-      <div class="row"><button class="pt-btn pt-btn-ghost" id="decorClose">Close</button><button class="pt-btn" id="decorRemove" hidden>Remove</button></div>
+      <div class="row"><span class="note" id="decorTotal"></span><button class="pt-btn pt-btn-ghost" id="decorClose">Close</button><button class="pt-btn" id="decorRemove" hidden>Remove</button><button class="pt-btn" id="decorBuy" hidden>Place them ✓</button></div>
     </div>
   </div>
 

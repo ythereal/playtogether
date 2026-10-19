@@ -862,8 +862,13 @@
     const h = view.h[ME];
     let title, hint, chips = [], btns = [];
     if (ed && ed.mode === 'decor' && !tg) {
-      title = 'Corridor objects'; hint = 'Tap a corridor floor tile to put a bench, plant, radiator, extinguisher or drinks machine there.';
-      btns = [['Done', 'pt-btn', () => { ed = null; renderEdit(); }]];
+      // placing what was ordered: one chip per item still to place; tap a chip to switch
+      const bag = ed.bag || {}, left = RH.DECOR_ORDER.filter(k => bag[k] > 0);
+      if (!bag[ed.cur]) ed.cur = left[0];
+      title = 'Corridor objects';
+      hint = ed.cur ? `Tap free corridor floor to put down a ${RH.DECOR[ed.cur].name.toLowerCase()} (${money(RH.DECOR[ed.cur].cost)}). Tap one of your items to switch; anything left unplaced isn't charged.` : 'Everything is placed.';
+      chips = left.map(k => ({ decor: k, n: bag[k], o: k, i: k }));
+      btns = [['Order more', 'pt-btn pt-btn-ghost', openOrder], ['Done ✓', 'pt-btn', () => { ed = null; renderEdit(); }]];
     } else {
       const R = RH.ROOMS[tg.kind], step = STEP[tg.phase];
       title = `${R.name} · step ${step} of 5`;
@@ -896,13 +901,18 @@
           ['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: r.id })], ['Finish ✓', 'pt-btn', () => act('finish', { id: r.id }), miss.length > 0]);
       }
     }
-    const key = [title, hint, chips.map(c => c.o + c.i).join(','), edLi, btns.map(b => b[0] + (b[3] ? 1 : 0)).join(',')].join('|');
+    const key = [title, hint, chips.map(c => c.o + c.i + (c.n || '')).join(','), edLi, ed && ed.cur, btns.map(b => b[0] + (b[3] ? 1 : 0)).join(',')].join('|');
     bar.hidden = false;
     if (key === edKey) return; edKey = key;
     $('ebTitle').textContent = title; $('ebHint').textContent = hint;
     const cl = $('ebList'); cl.replaceChildren(); cl.hidden = !chips.length;
     const tg2 = edTarget();
     for (const c of chips) {
+      if (c.decor) {   // an ordered corridor object: its name and how many are left
+        const ch = el('span', 'chip' + (ed && c.decor === ed.cur ? ' on' : ''));
+        const nm = el('button', 'chip-b', RH.DECOR[c.decor].name); nm.addEventListener('click', () => { ed.cur = c.decor; edKey = ''; renderEdit(); });
+        ch.append(nm, el('span', 'chip-n', '×' + c.n)); cl.append(ch); continue;
+      }
       const ch = el('span', 'chip' + (c.i === edLi ? ' on' : ''));
       const nm = el('button', 'chip-b', RH.OBJ[c.o].name); nm.addEventListener('click', () => { edLi = c.i; edKey = ''; renderEdit(); });
       const x = el('button', 'chip-x', '×'); x.title = `Sell for ${money(RH.objCost(h, c.o))}`; x.addEventListener('click', () => act('osell', { id: tg2.room.id, li: c.i }));
@@ -982,8 +992,15 @@
   function edTap(wx, wy) {
     const tg = edTarget();
     if (ed && ed.mode === 'decor' && !tg) {
-      const c = Math.floor(wx / T), r = Math.floor(wy / T), h = view.h[ME];
-      if (h.decor[RH.decorKey(c, r)]) openDecorInfo(c, r); else if (RH.decorCheck(h, c, r, 'radiator')) openDecor(c, r); else toast('Objects go on free corridor floor (not the lobby, a doorway or a room)', 'dim');
+      const c = Math.floor(wx / T), r = Math.floor(wy / T), h = view.h[ME], kind = ed.cur;
+      if (h.decor[RH.decorKey(c, r)]) { openDecorInfo(c, r); return true; }
+      if (!kind) return true;
+      if (!RH.decorCheck(h, c, r, kind)) { toast('Objects go on free corridor floor (not the lobby, a doorway or a room), and must leave a way through', 'dim'); return true; }
+      if (h.cash < RH.DECOR[kind].cost) { fail('Not enough cash: try a loan from the Bank'); return true; }
+      act('decor', { c, r, kind });
+      ed.bag[kind]--;
+      if (!(ed.bag[kind] > 0)) { const nx = RH.DECOR_ORDER.find(k => ed.bag[k] > 0); if (nx) ed.cur = nx; else { ed = null; toast('Everything you ordered is in place', 'good'); } }
+      edKey = ''; renderEdit();
       return true;
     }
     if (!tg) return false;
@@ -1012,23 +1029,38 @@
 
   // ---- corridor objects & the reception desk ----
   let decorSpotSel = null;
-  function openDecor(c, r) {
-    decorSpotSel = [c, r]; lastErr = null; $('decorErr').textContent = '';
+  // the corridor-objects order, Theme Hospital style: pick how many of each, then place them all
+  let order = {};
+  function openOrder() {
+    decorSpotSel = null; lastErr = null; $('decorErr').textContent = '';
     const h = view.h[ME];
+    order = Object.assign({}, ed && ed.mode === 'decor' && ed.bag || {});
     $('decorTitle').textContent = 'Corridor objects';
-    $('decorSub').textContent = `Comfort ${h.comfort}/${RH.MAX_COMFORT} · warmth ${warmWord(h.warm)} · you have ${money(h.cash)}`;
-    const list = $('decorList'); list.replaceChildren();
-    for (const kind of RH.DECOR_ORDER) {
-      const D = RH.DECOR[kind];
-      const b = el('button', 'item room'); b.disabled = h.cash < D.cost;
-      const body = el('div'); body.append(el('b', null, D.name), el('small', null, D.desc + (D.comfort ? ` Comfort +${D.comfort}.` : '')));
-      b.append(body, el('span', 'price', money(D.cost)));
-      b.addEventListener('click', () => { act('decor', { c, r, kind }); $('decorSheet').hidden = true; });
-      list.append(b);
-    }
-    $('decorRemove').hidden = true;
+    $('decorSub').textContent = `Comfort ${h.comfort}/${RH.MAX_COMFORT} · warmth ${warmWord(h.warm)}. Choose how many of each, then place them in the corridors. You pay for each one as it goes down.`;
+    const list = $('decorList'), total = () => RH.DECOR_ORDER.reduce((a, k) => a + (order[k] || 0) * RH.DECOR[k].cost, 0);
+    const paint = () => {
+      list.replaceChildren();
+      for (const kind of RH.DECOR_ORDER) {
+        const D = RH.DECOR[kind], row = el('div', 'item room');
+        const body = el('div'); body.append(el('b', null, `${D.name} · ${money(D.cost)}`), el('small', null, D.desc + (D.comfort ? ` Comfort +${D.comfort}.` : '')));
+        const st = el('span', 'step');
+        st.append(btn('−', 'stepb', () => { order[kind] = Math.max(0, (order[kind] || 0) - 1); paint(); }), el('b', null, String(order[kind] || 0)), btn('+', 'stepb', () => { order[kind] = Math.min(20, (order[kind] || 0) + 1); paint(); }));
+        row.append(body, st); list.append(row);
+      }
+      const t = total();
+      $('decorTotal').textContent = t ? `Total ${money(t)}${t > h.cash ? ' (more than you have)' : ''}` : '';
+      $('decorBuy').disabled = !t || view.ph !== 'play';
+    };
+    paint();
+    $('decorRemove').hidden = true; $('decorBuy').hidden = false;
     closeSheets(); $('decorSheet').hidden = false;
   }
+  $('decorBuy').addEventListener('click', () => {
+    const bag = {}; for (const k of RH.DECOR_ORDER) if (order[k] > 0) bag[k] = order[k];
+    $('decorSheet').hidden = true;
+    if (!Object.keys(bag).length) return;
+    ed = { mode: 'decor', bag, cur: RH.DECOR_ORDER.find(k => bag[k] > 0) }; edKey = ''; renderEdit();
+  });
   function openDecorInfo(c, r) {
     decorSpotSel = [c, r];
     const h = view.h[ME], kind = h.decor[RH.decorKey(c, r)]; if (!kind) return;
@@ -1036,7 +1068,7 @@
     $('decorSub').textContent = RH.DECOR[kind].desc + (kind === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' This one has died: a handyman needs to water it.' : '');
     $('decorList').replaceChildren();
     $('decorRemove').hidden = view.ph !== 'play'; $('decorRemove').textContent = `Remove · +${money(RH.DECOR[kind].cost / 2)}`;
-    $('decorErr').textContent = '';
+    $('decorErr').textContent = ''; $('decorBuy').hidden = true; $('decorTotal').textContent = '';
     closeSheets(); $('decorSheet').hidden = false;
   }
   function openDesk() {
@@ -1053,13 +1085,13 @@
       b.addEventListener('click', () => { act('desk'); $('decorSheet').hidden = true; });
       list.append(b);
     }
-    $('decorRemove').hidden = true;
+    $('decorRemove').hidden = true; $('decorBuy').hidden = true; $('decorTotal').textContent = '';
     closeSheets(); $('decorSheet').hidden = false;
   }
   const warmWord = w => (w < 0.6 ? 'cold' : w > 1.6 ? 'too hot' : w > 1.2 ? 'warm' : 'comfortable');
   $('decorRemove').addEventListener('click', () => { if (decorSpotSel) act('undecor', { c: decorSpotSel[0], r: decorSpotSel[1] }); $('decorSheet').hidden = true; });
   $('decorClose').addEventListener('click', () => { $('decorSheet').hidden = true; });
-  $('decorBtn').addEventListener('click', () => { if (tab !== ME) setTab(ME); if (myEdit()) { toast('Finish the room you\'re building first', 'dim'); return; } ed = ed && ed.mode === 'decor' ? null : { mode: 'decor' }; edKey = ''; renderEdit(); });
+  $('decorBtn').addEventListener('click', () => { if (tab !== ME) setTab(ME); if (myEdit()) { toast('Finish the room you\'re building first', 'dim'); return; } openOrder(); });
   $('buildBtn').addEventListener('click', () => { if (!view || view.ph !== 'play') return; const r = myEdit(); if (r) { toast(`Finish the ${rname(r.k)} first`, 'dim'); return; } openBuild(); });
 
   // ---- staff ----
@@ -1762,7 +1794,11 @@
     }
     if (ed && ed.mode === 'decor' && !tg && edHoverW) {
       const c = Math.floor(edHoverW[0] / T), r = Math.floor(edHoverW[1] / T);
-      if (RH.inMap(c, r)) HI.tileQuad(bctx, c, r, RH.decorCheck(h, c, r, 'radiator') ? OK_FILL : BAD_FILL, 'rgba(255,255,255,.5)');
+      if (RH.inMap(c, r)) {
+        const ok = RH.decorCheck(h, c, r, ed.cur || 'radiator');
+        HI.tileQuad(bctx, c, r, ok ? OK_FILL : BAD_FILL, 'rgba(255,255,255,.5)');
+        if (ok && ed.cur) { const it = HI.decorItem(h, c, r, ed.cur, false); ghosts3d.push({ d: it.d, draw: cx => { cx.globalAlpha = 0.6; it.draw(cx); cx.globalAlpha = 1; } }); }   // a see-through preview of the item
+      }
     }
   }
   function render(t, dt) {
