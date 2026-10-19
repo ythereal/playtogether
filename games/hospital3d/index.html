@@ -308,6 +308,81 @@
     .rlist .rcost { padding: 6px 10px; font-weight: 800; border-top: 2px solid #0a3e48; font-variant-numeric: tabular-nums; }
     .xbtn { min-width: 64px; font-size: 1.1rem; }
     .xbtn b { color: #ff6a50; text-shadow: 0 1px 0 #5a120c; font-size: 1.3rem; line-height: 1; }
+    /* ---------- the place-objects / edit-room panel: docked top right, as in the original ---------- */
+    .editbar { left: auto; right: 64px; top: 44px; bottom: auto; transform: none; width: 236px; max-height: calc(100vh - var(--barh, 70px) - 64px); overflow: auto; padding: 0 0 8px; gap: 0; align-content: start; }
+    .editbar .eb-title { padding: 6px 10px; font-size: .95rem; color: #effbfd; background: linear-gradient(#167b8b, #0f5f6d); border-bottom: 2px solid #0a3e48; }
+    .editbar .eb-hint { padding: 6px 10px; color: var(--ink); font-size: .8rem; line-height: 1.3; min-height: 3.2em; }
+    .eb-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; justify-content: stretch; padding: 4px 8px; background: #12606e; border-top: 2px solid #0a3e48; border-bottom: 2px solid #0a3e48; }
+    .ebb { appearance: none; display: grid; place-items: center; height: 40px; padding: 0; cursor: pointer; border-radius: 2px; border: 2px solid; border-color: #7fd2de #0a3e48 #0a3e48 #7fd2de; background: linear-gradient(#2a9eb0, #167b8b); color: #effbfd; box-shadow: 0 0 0 1px #062a30; }
+    .ebb svg { width: 22px; height: 22px; }
+    .ebb.go { border-color: #9fe6a8 #0f3f18 #0f3f18 #9fe6a8; background: linear-gradient(#55c063, #2f8a3e); }
+    .ebb.no { color: #ff6a50; }
+    .ebb.on { border-color: #6a2a0c #ffc29a #ffc29a #6a2a0c; background: #d0602a; }
+    .ebb:active:not(:disabled) { border-color: #0a3e48 #7fd2de #7fd2de #0a3e48; }
+    .ebb:disabled { cursor: default; filter: grayscale(1) brightness(.75); opacity: .55; }
+    .editbar .eb-list { display: grid; gap: 0; padding: 4px 8px 0; }
+    .orow { appearance: none; display: flex; align-items: center; gap: 6px; width: 100%; padding: .3rem .5rem; margin: 2px 0; border: 2px solid transparent; background: var(--surface-2); color: var(--ink); font: 700 .84rem var(--font); text-shadow: inherit; text-align: left; cursor: pointer; }
+    .orow .nm { flex: 1; } .orow .ct { font-variant-numeric: tabular-nums; color: #ffe7a0; }
+    .orow.on { border-color: #ff9a3c; box-shadow: inset 0 0 0 1px #ffcf8a; }
+    .orow.req .nm::after { content: ' *'; color: #ffd05c; }
+    .orow .sx { appearance: none; border: 0; background: none; color: var(--muted); font: 700 .9rem var(--font); cursor: pointer; padding: 0 2px; }
+    .eb-extra { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 0; }
+    .eb-extra:empty { display: none; }
+    @media (max-width: 640px) { .editbar { right: 52px; left: 6px; top: 40px; width: auto; max-width: 300px; margin-left: auto; max-height: 46vh; } .editbar .eb-hint { min-height: 0; font-size: .76rem; padding: 4px 8px; } .ebb { height: 34px; } }
+
+    /* ---------- hire staff: four profession tabs down the left, one candidate at a time ---------- */
+    .sheet.hire { width: 330px; }
+    .hgrid { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
+    .htabs { display: grid; gap: 4px; align-content: start; padding: 4px; background: #8c9399; border: 3px ridge #bfc5cb; }
+    .htab { appearance: none; position: relative; height: 66px; display: grid; place-items: center; padding: 2px 0 14px; cursor: pointer; border-radius: 2px; border: 2px solid; border-color: #7fd2de #0a3e48 #0a3e48 #7fd2de; background: linear-gradient(#2a9eb0, #167b8b); }
+    .htab canvas { image-rendering: pixelated; }
+    .htab b { position: absolute; left: 0; right: 0; bottom: 1px; font: 800 .8rem var(--font); color: #fff; text-shadow: 0 1px 0 #0a3e48; }
+    .htab.on { border-color: #6a2a0c #ffc29a #ffc29a #6a2a0c; background: #d0602a; }
+    .htab.none { filter: grayscale(.8) brightness(.8); }
+    .hinfo { position: relative; padding: 8px 10px; background: #1b8395; border: 3px ridge #bfc5cb; display: grid; gap: 6px; align-content: start; min-height: 252px; }
+    .hblank { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--muted); background: #12606e; }
+    .hblank[hidden] { display: none; }
+    .hname { font-weight: 800; font-size: 1.02rem; }
+    .hmid { display: grid; grid-template-columns: 1fr 72px; gap: 8px; align-items: start; }
+    .hleft { display: grid; gap: 4px; }
+    .hsen-l { display: flex; justify-content: space-between; font-size: .66rem; font-weight: 700; color: var(--muted); }
+    .hsen-s { position: relative; height: 10px; margin: 2px 4px 0; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; background: linear-gradient(90deg, #5d9ea8, #c9b04a, #e07b39); }
+    .hsen-s i { position: absolute; top: -5px; width: 4px; height: 16px; margin-left: -2px; background: #fff; box-shadow: 0 0 0 1px #0a3e48; transition: left .2s; }
+    .hsen.off { visibility: hidden; }
+    .hlbl { font-size: .72rem; font-weight: 700; color: var(--muted); margin-top: 4px; }
+    .hbar { height: 12px; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; background: #0f5f6d; }
+    .hbar i { display: block; height: 100%; background: linear-gradient(#ffe36b, #e0a21c); transition: width .2s; }
+    .hpor { width: 72px; height: 81px; image-rendering: pixelated; border: 2px solid; border-color: #0a3e48 #5cc0cf #5cc0cf #0a3e48; }
+    .hquals { display: flex; gap: 8px; min-height: 30px; align-items: center; padding: 2px 4px; background: #166e7e; }
+    .hquals.blank > * { visibility: hidden; }
+    .hq { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #0f5f6d; color: #6aa5ae; }
+    .hq svg { width: 17px; height: 17px; }
+    .hq.on { color: #fff; } .hq.s.on { background: #2f9e5b; } .hq.p.on { background: #8e5bd6; } .hq.r.on { background: #c99a1c; }
+    .hsal { display: flex; justify-content: space-between; font-weight: 700; padding: 2px 0; border-top: 1px solid #3f9fb0; border-bottom: 1px solid #3f9fb0; }
+    .hsal b { font-variant-numeric: tabular-nums; color: #ffe7a0; }
+    .hsal b.bad { color: var(--accent); }
+    .hdesc { font-size: .84rem; color: var(--ink); font-style: italic; min-height: 2.4em; }
+    .hbtns { display: grid !important; grid-template-columns: 44px 1fr 56px 44px; gap: 6px; }
+    @media (max-width: 640px) { .sheet.hire { width: auto; } }
+    .sheet.hire .pt-btn:disabled, .sheet.shop .pt-btn:disabled { filter: grayscale(.85) brightness(.85); opacity: .55; cursor: default; }
+
+    /* ---------- the corridor shop ---------- */
+    .sheet.shop { width: min(470px, calc(100vw - 24px)); }
+    .sgrid { display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; }
+    .scol { display: grid; gap: 6px; align-content: start; }
+    .sline { display: flex; justify-content: space-between; padding: 4px 10px; font-weight: 800; border: 3px ridge #bfc5cb; background: #1b8395; font-variant-numeric: tabular-nums; }
+    .sline b.bad { color: var(--accent); }
+    #shopList { display: grid; align-content: start; }
+    .srow { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-bottom: 1px solid #3f9fb0; cursor: pointer; font-weight: 700; font-size: .88rem; user-select: none; -webkit-user-select: none; }
+    .srow .nm { flex: 1; }
+    .srow:hover, .srow.sel { background: #d0602a; }
+    .srow.locked { color: #7dbcc7; cursor: default; } .srow.locked:hover { background: none; }
+    .srow .qb { appearance: none; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; font: 800 .9rem var(--font); color: #fff; cursor: pointer; border-radius: 2px; border: 2px solid; border-color: #7fd2de #0a3e48 #0a3e48 #7fd2de; background: linear-gradient(#2a9eb0, #167b8b); }
+    .srow .qb:disabled { opacity: .4; cursor: default; }
+    .srow .qn { width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+    #shopSub { min-height: 2.4em; font-size: .84rem; }
+    @media (max-width: 640px) { #shopPrev { display: grid; } }
+    @media (max-width: 640px) { .sgrid { grid-template-columns: 1fr; } .scol { grid-template-columns: 1.3fr 1fr; } .scol .bprev { grid-row: span 2; min-height: 80px; } .sline { padding: 2px 8px; font-size: .84rem; align-items: center; } }
     @media (max-width: 640px) { .bgrid { grid-template-columns: 1fr; } #buildCats { grid-template-columns: 1fr 1fr; } #buildCats button { padding: .35rem .5rem; font-size: .82rem; } .bprev { display: none; } }
     /* narrower screens: the panel splits into two rows (money, date, build buttons and our extras over the info bar);
        on phones the ten buttons share the bottom row */
@@ -422,8 +497,9 @@
     <div class="editbar" id="editbar" hidden>
       <div class="eb-title" id="ebTitle"></div>
       <div class="eb-hint" id="ebHint"></div>
-      <div class="eb-list" id="ebList"></div>
       <div class="eb-btns" id="ebBtns"></div>
+      <div class="eb-list" id="ebList"></div>
+      <div class="eb-extra" id="ebExtra"></div>
     </div>
     <div class="advisor" id="advisor">
       <div class="bubble"><p class="status" id="status">Connecting…</p><div class="tut" id="tutBar" hidden></div></div>
@@ -572,7 +648,7 @@
       <p class="sub" id="decorSub"></p>
       <div class="list" id="decorList"></div>
       <p class="err" id="decorErr"></p>
-      <div class="row"><span class="note" id="decorTotal"></span><button class="pt-btn pt-btn-ghost" id="decorClose">Close</button><button class="pt-btn" id="decorRemove" hidden>Remove</button><button class="pt-btn" id="decorBuy" hidden>Place them ✓</button></div>
+      <div class="row"><span class="note" id="decorTotal"></span><button class="pt-btn pt-btn-ghost" id="decorClose">Close</button><button class="pt-btn" id="decorRemove" hidden>Remove</button></div>
     </div>
   </div>
 
@@ -595,13 +671,43 @@
 
   <div class="panel float" id="staffSheet" hidden>
     <div class="sheet wide">
-      <h2>Staff</h2>
-      <p class="sub" id="staffSub">New candidates turn up on the 1st of every month. Your rival hires from the same pool.</p>
-      <div class="seg" id="staffTabs"></div>
-      <div class="list" id="hireList"></div>
+      <h2>Staff management</h2>
+      <p class="sub" id="staffSub">Everyone on your payroll. Hire more with Hire staff (B).</p>
       <div class="list" id="staffList"></div>
       <p class="err" id="staffErr"></p>
       <div class="row"><span class="note" id="payroll"></span><button class="pt-btn pt-btn-ghost" id="staffClose">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Theme Hospital's hire window: one candidate at a time, the four professions stacked down the left -->
+  <div class="panel float" id="hireSheet" hidden>
+    <div class="sheet hire">
+      <h2>Hire staff</h2>
+      <div class="hgrid">
+        <div class="htabs" id="hireTabs"></div>
+        <div class="hinfo" id="hireInfo">
+          <div class="hblank" id="hireBlank">Choose a profession on the left</div>
+          <div class="hname" id="hireName"></div>
+          <div class="hmid">
+            <div class="hleft">
+              <div class="hsen" id="hireSen" title="Seniority"><div class="hsen-l"><span>Jnr</span><span>Doc</span><span>Con</span></div><div class="hsen-s"><i id="hireSenMk"></i></div></div>
+              <div class="hlbl">Skill</div>
+              <div class="hbar"><i id="hireSkill"></i></div>
+            </div>
+            <canvas class="hpor" id="hirePor" width="72" height="81"></canvas>
+          </div>
+          <div class="hquals" id="hireQuals"></div>
+          <div class="hsal"><span>Salary</span><b id="hireSal"></b></div>
+          <div class="hdesc" id="hireDesc"></div>
+        </div>
+      </div>
+      <p class="err" id="hireErr"></p>
+      <div class="row hbtns">
+        <button class="pt-btn pt-btn-ghost" id="hirePrev" title="Previous candidate" aria-label="Previous candidate">◀</button>
+        <button class="pt-btn" id="hireGo" title="Hire (Enter)">Hire</button>
+        <button class="pt-btn pt-btn-ghost xbtn" id="hireClose" title="Cancel (Esc)" aria-label="Cancel"><b>✕</b></button>
+        <button class="pt-btn pt-btn-ghost" id="hireNext" title="Next candidate" aria-label="Next candidate">▶</button>
+      </div>
     </div>
   </div>
 
@@ -661,11 +767,20 @@
   </div>
 
   <div class="panel float" id="shopSheet" hidden>
-    <div class="sheet">
-      <h2>Buy furniture</h2>
+    <!-- the corridor shop, also the edit-room Buy/Sell window: preview, price and total on the left, the order on the right -->
+    <div class="sheet shop">
+      <h2 id="shopTitle">Corridor objects</h2>
+      <div class="sgrid">
+        <div class="scol">
+          <div class="bprev" id="shopPrev"><canvas id="shopModel" width="144" height="90"></canvas></div>
+          <div class="sline"><span>Price</span><b id="shopPrice">$0</b></div>
+          <div class="sline"><span>Total</span><b id="shopTotal">$0</b></div>
+        </div>
+        <div class="rlist"><div class="rhead" id="shopHead">Items</div><div id="shopList"></div></div>
+      </div>
       <p class="sub" id="shopSub"></p>
-      <div class="list" id="shopList"></div>
-      <div class="row"><span class="note" id="shopTotal"></span><button class="pt-btn pt-btn-ghost" id="shopClose">Close</button><button class="pt-btn" id="shopBuy">Add to room ✓</button></div>
+      <p class="err" id="shopErr"></p>
+      <div class="row"><button class="pt-btn bad" id="shopClose">Cancel</button><button class="pt-btn" id="shopBuy">Confirm</button></div>
     </div>
   </div>
 

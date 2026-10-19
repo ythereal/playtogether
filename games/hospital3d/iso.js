@@ -214,7 +214,15 @@
     cabinet: (x, y) => ({ x, y, w: 10, d: 10, draw: (c, X, Y) => { box(c, X + x + 0.5, Y + y + 0.5, 9, 9, 21, '#7d838e', { south: (ctx, w, h) => { for (let i = 0; i < 4; i++) { const v = 1 + i * 5; R(ctx, 0.8, v, w - 1.6, 4.4, '#8e95a0'); R(ctx, 0.8, v, w - 1.6, 0.5, '#aab1bc'); R(ctx, 0.8, v + 3.9, w - 1.6, 0.5, '#5c6270'); R(ctx, 3, v + 1, 3, 1.2, '#f4f0e6'); R(ctx, 3.5, v + 2.6, 2, 0.8, '#3a3d44'); } } }); rbox(c, X + x, Y + y, 10, 10, 1, '#9aa1ac', 1.5, 21); } }),
     shelves: (x, y, w) => ({ x, y, w, d: 6, draw: (c, X, Y) => box(c, X + x, Y + y, w, 6, 20, '#8b5a2b', { south: bottles }) }),
     counter: (x, y, w) => ({ x, y, w, d: 10, draw: (c, X, Y) => box(c, X + x, Y + y, w, 10, 11, '#e8e0d0', { top: ctx => { R(ctx, 2, 2, 4, 3, '#3c7bd6'); R(ctx, 8, 3, 5, 2, '#f4f0e6'); R(ctx, w - 7, 2, 4, 3, '#39a85a'); }, south: (ctx, w2, h) => { R(ctx, 0, 3, w2, 1, '#bbb3a4'); R(ctx, 3, 5, w2 / 2 - 4, h - 7, '#d6cdbc'); R(ctx, w2 / 2 + 1, 5, w2 / 2 - 4, h - 7, '#d6cdbc'); } }) }),
-    sink: (x, y) => ({ x, y, w: 10, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 10, 10, 11, '#c0c4cc', { top: ctx => { R(ctx, 2, 2, 6, 6, '#9fd8ff'); R(ctx, 4, 1, 2, 1, '#6a7078'); } }); box(c, X + x + 2, Y + y, 6, 1, 20, '#dfe4f2', { south: (ctx, w, h) => R(ctx, 1, 1, w - 2, h - 2, '#9fd8ff') }); } }),
+    // a wash basin on a pedestal against the wall (north), chrome taps, and a mirror above it
+    sink: (x, y) => ({ x, y, w: 12, d: 10, draw: (c, X, Y) => {
+      const ox = X + x, oy = Y + y;
+      box(c, ox + 1, oy, 10, 0.6, 12, '#c8ced8', { south: (ctx, w, h) => { R(ctx, 0.8, 0.8, w - 1.6, h - 1.6, '#bfe6ff'); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.moveTo(2, h - 2); ctx.lineTo(5, 1.5); ctx.lineTo(6.5, 1.5); ctx.lineTo(3.5, h - 2); ctx.fill(); } }, 16);   // the mirror
+      rbox(c, ox + 4, oy + 1, 4, 3, 9, '#f4f4f8', 1.5, 0);                                                  // the pedestal
+      rbox(c, ox + 1, oy + 0.5, 10, 8, 3, '#f8f8fb', 3, 8, ctx => { ctx.fillStyle = '#c8d4e2'; ctx.beginPath(); ctx.ellipse(5, 4.6, 3.6, 2.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#9fd8ff'; ctx.beginPath(); ctx.ellipse(5, 5, 2.8, 1.9, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#5c6068'; ctx.beginPath(); ctx.arc(5, 5.2, 0.5, 0, Math.PI * 2); ctx.fill(); });   // the basin
+      tube(c, ox + 6, oy + 1.5, 3, '#c8ced8', 11); rbox(c, ox + 5.4, oy + 1.2, 1.2, 2.6, 0.8, '#dfe4ea', 0.5, 13.2);   // the spout
+      cyl(c, ox + 3.3, oy + 1.6, 0.8, 1.6, '#3c7bd6', 11); cyl(c, ox + 8.7, oy + 1.6, 0.8, 1.6, '#e8533f', 11);       // hot and cold
+    } }),
     bed: (x, y) => ({ x, y, w: 14, d: 26, draw: (c, X, Y) => { const ox = X + x, oy = Y + y; for (const [lx, ly] of [[1.5, 3], [12.5, 3], [1.5, 25], [12.5, 25]]) tube(c, ox + lx, oy + ly, 3, '#9aa3b8'); rbox(c, ox, oy, 14, 2, 14, '#c8ced8', 1, 0); rbox(c, ox + 0.5, oy + 2, 13, 23.5, 2, '#9aa3b8', 1.5, 3); rbox(c, ox + 1, oy + 2.5, 12, 22.5, 3, '#f4f4f8', 2.5, 5); rbox(c, ox + 2.5, oy + 3.5, 9, 5, 1.5, '#ffffff', 2.4, 8); rbox(c, ox + 0.8, oy + 11, 12.4, 14, 1.2, '#7fb7e6', 2.5, 8, ctx => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 12.4, 1.2); ctx.fillStyle = 'rgba(0,0,0,.08)'; for (let j = 3; j < 14; j += 3) ctx.fillRect(0, j, 12.4, 0.5); }); } }),
     bedside: (x, y) => ({ x, y, w: 8, d: 8, draw: (c, X, Y) => box(c, X + x, Y + y, 8, 8, 10, '#8b5a2b', { top: ctx => { R(ctx, 2, 2, 4, 4, '#ff6b9a'); R(ctx, 3, 1, 2, 1, '#39a85a'); } }) }),
     curtain: (x, y, col) => ({ x, y, w: 2, d: 14, draw: (c, X, Y) => box(c, X + x, Y + y, 2, 14, 18, col || '#bfe3df', { east: (ctx, d, h) => { for (let v = 2; v < h; v += 4) R(ctx, 0, v, d, 1, shade(col || '#bfe3df', -0.08)); R(ctx, 0, 0, d, 1, '#9aa3b8'); } }) }),
@@ -254,7 +262,30 @@
     // ---- facilities ----
     arcade: (x, y) => ({ x, y, w: 10, d: 9, draw: (c, X, Y) => box(c, X + x, Y + y, 10, 9, 26, '#3a2a6a', { south: (ctx, w, h) => { R(ctx, 1, 2, w - 2, 3, '#ffd23f'); R(ctx, 1, 6, w - 2, 7, '#1d2a3a'); R(ctx, 2, 7, 3, 2, '#ff6b9a'); R(ctx, 6, 10, 2, 2, '#7ee081'); R(ctx, 2, 15, 2, 2, '#e8533f'); R(ctx, 6, 15, 2, 2, '#3c7bd6'); } }) }),
     pool: (x, y) => ({ x, y, w: 26, d: 14, draw: (c, X, Y) => { box(c, X + x + 2, Y + y + 2, 3, 3, 6, '#5a3a22'); box(c, X + x + 21, Y + y + 9, 3, 3, 6, '#5a3a22'); box(c, X + x, Y + y, 26, 14, 9, '#6b4320', { top: ctx => { R(ctx, 2, 2, 22, 10, '#2f8a4a'); R(ctx, 2, 2, 1, 1, OUT); R(ctx, 23, 2, 1, 1, OUT); R(ctx, 2, 11, 1, 1, OUT); R(ctx, 23, 11, 1, 1, OUT); R(ctx, 8, 6, 2, 2, '#f4f0e6'); R(ctx, 16, 5, 2, 2, '#e8533f'); R(ctx, 17, 8, 2, 2, '#ffd23f'); } }); } }),
-    cubicle: (x, y) => ({ x, y, w: 16, d: 14, draw: (c, X, Y) => { box(c, X + x + 5, Y + y + 2, 6, 6, 7, '#f4f4f8', { top: ctx => R(ctx, 1, 1, 4, 4, '#9fd8ff') }); box(c, X + x, Y + y, 1, 14, 22, '#7aa0c8'); box(c, X + x + 15, Y + y, 1, 14, 22, '#7aa0c8'); box(c, X + x, Y + y, 16, 1, 24, '#5f88b4', { south: (ctx, w, h) => { R(ctx, 0, 0, w, 2, '#4a6f98'); } }); } }),
+    // a toilet cubicle: a cistern and bowl against its back (north), partitions either side and behind on chrome feet.
+    // A partition between the bowl and the camera is cut down to a stub, like the room walls, so the loo stays in view.
+    cubicle: (x, y) => ({ x, y, w: 16, d: 14, draw: (c, X, Y) => {
+      const ox = X + x, oy = Y + y, PC = '#8fb4d8';
+      const near = (nx, ny) => { const [a, b] = rw(ox + 8, oy + 7), [a2, b2] = rw(ox + 8 + nx, oy + 7 + ny); return a2 - a > 0.5 || b2 - b > 0.5; };
+      const panel = (px0, py0, pw, pd, nx, ny, face) => {
+        const low = near(nx, ny), h = low ? 3 : ny ? 22 : 15;   // side partitions stop short so a row of loos stays readable
+        for (const [fx, fy] of pw > pd ? [[px0 + 1, py0 + pd / 2], [px0 + pw - 1, py0 + pd / 2]] : [[px0 + pw / 2, py0 + 1], [px0 + pw / 2, py0 + pd - 1]]) tube(c, fx, fy, 2, '#c8ced8');
+        box(c, px0, py0, pw, pd, h, PC, low ? null : face, 2);
+        box(c, px0 - 0.1, py0 - 0.1, pw + 0.2, pd + 0.2, 1, '#6f93b8', null, 2 + h);                      // the capping rail
+      };
+      const P = [[ox, oy, 16, 1, 0, -1, { south: (ctx, w, h) => R(ctx, 0, h - 1, w, 1, 'rgba(0,0,0,.08)') }],
+        [ox, oy + 1, 1, 13, -1, 0, { east: ctx => { R(ctx, 6, 7, 2.5, 3, '#f4f4f0'); R(ctx, 6, 7, 2.5, 0.6, '#c8ced8'); } }],   // with a loo roll
+        [ox + 15, oy + 1, 1, 13, 1, 0, { west: ctx => R(ctx, 4, 4, 3, 1, '#c8ced8') }]];                       // and a coat hook
+      for (const p of P) if (!near(p[4], p[5])) panel(...p);                                                // far partitions behind the loo
+      // the cistern, its flush button and the pipe down to the bowl
+      rbox(c, ox + 4, oy + 1.2, 8, 3, 7, '#f8f8fb', 1, 6, ctx => { ctx.fillStyle = '#c8ced8'; ctx.beginPath(); ctx.arc(4, 1.5, 0.8, 0, Math.PI * 2); ctx.fill(); });
+      tube(c, ox + 8, oy + 3, 3, '#dfe4ea', 3);
+      // the bowl: a narrow foot, the rounded pan, an open seat ring with water in it, and the lid up against the cistern
+      rbox(c, ox + 6, oy + 4, 4, 5, 4, '#eef0f5', 1.8, 0);
+      rbox(c, ox + 4.5, oy + 3.5, 7, 8.5, 2.5, '#f8f8fb', 3.4, 3.5, ctx => { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(3.5, 4.6, 3.4, 3.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#b8c0cc'; ctx.lineWidth = 0.4; ctx.stroke(); ctx.fillStyle = '#9fd8ff'; ctx.beginPath(); ctx.ellipse(3.5, 4.9, 2.2, 2.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(2.4, 3.4, 1.2, 0.5); });
+      rbox(c, ox + 4.8, oy + 3.6, 6.4, 1, 5.5, '#f2f3f7', 0.5, 6.2);
+      for (const p of P) if (near(p[4], p[5])) panel(...p);                                                 // near stubs in front
+    } }),
     blackboard: (x, y) => ({ x, y, w: 26, d: 2, draw: (c, X, Y) => box(c, X + x, Y + y, 26, 2, 26, '#5a3a22', { south: (ctx, w, h) => { R(ctx, 1, 4, w - 2, h - 10, '#2f4a3a'); R(ctx, 3, 6, 9, 1, '#f4f0e6'); R(ctx, 3, 9, 14, 1, '#f4f0e6'); R(ctx, 3, 12, 6, 1, '#f4f0e6'); R(ctx, 15, 6, 6, 5, 'rgba(244,240,230,.7)'); R(ctx, 1, h - 6, w - 2, 1, '#8a6a44'); } }) }),
     lectern: (x, y) => ({ x, y, w: 8, d: 6, draw: (c, X, Y) => box(c, X + x, Y + y, 8, 6, 14, '#8a5a34', { top: ctx => R(ctx, 1, 1, 6, 3, '#f2ecdc'), south: (ctx, w, h) => R(ctx, 2, 3, w - 4, 1, '#5a3620') }) }),
     lchair: (x, y) => ({ x, y, w: 8, d: 7, draw: (c, X, Y) => { box(c, X + x, Y + y, 8, 7, 5, '#c9a06a'); box(c, X + x, Y + y + 5, 8, 2, 11, '#a88050'); box(c, X + x + 5, Y + y, 3, 4, 7, '#8a6a44', { top: ctx => R(ctx, 0, 0, 3, 4, '#f2ecdc') }); } }),
@@ -336,7 +367,7 @@
     cardio: () => F.treadmill(3, 2), scanner: () => F.scanner(1, 8), console: () => F.console(0, 4), ultra: () => F.ultra(4, 1),
     bloodm: () => F.bloodm(0, 3), xray: () => F.xray(5, 10), shield: () => F.leadscreen(2, 6), couch: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.chaise }),
     comfy: () => F.chair(4, 4, '#8a3a4a'), bed: () => F.bed(1, 3), pcab: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.pharmacy }),
-    optable: () => [F.optable(1, 2), F.oplamp(15, 1)], sscreen: () => custom.sscreen(0, 7), sink: () => F.sink(3, 3), xview: () => custom.xview(2, 0),
+    optable: () => [F.optable(1, 2), F.oplamp(15, 1)], sscreen: () => custom.sscreen(0, 7), sink: () => F.sink(2, 0), xview: () => custom.xview(2, 0),
     inflator: () => ({ x: 0, y: 0, w: 32, d: 16, draw: G.inflate }), slicer: () => F.slicer(8, 1), cast: () => F.castm(8, 2), hairr: () => F.hairchair(1, 3), electro: () => F.coil(2, 2),
     jellym: () => F.vat(4, 6), shower: () => F.shower(-1, 0), dnaf: () => F.dna(6, 1), sofa: () => F.sofa(7, 3), vgame: () => F.arcade(3, 3), pool: () => F.pool(3, 1),
     tv: () => custom.tv(2, 0), toilet: () => F.cubicle(0, 1), autopsy: () => F.autopsy(9, 3), computer: () => custom.computer(1, 3), atom: () => custom.atom(3, 3),
@@ -375,17 +406,18 @@
   // the surface, head at the pillow (or raised) end, in the object's own frame so it turns with it. h: surface
   // height; head (hx, hy) to feet (fx, fy) in the object's canonical footprint; w: how wide they lie.
   const LIE = {
-    bed:     { h: 8.4, hx: 8.5, hy: 6, fx: 8.5, fy: 28, w: 11, cover: '#7fb7e6' },
-    couch:   { h: 7.8, hx: 5, hy: 8.5, fx: 30, fy: 8.5, w: 9.5 },
-    trolley: { h: 9.8, hx: 4.5, hy: 8, fx: 29, fy: 8, w: 9.5 },
-    optable: { h: 10.4, hx: 4, hy: 8, fx: 29, fy: 8, w: 10, cover: '#5fae8a' },
+    bed:     { h: 8.4, hx: 8.5, hy: 5, fx: 8.5, fy: 28, w: 12, cover: '#7fb7e6' },
+    couch:   { h: 7.8, hx: 5, hy: 8.5, fx: 30, fy: 8.5, w: 12 },
+    trolley: { h: 9.8, hx: 4, hy: 8, fx: 29, fy: 8, w: 12 },
+    optable: { h: 10.4, hx: 4, hy: 8, fx: 29, fy: 8, w: 12, cover: '#5fae8a' },
   };
   function lyingItem(o, x, y, rot, img) {
     const B = RH.OBJ[o], [rwd, rdp] = RH.objDims(o, rot), X = x * T, Y = y * T, cx = X + rwd * 8, cy = Y + rdp * 8, G2 = LIE[o];
     return { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1) + 0.2, b: sbox(X, Y, rwd * T, rdp * T, 48), draw: c => withRot(cx, cy, rot, () => {
       const X0 = cx - B.fw * 8, Y0 = cy - B.fd * 8, hx = X0 + G2.hx, hy = Y0 + G2.hy, lx = X0 + G2.fx - hx, ly = Y0 + G2.fy - hy, len = Math.hypot(lx, ly);
       const wx = -ly / len * G2.w, wy = lx / len * G2.w, ox = hx - wx / 2, oy = hy - wy / 2;
-      const [o1, o2] = px(ox, oy), [u1, u2] = px(ox + wx, oy + wy), [v1, v2] = px(ox + lx * 1.05, oy + ly * 1.05);
+      const k = Math.min(1.05, G2.w * 1.6 / len);   // keep the sprite's own proportions: never longer than 1.6× its width
+      const [o1, o2] = px(ox, oy), [u1, u2] = px(ox + wx, oy + wy), [v1, v2] = px(ox + lx * k, oy + ly * k);
       const prop = flat ? 0 : 5;   // the head end propped up on the pillow, so the face reads from the camera
       ST(c, (u1 - o1) / 16, (u2 - o2) / 16, (v1 - o1) / 24, (v2 - o2 + prop) / 24, o1, o2 - G2.h - prop); c.drawImage(img, 0, 0, 16, 24); reset(c);
       if (G2.cover) {   // a blanket (or surgical drape) pulled up over the legs and body
