@@ -14,6 +14,10 @@
   const BW = Math.max(OX * 2, L + 16 + 2 * GM), BH = Math.max(Math.ceil(L * K) + OY + 30 + 2 * GM * KY, L + OYF + 40 + GM);
   const WALL_H = 34, LOW_H = WALL_H; // every wall stands full height, front walls included, as in Theme Hospital
   const EXT_LOW = WALL_H;            // the building's brick front too
+  // animation: game.js hands over the clock and where everyone is standing each frame (doors open for people)
+  let now = 0, frameDt = 0, ppl = [];
+  const frame = (t, dt, people) => { now = t; frameDt = dt; ppl = people || []; };
+  const near = (x, y, rx, ry) => ppl.some(p => Math.abs(p[0] - x) < rx && Math.abs(p[1] - y) < ry);
   let rot = 3;                                      // 0..3, quarter turns clockwise; 3 looks at the front doors, like Theme Hospital
   let flat = false;                                 // aerial view: plain top-down instead of isometric
   const setRot = r => { rot = ((r % 4) + 4) % 4; };
@@ -141,7 +145,7 @@
         north: (ctx, w, h) => { R(ctx, 0, 0, w, 1, '#b5824f'); R(ctx, 2, 2, w - 4, h - 4, '#7a4c2a'); R(ctx, 2, 2, w - 4, 0.5, '#5a3620'); },
       });
       box(c, X + x + 15, Y + y + 2.5, 5, 2, 1, '#3a3d44', null, 11);                            // monitor foot
-      box(c, X + x + 12, Y + y + 2.5, 11, 2, 9, '#d9d4c7', { south: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 2, '#1d2a3a'); R(ctx, 1.5, 1.5, w / 2, 1, '#6fd3ff'); R(ctx, 1.5, 3.5, w - 4, 0.5, '#7ee081'); R(ctx, 1.5, 5, w - 6, 0.5, '#7ee081'); }, north: (ctx, w, h) => { R(ctx, 2, 2, w - 4, h - 4, '#bdb8aa'); for (let i = 3; i < w - 3; i += 1.5) R(ctx, i, 3, 0.5, 2, '#8a8f99'); } }, 11);
+      box(c, X + x + 12, Y + y + 2.5, 11, 2, 9, '#d9d4c7', { south: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 2, '#1d2a3a'); const f = Math.floor(now * 2 + X) % 4; R(ctx, 1.5, 1.5, w / 2, 1, '#6fd3ff'); R(ctx, 1.5, 3.5, w - 4 - f, 0.5, '#7ee081'); R(ctx, 1.5, 5, w - 7 + f, 0.5, '#7ee081'); if (Math.floor(now * 3) % 2) R(ctx, 1.5 + (w - 7 + f), 5, 0.8, 0.5, '#e8ffe8'); }, north: (ctx, w, h) => { R(ctx, 2, 2, w - 4, h - 4, '#bdb8aa'); for (let i = 3; i < w - 3; i += 1.5) R(ctx, i, 3, 0.5, 2, '#8a8f99'); } }, 11);
       if (chairNear) chair();
     } }),
     rdesk: (x, y) => ({ x, y, w: 18, d: 10, draw: (c, X, Y) => { box(c, X + x, Y + y, 18, 10, 11, '#6c6f78', { top: ctx => { R(ctx, 2, 2, 5, 4, '#f2ecdc'); R(ctx, 3, 7, 7, 1, '#2b2e3a'); }, south: drawers }); box(c, X + x + 8, Y + y + 1, 8, 5, 9, '#d9d4c7', { south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, h - 3, '#1d2a3a'); R(ctx, 2, 2, 3, 1, '#7ee081'); R(ctx, 2, 4, 4, 1, '#7ee081'); } }); } }),
@@ -371,7 +375,12 @@
     if (h > 12) { R(x, 0, h - 3, w, 3, shade(col, -0.35)); R(x, 0, h - 3, w, q, shade(col, -0.05)); R(x, 0, h - 2.5, w, q, shade(col, -0.18)); }
     else { R(x, 0, h - 1, w, 1, shade(col, -0.35)); }
     if (decal && h > 12) decal(x, w, h);
-    if (gap) { x.clearRect(gap[0], 0, gap[1] - gap[0], h); R(x, gap[0] - 2, 0, 2, h, '#5a4634'); R(x, gap[1], 0, 2, h, '#5a4634'); R(x, gap[0] - 2, 0, gap[1] - gap[0] + 4, 2, '#5a4634'); }
+    if (gap) {   // a doorway: open below the lintel, with a wooden frame round it
+      const dh = Math.min(h, DOOR_H), top = h - dh;
+      x.clearRect(gap[0], top, gap[1] - gap[0], dh);
+      R(x, gap[0] - 1, top - 1, 1, dh + 1, '#5a3a22'); R(x, gap[1], top - 1, 1, dh + 1, '#5a3a22'); R(x, gap[0] - 1, top - 1, gap[1] - gap[0] + 2, 1, '#5a3a22');
+      R(x, gap[0] - 1, top - 1, gap[1] - gap[0] + 2, 0.5, '#7a5232');
+    }
     return (wallCache[key] = c);
   }
   const WALL_DECAL = {
@@ -512,14 +521,17 @@
     function doorFrame(x, y, d, r, n) {
       const tall = farN(n[0], n[1]);
       const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
-      if (r) items.push(...wallPiece(ax, ay, bx, by, n[0], n[1], r.k + 'd', WALLCOL[RH.ROOMS[r.k].wall], A.ROOM_STYLE[r.k].wall[1], null, tall, LOW_H));
-      items.push(joinItem(x, y, d, 'door', 'set'));
+      if (r) items.push(...wallPiece(ax, ay, bx, by, n[0], n[1], r.k + 'd', WALLCOL[RH.ROOMS[r.k].wall], A.ROOM_STYLE[r.k].wall[1], null, tall, LOW_H, [1, 15]));
+      // the second tile of a double door hinges at its far end, so the pair opens like a real double door
+      const [ux, uy] = d === 0 || d === 2 ? [-1, 0] : [0, -1], [ddx, ddy] = RH.DIRS[d], px0 = x + ux, py0 = y + uy;
+      const second = RH.inMap(px0, py0) && RH.inMap(px0 + ddx, py0 + ddy) && Lr.doors.has([RH.idx(px0, py0), RH.idx(px0 + ddx, py0 + ddy)].sort((a, b) => a - b).join(','));
+      items.push(second ? swingDoor(bx, by, ax, ay, n) : swingDoor(ax, ay, bx, by, n));
     }
   }
   // one 16px wall edge; `tall` back walls, low front walls
-  function wallPiece(ax, ay, bx, by, nx, ny, key, col, style, deco, tall, low) {
+  function wallPiece(ax, ay, bx, by, nx, ny, key, col, style, deco, tall, low, gap) {
     const h = flat ? 4 : tall ? WALL_H : low;
-    const img = wallImg(key + (flat ? 'F' : tall ? 'T' : 'L'), 16, h, col, style, deco, null);
+    const img = wallImg(key + (flat ? 'F' : tall ? 'T' : 'L') + (gap ? 'g' : ''), 16, h, col, style, deco, gap && !flat ? gap : null);
     const [a1] = rw(ax, ay), [b1] = rw(bx, by), [, a2] = rw(ax, ay), [, b2] = rw(bx, by);
     const alongX = Math.abs(a2 - b2) < 0.5;
     const flip = alongX ? a1 > b1 : a2 > b2;
@@ -601,6 +613,29 @@
       if (state === 'ok' && !flat) c.restore();
     } };
   }
+  // a room door that swings open into the room while anyone is in the doorway, and closes behind them
+  const DOOR_H = 26, doorOpen = new Map();
+  let leafC = null;
+  function leafImg() {
+    if (leafC) return leafC;
+    const [c, x] = A.hcanvas(14, DOOR_H - 1), h = DOOR_H - 1, q = 0.5;
+    R(x, 0, 0, 14, h, '#b07a4a'); R(x, 0, 0, 14, q, '#c8925e'); R(x, 0, 0, q, h, '#c38a56'); R(x, 13.5, 0, q, h, '#7e5028');
+    for (const [py, ph] of [[2, 8], [12, 10]]) { R(x, 1.5, py, 11, ph, '#9a6438'); R(x, 1.5, py, 11, q, '#7e5028'); R(x, 1.5, py + ph - q, 11, q, '#c8925e'); R(x, 1.5, py, q, ph, '#7e5028'); }
+    R(x, 2, 2.5, 10, 4, '#9fd8ff'); R(x, 2, 2.5, 10, 1, '#c6eaff'); R(x, 10.5, 13, 1.5, 1, '#ffd23f'); R(x, 10.5, 13.5, 1.5, q, '#b8901c');
+    return (leafC = c);
+  }
+  function swingDoor(ax, ay, bx, by, n) {
+    const key = ax + ',' + ay + ',' + bx + ',' + by, ex = (bx - ax) / 16, ey = (by - ay) / 16, mx = (ax + bx) / 2, my = (ay + by) / 2;
+    const hx = ax + ex, hy = ay + ey;   // the hinge, just inside the frame
+    const tipAt = a => [hx + (Math.cos(a) * ex + Math.sin(a) * n[0]) * 14, hy + (Math.cos(a) * ey + Math.sin(a) * n[1]) * 14];
+    const open = () => doorOpen.get(key) || 0;
+    return { get d() { const [tx, ty] = tipAt(open() * 1.45); return depth((hx + tx) / 2, (hy + ty) / 2) + 0.4; }, draw: c => {
+      const want = near(mx + n[0] * 4, my + n[1] * 4, 13, 13) ? 1 : 0;
+      let o = open(); o += (want - o) * Math.min(1, frameDt * (want ? 9 : 4)); doorOpen.set(key, o);
+      const [tx, ty] = tipAt(o * 1.45), [u1, u2] = px(hx, hy), [v1, v2] = px(tx, ty), hh = flat ? 3 : DOOR_H - 1;
+      ST(c, (v1 - u1) / 14, (v2 - u2) / 14, 0, 1, u1, u2 - hh); c.drawImage(leafImg(), 0, 0, 14, hh); reset(c);
+    } };
+  }
   // a mark on the edge on side d of tile (x, y): a coloured bar standing on the floor
   function edgeMark(ctx, x, y, d, col, hgt) {
     const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
@@ -608,23 +643,32 @@
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(u1, u2); ctx.lineTo(v1, v2); ctx.lineTo(v1, v2 - hh); ctx.lineTo(u1, u2 - hh); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(27,23,32,.6)'; ctx.lineWidth = 1; ctx.stroke();
   }
-  // the front doors: green-framed glass, the middle pair slid open (an image standing on the entrance edge x = 32)
-  let doorsC = null;
+  // the front doors: a green frame with fixed side panes, and two glass leaves that slide apart when anyone comes near
+  let doorsC = null, slideOpen = 0, slideDrawn = -1;
   function doorsImg() {
-    if (doorsC) return doorsC;
-    const [c, x] = A.hcanvas(48, WALL_H);
+    const want = near(32, 88, 30, 30) ? 1 : 0;
+    slideOpen += (want - slideOpen) * Math.min(1, frameDt * (want ? 7 : 3));
+    if (doorsC && Math.abs(slideOpen - slideDrawn) < 0.01) return doorsC;
+    if (!doorsC) doorsC = A.hcanvas(48, WALL_H)[0];
+    const x = doorsC.getContext('2d'); x.clearRect(0, 0, 48, WALL_H); slideDrawn = slideOpen;
     const G = '#2f8a3e', GL = '#5cc06a', glass = 'rgba(150,215,240,.5)';
+    for (const [u, w] of [[0, 13], [35, 13]]) { R(x, u, 7, w, WALL_H - 7, glass); R(x, u + 2, 9, 2, 10, 'rgba(255,255,255,.55)'); R(x, u, 7, 2, WALL_H - 7, G); R(x, u + w - 2, 7, 2, WALL_H - 7, G); R(x, u + 1, 7, 1, WALL_H - 7, GL); R(x, u, WALL_H - 3, w, 3, G); }
+    const shift = 10 * (slideOpen < 0.001 ? 0 : slideOpen);
+    for (const [u, dir] of [[13, -1], [24, 1]]) {   // the sliding leaves
+      const L = u + dir * shift;
+      R(x, L, 8, 11, WALL_H - 9, 'rgba(170,225,245,.55)'); R(x, L, 8, 1, WALL_H - 9, G); R(x, L + 10, 8, 1, WALL_H - 9, G); R(x, L, WALL_H - 2, 11, 1, G);
+      R(x, L + 2, 10, 1.5, 8, 'rgba(255,255,255,.6)'); R(x, L + (dir < 0 ? 9 : 1), 18, 1, 3, '#c9a43a');
+    }
     R(x, 0, 0, 48, 7, G); R(x, 0, 0, 48, 1, GL); R(x, 3, 2, 42, 3, '#f4f4f0'); R(x, 22, 2, 4, 3, '#e8533f'); R(x, 23, 1, 2, 5, '#e8533f');
-    for (const [u, w] of [[0, 13], [35, 13]]) { R(x, u, 7, w, WALL_H - 7, glass); R(x, u + 2, 9, 2, 10, 'rgba(255,255,255,.55)'); R(x, u, 7, 2, WALL_H - 7, G); R(x, u + w - 2, 7, 2, WALL_H - 7, G); R(x, u + 1, 7, 1, WALL_H - 7, GL); R(x, u, WALL_H - 3, w, 3, G); R(x, u + 5, 18, 3, 1, '#c9a43a'); }
-    R(x, 13, 7, 3, WALL_H - 7, G); R(x, 32, 7, 3, WALL_H - 7, G);
-    return (doorsC = c);
+    R(x, 0, 6.5, 48, 1, '#24703a');   // the track the leaves run in
+    return doorsC;
   }
   function doorItems() {
-    const img = doorsImg(), items = [];
+    const items = [];
     for (let i = 0; i < 3; i++) {
       const y0 = 64 + i * 16, y1 = y0 + 16;
       items.push({ d: Math.min(depth(32, y0), depth(32, y1)) + 0.5, draw: c => {
-        const h = flat ? 4 : WALL_H, [u1, u2] = px(32, y0), [v1, v2] = px(32, y1);
+        const img = doorsImg(), h = flat ? 4 : WALL_H, [u1, u2] = px(32, y0), [v1, v2] = px(32, y1);
         ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); const k = img.width / 48; c.drawImage(img, i * 16 * k, (flat ? WALL_H - 4 : 0) * k, 16 * k, h * k, 0, 0, 16, h); reset(c);
       } });
     }
@@ -636,12 +680,18 @@
     if (outsideCache && outsideCache.key === rot + ':' + flat) return outsideCache.items.slice();
     const items = doorItems();
     const bx = (x, y, w, d, h, col, faces) => ({ d: depthBox(x, y, w, d), draw: c => box(c, x, y, w, d, h, col, faces) });
-    const sprite = (name, x, y, sh) => ({ d: depth(x, y), draw: c => { if (sh) shadow(c, x, y, sh); bill(c, A.furniture(name), x, y); } });
+    const sprite = (name, x, y, sh, sway) => ({ d: depth(x, y), draw: c => {
+      if (sh) shadow(c, x, y, sh);
+      if (!sway || flat) { bill(c, A.furniture(name), x, y); return; }
+      // trees lean gently in the breeze, rooted at their base
+      const [sx, sy] = px(x, y), k = Math.sin(now * 1.1 + x * 0.07) * 0.035 + Math.sin(now * 2.3 + y * 0.05) * 0.012;
+      c.save(); c.translate(sx, sy); c.transform(1, 0, -k, 1, 0, 0); c.translate(-sx, -sy); bill(c, A.furniture(name), x, y); c.restore();
+    } });
     // the ambulance parked on the road
-    items.push(bx(-86, 150, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { R(ctx, 3, 4, 7, 3, '#3c7bd6'); R(ctx, 3, 20, 7, 3, '#e8533f'); } }));
+    items.push(bx(-86, 150, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { const on = Math.floor(now * 3) % 2; R(ctx, 3, 4, 7, 3, on ? '#7fb2ff' : '#2a5aa6'); R(ctx, 3, 20, 7, 3, on ? '#a8202a' : '#ff6a5a'); } }));
     // trees round the grounds (none on the road, the path or the pavement)
     const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 230], [-24, 330], [-34, 410], [-20, 10]];
-    for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
+    for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11, true));
     // street lamps along the road and the path
     for (const [x, y] of [[-46, 56], [-46, 124], [-46, -20], [-46, 250], [-46, 380], [-2, 28], [-2, 150]]) items.push(sprite('streetlamp', x, y, 3));
     // clipped hedges beside the flower beds
@@ -650,6 +700,21 @@
     items.push(sprite('sign', -14, 54));
     outsideCache = { key: rot + ':' + flat, items };
     return items.slice();
+  }
+  // soft cloud shadows drifting across the lawns and the road
+  function clouds(ctx) {
+    if (flat) return;
+    ctx.save();
+    const [a1, a2] = px(-GM, -GM), [b1, b2] = px(W * T + GM, -GM), [c1, c2] = px(W * T + GM, H * T + GM), [d1, d2] = px(-GM, H * T + GM);
+    const [e1, e2] = px(24, -8), [f1, f2] = px(W * T + 8, -8), [g1, g2] = px(W * T + 8, H * T + 8), [h1, h2] = px(24, H * T + 8);
+    ctx.beginPath(); ctx.moveTo(a1, a2); ctx.lineTo(b1, b2); ctx.lineTo(c1, c2); ctx.lineTo(d1, d2); ctx.closePath();
+    ctx.moveTo(e1, e2); ctx.lineTo(h1, h2); ctx.lineTo(g1, g2); ctx.lineTo(f1, f2); ctx.closePath(); ctx.clip('evenodd');
+    const span = W * T + 2 * GM + 240;
+    for (let i = 0; i < 4; i++) {
+      const cx = -GM - 120 + ((now * (6 + i * 1.5) + i * 260) % span), cy = -GM + 60 + ((i * 197) % (H * T + GM));
+      decal(ctx, cx, cy, d => { d.fillStyle = 'rgba(20,40,30,.09)'; for (const [ox, oy, rx, ry] of [[0, 0, 60, 34], [40, 12, 44, 26], [-38, 10, 40, 22]]) { d.beginPath(); d.ellipse(ox, oy, rx, ry, 0, 0, Math.PI * 2); d.fill(); } });
+    }
+    ctx.restore();
   }
   // the reception desk once it has been bought, or a dashed outline where it goes
   // The reception desk greets patients coming in: a blue counter across the lobby, its raised ledge and name board
@@ -671,7 +736,7 @@
       box(c, 67, 98, 2, 5, 1, '#e8533f', { top: ctx => { R(ctx, 0.3, 0.3, 1.4, 4.4, '#f2ecdc'); } }, 14);               // the guest book
       // the receptionist's side: monitor turned east, keyboard, a tray of papers, a little plant
       box(c, 74, 89, 2, 4, 1, '#3a3d44', null, 11);
-      box(c, 73, 87, 2, 8, 8, '#d9d4c7', { east: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 2, '#1d2a3a'); R(ctx, 1.5, 1.5, w / 2, 1, '#6fd3ff'); R(ctx, 1.5, 3.5, w - 3, 0.5, '#7ee081'); }, west: (ctx, w, h) => { R(ctx, 1.5, 1.5, w - 3, h - 3, '#bdb8aa'); for (let i = 2.5; i < w - 2; i += 1.5) R(ctx, i, 2.5, 0.5, 2, '#8a8f99'); } }, 11);
+      box(c, 73, 87, 2, 8, 8, '#d9d4c7', { east: (ctx, w, h) => { R(ctx, 0.5, 0.5, w - 1, h - 2, '#1d2a3a'); const f = Math.floor(now * 2) % 3; R(ctx, 1.5, 1.5, w / 2, 1, '#6fd3ff'); R(ctx, 1.5, 3.5, w - 3 - f, 0.5, '#7ee081'); if (Math.floor(now * 3) % 2) R(ctx, 1.5 + w - 3 - f, 3.5, 0.8, 0.5, '#e8ffe8'); }, west: (ctx, w, h) => { R(ctx, 1.5, 1.5, w - 3, h - 3, '#bdb8aa'); for (let i = 2.5; i < w - 2; i += 1.5) R(ctx, i, 2.5, 0.5, 2, '#8a8f99'); } }, 11);
       box(c, 77, 87, 2, 8, 1, '#d9d4c7', { top: ctx => { for (let j = 0.5; j < 8; j += 1.2) R(ctx, 0.4, j, 1.2, 0.6, '#8a8f99'); } }, 11);
       box(c, 75, 99, 4, 5, 2, '#5a5f6e', { top: ctx => { R(ctx, 0.5, 0.5, 3, 4, '#f4f0e6'); R(ctx, 1, 1.5, 2, 0.4, '#9aa3b8'); } }, 11);
       box(c, 76, 82, 3, 3, 3, '#b5643c', null, 11);
@@ -700,5 +765,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { frame, clouds, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

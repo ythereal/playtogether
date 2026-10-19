@@ -560,16 +560,19 @@
   }
   // corridor tiles in front of the door where patients queue, nearest first
   function computeQueue(h, r) {
-    if (!r.door || !isBuilt(r)) { r.qt = []; return; }
-    const L = layout(h), seen = new Set(), q = [], out = [];
+    if (!r.door || !isBuilt(r)) { r.qt = []; r.qs = []; return; }
+    const L = layout(h), seen = new Set(), q = [], out = [], qs = [], benches = new Set();
     for (const [x, y] of doorOut(r)) if (inMap(x, y)) { seen.add(idx(x, y)); q.push([x, y]); }
-    while (q.length && out.length < 10) {
+    while (q.length && (out.length < 10 || (qs.length < 3 && seen.size < 90))) {
       const [x, y] = q.shift(); const i = idx(x, y);
       if (L.room[i] || L.avoid[i]) continue;
-      if (!L.block[i] && !inLobby(x, y) && !L.near[i]) out.push([x, y]);
+      if (!L.block[i] && !inLobby(x, y) && !L.near[i] && out.length < 10) out.push([x, y]);
+      // benches within reach of the door: [standing tile x, y, bench x, y]
+      if (!L.block[i] && qs.length < 3) for (const [dx, dy] of DIRS) { const bx = x + dx, by = y + dy, k = decorKey(bx, by); if (h.decor[k] === 'bench' && !benches.has(k)) { benches.add(k); qs.push([x, y, bx, by]); break; } }
       for (const [dx, dy] of DIRS) { const nx = x + dx, ny = y + dy; if (!indoor(nx, ny)) continue; const j = idx(nx, ny); if (seen.has(j) || L.room[j] || L.block[j]) continue; seen.add(j); q.push([nx, ny]); }
     }
     r.qt = out.length ? out : doorOut(r);
+    r.qs = qs;
   }
   const roomCenter = r => [(r.rect.x + r.rect.w / 2) * T, (r.rect.y + r.rect.h / 2) * T];
   const doorPoint = r => { const [x, y] = doorOut(r)[ROOMS[r.k].swing ? 1 : 0]; return center(x, y); };
@@ -777,6 +780,11 @@
     h.pats.push(pt); h.visits++;
   }
   function queuePos(h, r, i) {
+    // after whoever is next in line, the queue sits down on benches near the door, two to a bench (standing on the
+    // tile beside the bench; the view seats them on it), then the rest stand
+    const qs = r.qs || [];
+    if (i >= 1 && i - 1 < qs.length * 2) { const k = i - 1, b = qs[Math.floor(k / 2)]; return [b[0] * T + 8 + (k % 2 ? 3 : -3), b[1] * T + 8 + Math.sign(b[3] - b[1]) * 4]; }
+    if (i >= 1) i -= qs.length * 2;
     const qt = r.qt && r.qt.length ? r.qt : r.door ? doorOut(r) : [[tileOf(roomCenter(r)[0]), tileOf(roomCenter(r)[1])]];
     const [x, y] = qt[Math.min(Math.floor(i / 2), qt.length - 1)];
     const j = i % 2 ? 4 : -4, over = Math.max(0, Math.floor(i / 2) - qt.length + 1);

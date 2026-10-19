@@ -1651,6 +1651,35 @@
   }
   const animT = new Map();
   // draws an upright sprite at its projected feet; returns the screen (buffer) position of the feet
+  // where people sit: the use spot of chairs, sofas, desks (the office chair), lecture chairs and toilets
+  const SEATS = new Set(['chair', 'comfy', 'sofa', 'lchair', 'toilet', 'desk']);
+  const seatCache = new WeakMap();
+  function seatTiles(h) {
+    const hit = seatCache.get(h); if (hit && hit.lv === h.lv) return hit.set;
+    const set = new Set();
+    for (const k in h.rooms) { const r = h.rooms[k]; if (r.phase !== 'built') continue; for (const ob of r.objs) if (SEATS.has(ob.o)) { const tl = RH.objTiles(ob.o, ob.x, ob.y, ob.r); const u = tl.use || tl.foot[0]; set.add(u[0] + ',' + u[1] + (ob.o === 'desk' ? 's' : '')); } }
+    seatCache.set(h, { lv: h.lv, set }); return set;
+  }
+  function seated(h, e, staff) {
+    if (e.mv || (e.path && e.path.length)) return false;
+    if (staff && (e.mode === 'rest' || e.mode === 'train')) return true;
+    const k = Math.floor(e.x / T) + ',' + Math.floor(e.y / T), set = seatTiles(h);
+    return set.has(k) || (staff && set.has(k + 's'));
+  }
+  // still patients near a bench take a seat on it (two to a bench)
+  function benchSeats(h) {
+    const out = new Map(), taken = new Map();
+    for (const pt of h.pats || []) {
+      if (pt.mv || pt.why === 'cured' || !['queue', 'wait', 'recep'].includes(pt.st)) continue;
+      const c = Math.floor(pt.x / T), r = Math.floor(pt.y / T);
+      for (let dy = -1; dy <= 1 && !out.has(pt.id); dy++) for (let dx = -1; dx <= 1 && !out.has(pt.id); dx++) {
+        const key = (c + dx) + ',' + (r + dy); if (h.decor[key] !== 'bench') continue;
+        const n = taken.get(key) || 0; if (n >= 2) continue;
+        taken.set(key, n + 1); out.set(pt.id, [(c + dx) * T + 8 + (n ? 3.5 : -3.5), (r + dy) * T + 8.5]);
+      }
+    }
+    return out;
+  }
   function drawPerson(sheet, e, kind, t, dt, wx, wy, sink) {
     const key = kind + e.id;
     const a = (animT.get(key) || 0) + (e.mv ? dt : 0); animT.set(key, e.mv ? a : 0);
@@ -1658,8 +1687,11 @@
     const dir = sheet[DIRS[HI.facing(e.f)]] || sheet.down, sh = dir[frame] || dir[0];
     const [sx, sy] = HI.px(wx, wy);
     bctx.fillStyle = 'rgba(0,0,0,.28)'; bctx.beginPath(); bctx.ellipse(sx, sy, 6, 3, 0, 0, Math.PI * 2); bctx.fill();
-    if (sink) { bctx.drawImage(sh, 0, 0, sh.width, sh.height * (24 - sink) / 24, Math.round(sx) - 8, Math.round(sy) - 23 + sink, 16, 24 - sink); return [Math.round(sx), Math.round(sy)]; }
-    bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23, 16, 24);
+    // sitting: head and body only (the legs are tucked out of sight), resting on a seat about 5px off the floor
+    if (sink) { const lift = sink === true ? 5 : 0, rows = sink === true ? 17 : 24 - sink; bctx.drawImage(sh, 0, 0, sh.width, sh.height * rows / 24, Math.round(sx) - 8, Math.round(sy) - lift - rows + (sink === true ? 1 : sink), 16, rows); return [Math.round(sx), Math.round(sy)]; }
+    // standing still, people breathe: a half-pixel rise now and then
+    const breathe = !e.mv && Math.sin(t * 2.2 + (typeof e.id === 'number' ? e.id : 3) * 1.7) > 0.55 ? 0.5 : 0;
+    bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23 - breathe, 16, 24);
     return [Math.round(sx), Math.round(sy)];
   }
   const labels = [];  // text drawn after the blit (positions in buffer px)
@@ -1725,8 +1757,13 @@
     const h = view ? view.h[tab] : null;
     const mine = tab === ME;
     // floors
+    // everyone's position this frame: doors open for whoever is in the doorway
+    const people = [];
+    if (h) { for (const e of h.pats || []) people.push(posOf('p', e)); for (const e of h.staff) if (!e.gone) people.push(posOf('s', e)); for (const e of h.vis || []) people.push(posOf('v', e)); }
+    HI.frame(t, dt, people);
     HI.floorAt(bctx, groundC, -HI.GM, -HI.GM);
     if (h) for (const key in h.rooms) { const r = h.rooms[key]; if (RH.walled(r)) HI.floorAt(bctx, HI.roomFloor(r.k, r.rect.w, r.rect.h), r.rect.x * T, r.rect.y * T); }
+    HI.clouds(bctx);
     ghosts3d.length = 0;
     if (h) drawBuildOverlays(h, t, mine);
     const objs = HI.outside().concat(ghosts3d);
@@ -1749,22 +1786,24 @@
       for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], [fw, fd] = HI.DECOR_FOOT[kind] || [8, 8], x = c * T + 8, y = r * T + 8, dry = kind === 'plant' && h.dry && h.dry.includes(key); objs.push({ d: HI.depth(x + fw / 2, y + fd / 2), draw: cx => HI.DECOR_DRAW[kind] && HI.DECOR_DRAW[kind](cx, x, y, dry) }); }
       for (const m of h.mess) objs.push(HI.messItem(m));
       for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
-      for (const st of h.staff) objs.push({ d: HI.depth(st.x, st.y), draw: () => {
+      // someone sitting draws after the seat they're on (which sorts by its nearest corner)
+      for (const st of h.staff) { const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, chair = !atDesk && seated(h, st, true); objs.push({ d: HI.depth(st.x, st.y) + (chair ? 7.5 : 0), draw: () => {
         const [x, y] = posOf('s', st);
-        const seated = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3;   // in the chair behind the counter
-        const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, seated ? 4 : 0);
+        const sits = atDesk || chair;   // behind the counter, at a desk, on a sofa
+        const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, sits ? (st.desk ? 4 : true) : 0);
         if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
         if (st.mode === 'rest' && Math.floor(t * 1.5) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'z', col: '#9fd8ff', size: 4.5 });
         else if (st.tired > 0.85 && Math.floor(t * 2) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'zz', col: '#ff9a7a', size: 3.6 });
         if (st.hap < 0.3 && !st.gone && Math.floor(t * 2) % 2) icon('angry', sx - 7, sy - 27, t);
-      } });
-      for (const pt of h.pats || []) objs.push({ d: HI.depth(pt.x, pt.y), draw: () => {
+      } }); }
+      const onBench = benchSeats(h);
+      for (const pt of h.pats || []) { const bs = onBench.get(pt.id), chair = !bs && seated(h, pt, false); objs.push({ d: bs ? HI.depth(bs[0], bs[1]) + 0.2 : HI.depth(pt.x, pt.y) + (chair ? 7.5 : 0), draw: () => {
         const dis = RH.DISEASES[pt.dis], shown = pt.why === 'cured' ? '' : dis.vis;
-        const [x, y] = posOf('p', pt);
+        const [x, y] = bs || posOf('p', pt), sits = !!bs || chair;
         // serious radiation glows
         if (shown === 'rad') { const [gx, gy] = HI.px(x, y); const g = bctx.createRadialGradient(gx, gy - 12, 0, gx, gy - 12, 14); g.addColorStop(0, 'rgba(180,240,106,.45)'); g.addColorStop(1, 'rgba(180,240,106,0)'); bctx.fillStyle = g; bctx.fillRect(gx - 14, gy - 26, 28, 28); }
         const wob = shown === 'jelly' ? Math.round(Math.sin(t * 9 + pt.id) * 1) : 0;
-        const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), pt, 'p', t, dt, x + wob * 0.5, y);
+        const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), bs ? Object.assign({}, pt, { f: 0 }) : pt, 'p', t, dt, x + wob * 0.5, y, sits ? true : 0);
         let ix = sx, iy = sy - 29;
         if (pt.em) { icon('siren', ix, iy, t); iy -= 6; }
         // epidemic: a pulsing red ring at the feet and a coloured tag over the head saying what to do next
@@ -1785,7 +1824,7 @@
           const doing = pt.st === 'queue' ? ` · patience ${Math.max(0, Math.round(pt.pat))}s` : pt.st === 'in' ? ' · in treatment' : pt.st === 'wait' ? ' · waiting for you' : pt.st === 'wc' ? ' · in the loo' : pt.st === 'trip' ? ' · buying a drink' : pt.why === 'cured' ? ' · cured!' : '';
           labels.push({ x: sx, y: sy - 34, txt: `${pt.nm} · ${what} · health ${Math.round(pt.hp * 100)}%${doing}${pt.em ? ' · EMERGENCY' : ''}${pt.inf && !pt.vax ? ' · infected' : ''}`, col: '#fff6e0', bubble: true, size: 4.6 });
         }
-      } });
+      } }); }
       for (const v of h.vis || []) objs.push({ d: HI.depth(v.x, v.y), draw: () => {
         const [x, y] = posOf('v', v);
         const [sx, sy] = drawPerson(v.k === 'vip' ? HA.vipSheet() : HA.inspSheet(), v, 'v', t, dt, x, y);
