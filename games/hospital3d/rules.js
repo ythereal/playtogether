@@ -1557,7 +1557,7 @@
   }
 
   // ---------- time ----------
-  const arrivals = m => 20 + 1.4 * m;      // patients per month for the whole town
+  const arrivals = m => 10 + 1.6 * m;      // patients per month for the whole town, rising through the match
   function monthTick(s) {
     s.month++;
     for (let p = 0; p < (s.solo ? 1 : 2); p++) {
@@ -1875,7 +1875,7 @@
           if (pt.bl >= 1) {
             const k = facilityRoom(h, 'toilet');
             if (k) { pt.st = 'wc'; pt.t = 5 + rnd() * 3; enterFacility(h, pt, k); continue; }
-            pt.bl = 0.2; pt.pat -= 25; addRep(h, -1); spawnMess(s, p, pt.x + 3, pt.y + 2, 'puddle'); s.ev.push({ k: 'wet', p, nm: pt.nm, x: pt.x, y: pt.y }); continue;
+            pt.bl = 0.2; pt.pat -= 25; spawnMess(s, p, pt.x + 3, pt.y + 2, 'puddle'); s.ev.push({ k: 'wet', p, nm: pt.nm, x: pt.x, y: pt.y }); continue;
           }
           if (pt.th >= 0.7 && h.drinks) {
             let best = null, bd = 1e9;
@@ -1904,13 +1904,23 @@
       }
       if (inCorridor(h, pt) && h.mess.length < MAX_MESS) {
         const chance = 0.0009 * (hasTag(d, 'vomit') ? 6 : 1) * (pt.pat < 20 ? 3 : 1) * (messNear(h, pt.x, pt.y, 'vomit') ? 6 : 1) * (decorNear(h, pt.x, pt.y, 'plant', 50) ? 0.6 : 1);
-        if (rnd() < chance * dt) { spawnMess(s, p, pt.x + 4, pt.y + 3, 'vomit'); addRep(h, -1); s.ev.push({ k: 'vomit', p, nm: pt.nm, x: pt.x, y: pt.y }); }
+        if (rnd() < chance * dt) { spawnMess(s, p, pt.x + 4, pt.y + 3, 'vomit'); s.ev.push({ k: 'vomit', p, nm: pt.nm, x: pt.x, y: pt.y }); }
       }
     }
   }
 
   function stepRooms(s, p, dt) {
     const h = s.h[p];
+    // a queue stuck outside a room with nobody working in it moves to a staffed room of the same kind
+    h.rebalT = (h.rebalT || 0) + dt;
+    if (h.rebalT >= 2) {
+      h.rebalT = 0;
+      for (const r of roomList(h)) {
+        if (!isBuilt(r) || !r.q.length || roomStaffReady(h, r) || r.sts.length >= (ROOMS[r.k].need || 1)) continue;
+        if (!roomsOf(h, r.k).some(o => o !== r && o.sts.length >= (ROOMS[o.k].need || 1))) continue;
+        for (const id of r.q.slice()) { const pt = patById(h, id); if (!pt || pt.st !== 'queue') continue; unqueue(h, pt); queueFor(s, p, pt, r.k); }
+      }
+    }
     for (const r of roomList(h)) {
       if (!isBuilt(r) || ROOMS[r.k].cat === 'fac') continue;
       const info = roomStaffReady(h, r);
@@ -1921,7 +1931,9 @@
         r.prog += dt / r.dur * (info.crazy ? 0.5 : 1);
         if (r.prog >= 1) finishRoom(s, p, r, info);
       } else if (info && r.q.length) {
-        const id = r.q.find(id2 => { const o = patById(h, id2); return o && o.st === 'queue' && !o.path.length; });
+        // the first patient standing in line is called in; if everyone is still walking up, the first of them
+        const inLine = id2 => { const o = patById(h, id2); return o && o.st === 'queue'; };
+        const id = r.q.find(id2 => inLine(id2) && !patById(h, id2).path.length) ?? r.q.find(inLine);
         r.q = r.q.filter(id2 => patById(h, id2));
         if (id == null) continue;
         const pt = patById(h, id);

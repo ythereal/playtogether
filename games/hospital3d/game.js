@@ -443,6 +443,8 @@
     const unst = rooms.find(([, r]) => RH.capacity(r) && r.sts.length < (RH.ROOMS[r.k].need || 1));
     if (unst) return [`Your ${rname(unst[1].k)} needs a ${needWord(unst[1].k)}. Hire one under Staff.`, 'warn'];
     if (!h.open && view.t < RH.GRACE) return [`Patients start arriving in ${Math.ceil(RH.GRACE - view.t)}s. Build and hire now, or open the doors early.`];
+    const gps = rooms.filter(([, r]) => r.k === 'gp');
+    if (gps.length && gps.every(([, r]) => qn(r) >= 5)) return ['Your GP queues are long and patients will storm out. Build another GP\'s Office and hire a doctor: every patient sees a GP two or three times.', 'warn'];
     if (h.mess.length >= 4 && !live.some(x => x.k === 'h')) return [`${h.mess.length} messes on the floor and nobody to clean them. Hire a handyman.`, 'warn'];
     if (h.warm < 0.6) return ['Brrr! The hospital is cold. Add radiators in the corridors or turn up the heating in Policy.', 'warn'];
     if (h.warm > 1.6) return ['It\'s sweltering in here. Turn the heating down in Policy.', 'warn'];
