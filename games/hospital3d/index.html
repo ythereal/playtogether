@@ -14,27 +14,34 @@
     .ui > * { pointer-events: auto; }
 
     /* ---------- bottom bar ---------- */
-    .bar { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 6px; padding: 7px 9px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
-    .stat { display: grid; line-height: 1.05; padding: 4px 9px; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
-    .stat small { color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; }
-    .stat b { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .stat b.neg { color: var(--accent); }
-    .stat .rep { display: block; height: 4px; margin-top: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
-    .stat .rep i { display: block; height: 100%; background: var(--good); }
-    .cal { background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 3px 10px; text-align: center; line-height: 1.05; font-weight: 800; }
-    .cal small { display: block; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; opacity: .85; font-weight: 600; }
-    .cal .mp { display: block; height: 4px; margin-top: 3px; background: rgba(255,255,255,.3); border-radius: 2px; overflow: hidden; }
-    .cal .mp b { display: block; height: 100%; width: 0; background: #fff; }
+    /* the control panel: Theme Hospital's teal console with a cash counter, a reputation gauge and a desk calendar */
+    .bar { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex-wrap: wrap; color: #eaf6fa;
+      background: linear-gradient(#2a8aa6, #1c6a84 55%, #155469); border: 2px solid #0c3a4a; border-radius: 8px; box-shadow: inset 0 2px 0 #6fc4dc, inset 0 -2px 0 #0f4a5c, 0 4px 10px rgba(0,0,0,.35); }
+    .stat { display: grid; line-height: 1.05; padding: 3px 8px; min-width: 0; background: #0f3f50; border: 2px solid #0a2d3a; border-radius: 5px; box-shadow: inset 0 2px 3px rgba(0,0,0,.45); }
+    .stat small { color: #8fd0e2; font-size: .6rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .stat b { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: #fff; }
+    #stCash b { font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .06em; background: repeating-linear-gradient(90deg, #f4f4ee 0 .62em, #c9c6bc .62em calc(.62em + 1px)); color: #1b1720; padding: 1px 4px; border-radius: 2px; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+    #stCash b.neg { color: #c4202a; }
+    .stat b.neg { color: #ff8a7a; }
+    .stat .rep { display: block; height: 6px; margin-top: 3px; background: linear-gradient(90deg, #d0352a, #f2b233 45%, #49b84a); border-radius: 3px; overflow: visible; position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+    .stat .rep i { display: block; height: 100%; background: transparent; border-right: 3px solid #fff; box-shadow: 1px 0 0 #1b1720; }
+    .cal { background: #fffef6; color: #c4202a; border: 2px solid #0a2d3a; border-radius: 5px; padding: 6px 10px 3px; text-align: center; line-height: 1.05; font-weight: 800; position: relative; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+    .cal::before { content: ''; position: absolute; left: 6px; right: 6px; top: 2px; height: 3px; background: repeating-linear-gradient(90deg, #4a4d55 0 2px, transparent 2px 5px); }
+    .cal small { display: block; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; opacity: .85; font-weight: 700; color: #6b6878; }
+    .cal .mp { display: block; height: 4px; margin-top: 3px; background: #e4dfd0; border-radius: 2px; overflow: hidden; }
+    .cal .mp b { display: block; height: 100%; width: 0; background: #c4202a; }
     .bar .spacer { flex: 1; }
-    .tab { appearance: none; border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: .32rem .75rem; font: 600 .88rem var(--font); cursor: pointer; white-space: nowrap; }
-    .tab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .tab { appearance: none; border: 2px solid #0a2d3a; background: #0f3f50; color: #8fd0e2; border-radius: 6px; padding: .3rem .7rem; font: 700 .86rem var(--font); cursor: pointer; white-space: nowrap; }
+    .tab.on { background: #fffef6; color: #1b1720; }
     .tab small { font-weight: 400; opacity: .8; }
     .tab.who { display: inline-flex; align-items: center; gap: 6px; padding: .22rem .7rem .22rem .32rem; }
     .tab.who canvas { width: 22px; height: 22px; border-radius: 50%; image-rendering: pixelated; }
     .menu { display: flex; gap: 4px; flex-wrap: wrap; }
-    .mbtn { appearance: none; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 10px; padding: .32rem .6rem; font: 600 .84rem var(--font); cursor: pointer; white-space: nowrap; position: relative; }
-    .mbtn:hover { border-color: var(--accent-2); }
-    .mbtn kbd { font: 500 .62rem var(--font); color: var(--muted); margin-left: 3px; }
+    .mbtn { appearance: none; border: 2px solid #0a2d3a; background: linear-gradient(#5fb6e0, #3a8cc4); color: #fff; border-radius: 6px; padding: .28rem .5rem; font: 700 .82rem var(--font); cursor: pointer; white-space: nowrap; position: relative; box-shadow: inset 0 2px 0 rgba(255,255,255,.45), inset 0 -2px 0 rgba(0,0,0,.25); text-shadow: 0 1px 0 rgba(0,0,0,.35); display: inline-flex; align-items: center; gap: 4px; }
+    .mbtn:hover { background: linear-gradient(#77c6ec, #4a9cd4); }
+    .mbtn:active { box-shadow: inset 0 2px 3px rgba(0,0,0,.35); }
+    .mbtn .ic { font-style: normal; font-size: 1rem; line-height: 1; text-shadow: none; }
+    .mbtn kbd { font: 500 .62rem var(--font); color: #cfeaf6; margin-left: 1px; }
     .mbtn.flash::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
     .pt-btn.bar-btn { padding: .38rem .85rem; font-size: .88rem; }
     .speed { display: inline-flex; gap: 2px; }
@@ -46,17 +53,33 @@
     .lvl:disabled { opacity: .45; cursor: default; }
     .league { overflow-x: auto; }
     .league tr.me td { font-weight: 700; color: var(--accent); }
-    .status { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--barh, 70px) + 16px + env(safe-area-inset-bottom)); margin: 0; padding: 4px 14px; max-width: min(680px, calc(100% - 24px)); text-align: center; font-size: .88rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow); }
-    .status.warn { color: var(--accent); font-weight: 600; border-color: var(--accent); }
-    .status.info { color: var(--ink); border-color: var(--accent-2); }
-    .status[hidden] { display: none; }
+    /* the advisor: a doctor in the corner who talks you through things in a speech bubble */
+    .advisor { position: fixed; right: 10px; bottom: calc(var(--barh, 70px) + 14px + env(safe-area-inset-bottom)); display: flex; align-items: flex-end; gap: 4px; max-width: min(560px, calc(100% - 20px)); pointer-events: none; }
+    .advisor > * { pointer-events: auto; }
+    .advisor[hidden] { display: none; }
+    .advisor.quiet .bubble { display: none; }
+    .advisor canvas { width: 80px; height: 88px; image-rendering: pixelated; flex: none; filter: drop-shadow(0 3px 4px rgba(0,0,0,.35)); cursor: pointer; }
+    .bubble { position: relative; background: #fffef6; color: #1b1720; border: 2px solid #1b1720; border-radius: 14px; padding: 8px 12px; margin-bottom: 26px; box-shadow: 0 4px 0 rgba(0,0,0,.18); }
+    .bubble::after { content: ''; position: absolute; right: -11px; bottom: 14px; border: 6px solid transparent; border-left: 9px solid #1b1720; }
+    .bubble::before { content: ''; position: absolute; right: -7px; bottom: 15px; border: 5px solid transparent; border-left: 7px solid #fffef6; z-index: 1; }
+    .status { margin: 0; font-size: .9rem; line-height: 1.35; font-weight: 600; }
+    .status.warn { color: #b8231b; }
+    .status.info { color: #1f5f8b; }
+    .tut { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
+    .tut[hidden] { display: none; }
+    .tut small { margin-right: auto; color: #6b6878; font-weight: 700; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
+    .tut button { appearance: none; border: 1.5px solid #1b1720; border-radius: 8px; background: #2f8a3e; color: #fff; font: 700 .8rem var(--font); padding: .2rem .65rem; cursor: pointer; }
+    .tut button.ghost { background: transparent; color: #6b6878; border-color: #c9c4b6; }
+    .hl { animation: hl 1s ease-in-out infinite; z-index: 2; }
+    @keyframes hl { 50% { box-shadow: 0 0 0 4px #ffd23f, 0 0 18px 4px rgba(255,210,63,.8); } }
     .camctl { position: fixed; right: 12px; top: 56px; display: grid; gap: 6px; }
     .camctl button { width: 40px; height: 36px; padding: 0; font: 700 1rem var(--font); line-height: 1; cursor: pointer; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; box-shadow: var(--shadow); }
     .camctl button:active { transform: translateY(1px); }
-    @media (max-width: 640px) { .tab .alt, .tab.who span, .stat.opt, .mbtn kbd { display: none; } .bar { gap: 4px; padding: 6px; } .stat b { font-size: .9rem; } .status { font-size: .78rem; } .mbtn { padding: .3rem .45rem; font-size: .78rem; } }
+    @media (max-width: 640px) { .tab .alt, .tab.who span, .stat.opt, .mbtn kbd, .mbtn .lb { display: none; } .bar { gap: 4px; padding: 5px; } .stat b { font-size: .9rem; } .mbtn { padding: .3rem .42rem; } .mbtn .ic { font-size: 1.1rem; }
+      .advisor canvas { width: 52px; height: 57px; } .bubble { padding: 6px 9px; margin-bottom: 16px; } .status { font-size: .78rem; } .advisor { right: 6px; max-width: calc(100% - 12px); } }
 
     /* ---------- building editor ---------- */
-    .editbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--barh, 70px) + 52px + env(safe-area-inset-bottom)); width: min(620px, calc(100% - 24px)); background: var(--surface); border: 2px solid var(--accent-2); border-radius: 16px; box-shadow: var(--shadow); padding: 8px 12px; display: grid; gap: 6px; z-index: 12; }
+    .editbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--barh, 70px) + var(--advh, 40px) + 20px + env(safe-area-inset-bottom)); width: min(620px, calc(100% - 24px)); background: var(--surface); border: 2px solid var(--accent-2); border-radius: 16px; box-shadow: var(--shadow); padding: 8px 12px; display: grid; gap: 6px; z-index: 12; }
     .editbar[hidden] { display: none; }
     .eb-title { font-weight: 800; font-size: .95rem; }
     .eb-hint { color: var(--muted); font-size: .85rem; line-height: 1.3; }
@@ -70,7 +93,7 @@
     @media (max-width: 640px) { .editbar { padding: 6px 8px; } .eb-hint { font-size: .78rem; } }
 
     /* ---------- fax tray ---------- */
-    .faxes { position: fixed; left: 10px; bottom: calc(var(--barh, 70px) + 52px + env(safe-area-inset-bottom)); display: flex; flex-direction: column-reverse; gap: 6px; max-height: 50vh; }
+    .faxes { position: fixed; left: 10px; bottom: calc(var(--barh, 70px) + var(--advh, 40px) + 20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column-reverse; gap: 6px; max-height: 50vh; }
     .faxbtn { appearance: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 210px; padding: 6px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font: 600 .8rem var(--font); }
     .faxbtn .ico { grid-row: span 2; font-size: 1.2rem; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); }
     .faxbtn small { color: var(--muted); font-weight: 500; }
@@ -166,8 +189,6 @@
   <div class="ui">
     <div class="toasts" id="toasts"></div>
     <div class="camctl">
-      <button id="camRotL" title="Rotate left (Q)">↺</button>
-      <button id="camRotR" title="Rotate right (E)">↻</button>
       <button id="camIn" title="Zoom in (+)">+</button>
       <button id="camOut" title="Zoom out (−)">−</button>
       <button id="camFit" title="Fit the whole hospital (F)">⌂</button>
@@ -180,7 +201,10 @@
       <div class="eb-list" id="ebList"></div>
       <div class="eb-btns" id="ebBtns"></div>
     </div>
-    <p class="status" id="status">Connecting…</p>
+    <div class="advisor" id="advisor">
+      <div class="bubble"><p class="status" id="status">Connecting…</p><div class="tut" id="tutBar" hidden></div></div>
+      <canvas id="advFace" width="40" height="44" title="Your advisor (Shift+A hides them)"></canvas>
+    </div>
     <div class="bar">
       <span class="stat" id="stCash" title="Bank balance (F1 statement, F7 bank manager)"><small>Balance</small><b id="hudCash">$0</b></span>
       <span class="stat" id="stRep" title="Reputation, 0–1000"><small>Reputation</small><b id="hudRep">500</b><i class="rep"><i id="hudRepBar"></i></i></span>
@@ -194,14 +218,14 @@
       <button class="pt-btn bar-btn primary" id="startBtn" hidden>Start the match</button>
       <button class="pt-btn bar-btn primary" id="openBtn" hidden>Open the doors</button>
       <span class="menu">
-        <button class="mbtn" id="buildBtn" title="Build a room (B)">Build<kbd>B</kbd></button>
-        <button class="mbtn" id="decorBtn" title="Place corridor objects">Corridor</button>
-        <button class="mbtn" id="staffBtn" title="Hire and manage staff (F6)">Staff<kbd>F6</kbd></button>
-        <button class="mbtn" id="caseBtn" title="Drug Casebook: diseases and prices (F2)">Casebook<kbd>F2</kbd></button>
-        <button class="mbtn" id="resBtn" title="Research (F4)">Research<kbd>F4</kbd></button>
-        <button class="mbtn" id="polBtn" title="Hospital Policy (F3)">Policy<kbd>F3</kbd></button>
-        <button class="mbtn" id="bankBtn" title="Bank Manager and Statement (F7 / F1)">Bank<kbd>F7</kbd></button>
-        <button class="mbtn" id="statBtn" title="Status: targets and league (F8)">Status<kbd>F8</kbd></button>
+        <button class="mbtn" id="buildBtn" title="Build a room (B)"><i class="ic">🏗️</i><span class="lb">Build</span><kbd>B</kbd></button>
+        <button class="mbtn" id="decorBtn" title="Place corridor objects"><i class="ic">🪴</i><span class="lb">Corridor</span></button>
+        <button class="mbtn" id="staffBtn" title="Hire and manage staff (F6)"><i class="ic">🧑‍⚕️</i><span class="lb">Staff</span><kbd>F6</kbd></button>
+        <button class="mbtn" id="caseBtn" title="Drug Casebook: diseases and prices (F2)"><i class="ic">📘</i><span class="lb">Casebook</span><kbd>F2</kbd></button>
+        <button class="mbtn" id="resBtn" title="Research (F4)"><i class="ic">🔬</i><span class="lb">Research</span><kbd>F4</kbd></button>
+        <button class="mbtn" id="polBtn" title="Hospital Policy (F3)"><i class="ic">📜</i><span class="lb">Policy</span><kbd>F3</kbd></button>
+        <button class="mbtn" id="bankBtn" title="Bank Manager and Statement (F7 / F1)"><i class="ic">🏦</i><span class="lb">Bank</span><kbd>F7</kbd></button>
+        <button class="mbtn" id="statBtn" title="Status: targets and league (F8)"><i class="ic">📊</i><span class="lb">Status</span><kbd>F8</kbd></button>
         <button class="mbtn" id="helpBtn" title="How to play (H)">?</button>
       </span>
     </div>
@@ -249,7 +273,7 @@
       <h4>Winning</h4>
       <p class="tips" style="padding:0" id="legendWin"></p>
       <h4>Controls</h4>
-      <p class="tips" style="padding:0">Drag to pan, pinch or scroll to zoom, Q/E or ↺↻ to rotate, F to fit, V for the flat aerial view, B to build, R or right-click to rotate furniture. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
+      <p class="tips" style="padding:0">Drag to pan, pinch or scroll to zoom, F to fit, V for the flat aerial view, B to build, R or right-click to rotate furniture. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
       <h4>Diseases</h4>
       <table class="t" id="disTable"></table>
       <div class="row">

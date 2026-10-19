@@ -7,10 +7,13 @@
   const T = 16, W = RH.W, H = RH.H, OUT = '#1b1720';
   const K = 0.75, KX = K, KY = K / 2;             // world px → screen px along the two floor axes
   const L = Math.max(W, H) * T, CXW = W * T / 2, CYW = H * T / 2;   // rotation centre and bounding square
-  const OX = Math.ceil(L * KX) + 8, OY = 54;
-  const OXF = 8, OYF = 60;                          // flat (aerial) view origin
-  const BW = Math.max(OX * 2, L + 16), BH = Math.max(Math.ceil(L * K) + OY + 30, L + OYF + 40);
+  const GM = 96;                                     // the hospital grounds: lawns, paths and the road around the map
+  const OX0 = Math.ceil(L * KX) + 8, OY0 = 54, OXF0 = 8, OYF0 = 60;
+  const OX = OX0 + 2 * GM * KX, OY = OY0 + 2 * GM * KY;
+  const OXF = OXF0 + GM, OYF = OYF0 + GM;          // flat (aerial) view origin
+  const BW = Math.max(OX * 2, L + 16 + 2 * GM), BH = Math.max(Math.ceil(L * K) + OY + 30 + 2 * GM * KY, L + OYF + 40 + GM);
   const WALL_H = 34, LOW_H = 3;      // walls facing the viewer are cut down to a baseboard so nothing is sliced
+  const EXT_LOW = 10;                // …except the outside of the building: a brick parapet, Theme Hospital style
   let rot = 0;                                      // 0..3, quarter turns clockwise
   let flat = false;                                 // aerial view: plain top-down instead of isometric
   const setRot = r => { rot = ((r % 4) + 4) % 4; };
@@ -18,7 +21,7 @@
   const setFlat = f => { flat = !!f; };
   const getFlat = () => flat;
   // the area of the buffer the current view occupies (for fitting the camera)
-  const extent = () => (flat ? { x: 0, y: OYF - 36, w: L + 16, h: L + 40 } : { x: 0, y: 0, w: OX * 2, h: Math.ceil(L * K) + OY + 30 });
+  const extent = () => (flat ? { x: GM, y: OYF - 36, w: L + 16, h: L + 40 } : { x: 2 * GM * KX, y: 2 * GM * KY, w: OX0 * 2, h: Math.ceil(L * K) + OY0 + 30 });
   // world → rotated world (about the map centre)
   let pre = null;                                   // object rotation applied before the view rotation (withRot)
   function rw(x, y) {
@@ -216,21 +219,34 @@
   // ---------- floors ----------
   const C = A.C;
   let groundC = null;
+  // the grounds (lawn, road, paths) and the open hospital floor in one image whose top-left is world (-GM, -GM)
   function ground() {
     if (groundC) return groundC;
-    const [c, x] = A.canvas(W * T, H * T);
-    // grass outside, a paved path to the entrance
-    R(x, 0, 0, W * T, H * T, C.grass);
-    for (let i = 0; i < 500; i++) R(x, Math.floor(A.hash(i, 7) * 31), Math.floor(A.hash(i, 11) * (H * T - 1)), 1, 1, C.grassD);
-    for (let i = 0; i < 40; i++) { const X = Math.floor(A.hash(i, 21) * 29) + 1, Y = Math.floor(A.hash(i, 33) * (H * T - 2)); if (Y > 56 && Y < 120) continue; R(x, X, Y, 2, 2, ['#ffd23f', '#ff6b9a', '#f4f0e6'][i % 3]); }
-    for (let r = 4; r <= 6; r++) for (let col = 0; col < 2; col++) R(x, col * T, r * T, 16, 16, (col + r) % 2 ? C.pave : C.paveD);
-    // the open hospital floor: chequered lino, a carpeted lobby by the entrance
-    for (let r = 0; r < H; r++) for (let col = 2; col < W; col++) { R(x, col * T, r * T, 16, 16, (col + r) % 2 ? C.hall : C.hallD); R(x, col * T, r * T, 16, 1, shade(C.hall, 0.1)); R(x, col * T, r * T, 1, 16, shade(C.hall, -0.08)); }
-    const Lb = RH.LOBBY;
-    const lx = Lb.x0 * T, ly = Lb.y0 * T, lw = (Lb.x1 - Lb.x0 + 1) * T, lh = (Lb.y1 - Lb.y0 + 1) * T;
-    R(x, lx, ly, lw, lh, '#a8423a'); R(x, lx + 2, ly + 2, lw - 4, lh - 4, '#c25a4c');
-    for (let j = ly + 6; j < ly + lh - 4; j += 8) for (let i = lx + 6; i < lx + lw - 4; i += 8) R(x, i, j, 2, 2, '#d98a5c');
-    R(x, 14, 70, 18, 14, '#b0503a'); R(x, 16, 72, 14, 10, '#c86048');
+    const GW = W * T + 2 * GM, GH = H * T + 2 * GM;
+    const [c, x] = A.canvas(GW, GH);
+    const g = (X, Y, w, h, col) => R(x, X + GM, Y + GM, w, h, col);
+    // mown lawn: broad stripes in two greens, a little speckle
+    for (let X = -GM; X < W * T + GM; X += 24) g(X, -GM, 24, GH, ((X + GM) / 24) % 2 ? '#4aab3c' : '#3f9c33');
+    for (let i = 0; i < 1400; i++) g(Math.floor(A.hash(i, 7) * GW) - GM, Math.floor(A.hash(i, 11) * GH) - GM, 1, 1, i % 3 ? '#358a2b' : '#5cbd4c');
+    // paving slabs
+    const pave = (X, Y, w, h) => { g(X, Y, w, h, '#c4c1b8'); for (let j = 0; j < h; j += 8) g(X, Y + j, w, 1, '#aeaba2'); for (let j = 0; j < h; j += 8) for (let i = ((j / 8) % 2) * 6; i < w; i += 12) g(X + i, Y + j, 1, 8, '#aeaba2'); };
+    // the road along the west side, with a kerb and a dashed centre line
+    g(-GM, -GM, 42, GH, '#6b6d72'); for (let i = 0; i < 260; i++) g(-GM + Math.floor(A.hash(i, 51) * 42), Math.floor(A.hash(i, 53) * GH) - GM, 1, 1, '#5c5e63');
+    for (let Y = -GM; Y < H * T + GM; Y += 18) g(-GM + 20, Y, 2, 10, '#efe3a2');
+    g(-GM + 42, -GM, 3, GH, '#dcd8cc'); g(-GM + 45, -GM, 1, GH, '#9a978e');
+    // a pavement round the building and a path from the road to the front doors
+    pave(24, -8, W * T - 24 + 8, H * T + 16);
+    pave(-GM + 46, 60, GM + 24 - 46 + 32, 56);
+    // flower beds either side of the path
+    for (const [X, Y] of [[-40, 34], [-40, 124]]) { g(X, Y, 44, 18, '#6b4a2c'); g(X, Y, 44, 1, '#8a6440'); for (let i = 0; i < 46; i++) g(X + 2 + Math.floor(A.hash(i, X + Y) * 40), Y + 2 + Math.floor(A.hash(Y, i + 3) * 14), 2, 2, ['#ff5a7a', '#ffd23f', '#f4f0e6', '#c86ad8', '#ff8a3a'][i % 5]); }
+    // the open hospital floor: Theme Hospital's grey tiles with a pale inset square on each
+    for (let r = 0; r < H; r++) for (let col = 2; col < W; col++) {
+      const X = col * T, Y = r * T, lob = RH.inLobby(col, r);
+      g(X, Y, 16, 16, lob ? '#b2b8bd' : '#bcbbb5'); g(X, Y, 16, 1, '#a6a59f'); g(X, Y, 1, 16, '#a6a59f');
+      g(X + 4, Y + 4, 8, 8, lob ? '#c9d0d6' : '#d3d2cc'); g(X + 4, Y + 4, 8, 1, lob ? '#d8dee3' : '#e0dfda'); g(X + 4, Y + 11, 8, 1, lob ? '#b9c0c6' : '#c2c1bb');
+    }
+    // a doormat inside the front doors
+    g(33, 66, 12, 44, '#5a5650'); for (let j = 68; j < 108; j += 3) g(35, j, 8, 1, '#6e6a62');
     return (groundC = c);
   }
   const floorCache = {};
@@ -255,8 +271,10 @@
     if (style === 'stripe') for (let i = 0; i < w; i += 6) R(x, i, 0, 2, h, d);
     else if (style === 'dots') for (let j = 3; j < h - 4; j += 5) for (let i = (j % 10 ? 1 : 4); i < w; i += 6) R(x, i, j, 1, 1, l);
     else if (style === 'tiles') { for (let j = 0; j < h; j += 5) R(x, 0, j, w, 1, d); for (let i = 0; i < w; i += 9) R(x, i, 0, 1, h, d); }
-    else if (style === 'brick') { for (let j = 0; j < h; j += 4) { R(x, 0, j, w, 1, shade(col, -0.2)); for (let i = (j / 4) % 2 ? 4 : 0; i < w; i += 8) R(x, i, j, 1, 4, shade(col, -0.2)); } }
-    R(x, 0, 0, w, 2, '#3fae5a'); R(x, 0, 0, w, 1, '#7ad88f');
+    else if (style === 'brick') { for (let j = 3; j < h; j += 3) { R(x, 0, j, w, 1, shade(col, -0.22)); for (let i = (j / 3) % 2 ? 3 : 0; i < w; i += 6) R(x, i, j, 1, 3, shade(col, -0.22)); } for (let i = 0; i < w; i += 5) R(x, i, 3 + (i % 3) * 3, 2, 1, shade(col, 0.1)); }
+    else if (style === 'plaster') { R(x, 0, h - 9, w, 1, shade(col, -0.12)); R(x, 0, h - 8, w, 5, shade(col, -0.05)); }
+    // the top of the wall seen from above: pale with a shadowed lip, like Theme Hospital's wall caps
+    R(x, 0, 0, w, 2, '#ecebe6'); R(x, 0, 2, w, 1, '#a9a7a0');
     if (h > 12) { R(x, 0, h - 3, w, 3, shade(col, -0.35)); R(x, 0, h - 3, w, 1, shade(col, -0.15)); }
     else { R(x, 0, h - 1, w, 1, shade(col, -0.35)); }
     if (decal && h > 12) decal(x, w, h);
@@ -288,7 +306,7 @@
     training: (x, w, h) => { R(x, 40, 5, 14, 11, '#2b2e3a'); R(x, 42, 7, 10, 1, '#f4f0e6'); R(x, 42, 10, 7, 1, '#f4f0e6'); R(x, 42, 13, 9, 1, '#f4f0e6'); },
     op: (x, w, h) => { R(x, 6, 5, 14, 12, '#2b2e3a'); R(x, 7, 6, 12, 10, '#9fd8ff'); R(x, 10, 8, 2, 7, '#dff3ff'); R(x, 13, 8, 2, 7, '#dff3ff'); R(x, 9, 10, 8, 1, '#dff3ff'); },
   };
-  const EXT = '#b9b2a6';
+  const EXT = '#c4875a';   // the building's outside: warm brick
   // A wall segment from (ax, ay) to (bx, by) with the interior on the side of normal (nx, ny). In the current view
   // it is tall when it faces away from the viewer (a back wall) and cut down low when it would hide the interior.
   function wallItems(ax, ay, bx, by, nx, ny, key, col, style, decal, gap) {
@@ -312,6 +330,8 @@
   }
   // wall colours by room type: white, green, yellow for imaging, blue for clinics
   const WALLCOL = { white: '#ece8de', green: '#a6cf9c', yellow: '#e9d27e', blue: '#98bfe3' };
+  // an outside window seen from the corridor: white frame, the lawn beyond
+  const lawnWin = (x, w, h) => { R(x, 2, 6, w - 4, 16, '#f4f4f0'); R(x, 3, 7, w - 6, 14, '#3f9c33'); R(x, 3, 7, w - 6, 5, '#7fc7e8'); R(x, 3, 12, w - 6, 2, '#2f7a2a'); for (let i = 4; i < w - 4; i += 3) R(x, i, 15 + (i % 2), 1, 1, '#5cbd4c'); R(x, 4, 8, 2, 3, '#d8f0fa'); R(x, w / 2 - 0.5, 7, 1, 14, '#f4f4f0'); R(x, 3, 14, w - 6, 1, '#f4f4f0'); R(x, 1, 22, w - 2, 2, '#e6e4dc'); };
   const winDecal = (x, w, h) => { R(x, 2, 6, w - 4, 14, '#6b5a44'); R(x, 3, 7, w - 6, 12, '#9fd8ff'); R(x, 4, 8, 3, 4, '#dff3ff'); R(x, w / 2 - 0.5, 7, 1, 12, '#6b5a44'); R(x, 2, 20, w - 4, 2, '#f4f0e6'); };
   // a poster for each room type, cut out of its old wall decal
   const posterCache = {};
@@ -359,14 +379,14 @@
       else { face = far.room === 0 ? far : near; tall = face === far; face = Object.assign({}, face, { ext: true }); }
       const r = face.room > 0 ? h.rooms[face.room] : null;
       const ext = face.ext || !r;
-      const col = ext ? EXT : WALLCOL[RH.ROOMS[r.k].wall], style = ext ? 'brick' : A.ROOM_STYLE[r.k].wall[1];
+      const col = ext ? (tall ? '#dcdad3' : EXT) : WALLCOL[RH.ROOMS[r.k].wall], style = ext ? (tall ? 'plaster' : 'brick') : A.ROOM_STYLE[r.k].wall[1];
       const isWin = !ext && winSet.has(face.tile.join(',') + ',' + face.d);
       const isPoster = !ext && tall && posterEdges.has(face.tile.join(',') + ',' + face.d);
-      const extWin = ext && tall && (x * 7 + y * 3) % 5 === 0;
+      const extWin = ext && tall && ((x + y) & 1) === 0;
       const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
-      const deco = isWin || extWin ? winDecal : isPoster ? (c2, w, hh) => { const pc = poster(r.k); if (pc) c2.drawImage(pc, Math.round((w - pc.width) / 2), 5); } : null;
+      const deco = extWin ? lawnWin : isWin ? winDecal : isPoster ? (c2, w, hh) => { const pc = poster(r.k); if (pc) c2.drawImage(pc, Math.round((w - pc.width) / 2), 5); } : null;
       const k2 = (ext ? 'X' : r.k) + (isWin || extWin ? 'w' : isPoster ? 'p' : '');
-      items.push(...wallPiece(ax, ay, bx, by, face.n[0], face.n[1], k2, col, style, deco, tall));
+      items.push(...wallPiece(ax, ay, bx, by, face.n[0], face.n[1], k2 + (ext && !tall ? 'b' : ''), col, style, deco, tall, ext && !tall ? EXT_LOW : LOW_H));
     };
     for (let y = -1; y <= H; y++) for (let x = 0; x <= W; x++) { edge(x, y, 1); edge(x, y, 2); }
     edgeCache.set(h, { key, items });
@@ -380,8 +400,8 @@
     }
   }
   // one 16px wall edge; `tall` back walls, low front walls
-  function wallPiece(ax, ay, bx, by, nx, ny, key, col, style, deco, tall) {
-    const h = flat ? 4 : tall ? WALL_H : LOW_H;
+  function wallPiece(ax, ay, bx, by, nx, ny, key, col, style, deco, tall, low) {
+    const h = flat ? 4 : tall ? WALL_H : low;
     const img = wallImg(key + (flat ? 'F' : tall ? 'T' : 'L'), 16, h, col, style, deco, null);
     const [a1] = rw(ax, ay), [b1] = rw(bx, by), [, a2] = rw(ax, ay), [, b2] = rw(bx, by);
     const alongX = Math.abs(a2 - b2) < 0.5;
@@ -405,17 +425,48 @@
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(u1, u2); ctx.lineTo(v1, v2); ctx.lineTo(v1, v2 - hh); ctx.lineTo(u1, u2 - hh); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(27,23,32,.6)'; ctx.lineWidth = 1; ctx.stroke();
   }
-  // outside: ambulance, trees, sign, entrance posts, reception desk
-  function outside() {
-    const items = [];
-    const bx = (x, y, w, d, h, col, faces) => ({ d: depth(x + w, y + d), draw: c => box(c, x, y, w, d, h, col, faces) });
-    items.push(bx(2, 28, 26, 12, 13, '#f4f4f0', { south: (ctx, w, h) => { R(ctx, 0, 6, w, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 10, 1, 6, 4, '#9fd8ff'); R(ctx, 19, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 2, 2, 1, '#e8533f'); R(ctx, 11, 3, 4, 1, '#e8533f'); }, east: (ctx, d, h) => { R(ctx, 0, 6, d, 3, '#e8533f'); R(ctx, 2, 1, 8, 4, '#9fd8ff'); }, top: ctx => { R(ctx, 4, 2, 4, 3, '#3c7bd6'); R(ctx, 14, 2, 4, 3, '#e8533f'); } }));
-    for (const [tx, ty] of [[13, 150], [13, 230], [13, 320]]) items.push({ d: depth(tx, ty), draw: c => { shadow(c, tx, ty, 8); bill(c, A.furniture('tree'), tx, ty); } });
-    for (const [bxp, byp] of [[10, 12], [20, 180], [8, 280]]) items.push({ d: depth(bxp, byp), draw: c => bill(c, A.furniture('bush'), bxp, byp) });
-    items.push({ d: depth(14, 56), draw: c => bill(c, A.furniture('sign'), 14, 56) });
-    items.push(bx(30, 62, 3, 3, 24, '#8a8f99'));
-    items.push(bx(30, 110, 3, 3, 24, '#8a8f99'));
+  // the front doors: green-framed glass, the middle pair slid open (an image standing on the entrance edge x = 32)
+  let doorsC = null;
+  function doorsImg() {
+    if (doorsC) return doorsC;
+    const [c, x] = A.canvas(48, WALL_H);
+    const G = '#2f8a3e', GL = '#5cc06a', glass = 'rgba(150,215,240,.5)';
+    R(x, 0, 0, 48, 7, G); R(x, 0, 0, 48, 1, GL); R(x, 3, 2, 42, 3, '#f4f4f0'); R(x, 22, 2, 4, 3, '#e8533f'); R(x, 23, 1, 2, 5, '#e8533f');
+    for (const [u, w] of [[0, 13], [35, 13]]) { R(x, u, 7, w, WALL_H - 7, glass); R(x, u + 2, 9, 2, 10, 'rgba(255,255,255,.55)'); R(x, u, 7, 2, WALL_H - 7, G); R(x, u + w - 2, 7, 2, WALL_H - 7, G); R(x, u + 1, 7, 1, WALL_H - 7, GL); R(x, u, WALL_H - 3, w, 3, G); R(x, u + 5, 18, 3, 1, '#c9a43a'); }
+    R(x, 13, 7, 3, WALL_H - 7, G); R(x, 32, 7, 3, WALL_H - 7, G);
+    return (doorsC = c);
+  }
+  function doorItems() {
+    const img = doorsImg(), items = [];
+    for (let i = 0; i < 3; i++) {
+      const y0 = 64 + i * 16, y1 = y0 + 16;
+      items.push({ d: Math.min(depth(32, y0), depth(32, y1)) + 0.5, draw: c => {
+        const h = flat ? 4 : WALL_H, [u1, u2] = px(32, y0), [v1, v2] = px(32, y1);
+        c.setTransform((v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); c.drawImage(img, i * 16, flat ? WALL_H - 4 : 0, 16, h, 0, 0, 16, h); reset(c);
+      } });
+    }
     return items;
+  }
+  // outside: the road with an ambulance, trees, lamps, hedges, the sign, and the front doors
+  let outsideCache = null;
+  function outside() {
+    if (outsideCache && outsideCache.key === rot + ':' + flat) return outsideCache.items.slice();
+    const items = doorItems();
+    const bx = (x, y, w, d, h, col, faces) => ({ d: depth(x + w, y + d), draw: c => box(c, x, y, w, d, h, col, faces) });
+    const sprite = (name, x, y, sh) => ({ d: depth(x, y), draw: c => { if (sh) shadow(c, x, y, sh); bill(c, A.furniture(name), x, y); } });
+    // the ambulance parked on the road
+    items.push(bx(-86, 150, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { R(ctx, 3, 4, 7, 3, '#3c7bd6'); R(ctx, 3, 20, 7, 3, '#e8533f'); } }));
+    // trees round the grounds (none on the road, the path or the pavement)
+    const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 230], [-24, 330], [-34, 410], [-20, 10]];
+    for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
+    // street lamps along the road and the path
+    for (const [x, y] of [[-46, 56], [-46, 124], [-46, -20], [-46, 250], [-46, 380], [18, 56], [18, 124]]) items.push(sprite('streetlamp', x, y, 3));
+    // clipped hedges beside the flower beds
+    for (const [x, y] of [[-42, 30], [-42, 144]]) items.push(bx(x, y, 48, 4, 7, '#2f7a2a', { top: ctx => { for (let i = 0; i < 48; i += 3) R(ctx, i, 1, 2, 2, '#4aab3c'); }, south: (ctx, w, h) => { for (let i = 1; i < w; i += 4) R(ctx, i, 2, 2, 2, '#3f9c33'); } }));
+    for (const [x, y] of [[-10, 20], [6, 170], [-6, 300]]) items.push(sprite('bush', x, y));
+    items.push(sprite('sign', -14, 54));
+    outsideCache = { key: rot + ':' + flat, items };
+    return items.slice();
   }
   // the reception desk once it has been bought, or a dashed outline where it goes
   function deskItem(bought, t) {
@@ -441,5 +492,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

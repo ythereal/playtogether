@@ -422,9 +422,61 @@
     if (pct !== lastMonthPct) { lastMonthPct = pct; e.style.width = pct + '%'; }
     if (!$('openBtn').hidden) $('openBtn').textContent = `Open the doors · ${Math.max(0, Math.ceil(RH.GRACE - view.t))}s`;
   }
-  let statusKey = '', barH = 0, hoverTxt = '', advisorOff = false;
-  function placeStatus() { const hgt = document.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); } }
+  let statusKey = '', barH = 0, advH = -1, hoverTxt = '', advisorOff = false, talkUntil = 0, faceFrame = -1;
+  function placeStatus() {
+    const hgt = document.querySelector('.bar').offsetHeight; if (hgt !== barH) { barH = hgt; document.documentElement.style.setProperty('--barh', hgt + 'px'); }
+    const adv = $('advisor'), ah = adv.hidden || adv.style.visibility === 'hidden' ? 0 : adv.offsetHeight;
+    if (ah !== advH) { advH = ah; document.documentElement.style.setProperty('--advh', ah + 'px'); }
+  }
+  // the advisor's mouth flaps while a new line is being said
+  function advisorTick(now) {
+    const f = now < talkUntil ? Math.floor(now / 120) % 2 : 0;
+    if (f === faceFrame) return;
+    faceFrame = f; const c = $('advFace'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); x.drawImage(HA.advisorFace(f), 0, 0);
+  }
   const needWord = k => ({ doc: 'doctor', psy: 'psychiatrist', surg: 'surgeon', res: 'researcher', con: 'consultant to teach', nurse: 'nurse' })[RH.ROOMS[k].staff];
+  // ============================ tutorial ============================
+  // A first-game walkthrough spoken by the advisor: each step says what to do, lights up the button to press and moves on
+  // by itself once the hospital shows it's done. Finishing or skipping it is remembered on this device.
+  const TUT_KEY = 'rh3d_tutorial';
+  let tut = (() => { try { return localStorage.getItem(TUT_KEY) === 'done' ? -1 : 0; } catch (e) { return 0; } })();
+  const builtK = (h, k) => Object.values(h.rooms).some(r => r.k === k && r.phase === 'built');
+  const staffedK = (h, k) => Object.values(h.rooms).some(r => r.k === k && r.phase === 'built' && r.sts.length);
+  const TUT = [
+    { say: () => `Welcome to ${SOLO ? lvlInfo().nm : 'your new hospital'}! I'm your advisor. I'll show you how to get the place open before the first patients turn up${SOLO ? ' (press P to pause while you read)' : ''}.`, next: 'Let\'s go' },
+    { say: 'Patients need somewhere to check in. Tap the dashed outline just inside the front doors to buy a reception desk.', done: h => h.desk },
+    { say: 'A desk needs someone behind it. Open Staff and hire a Receptionist.', hl: 'staffBtn', done: h => h.staff.some(x => x.k === 'r' && !x.gone) },
+    { say: 'Every patient sees a GP first. Press Build, choose GP\'s Office and drag out a blueprint on the grey floor. I\'ll step aside while you build.', hl: 'buildBtn', done: h => builtK(h, 'gp') },
+    { say: 'Your GP\'s Office needs a doctor. Open Staff and hire one: more skill diagnoses faster but costs more.', hl: 'staffBtn', done: h => staffedK(h, 'gp') },
+    { say: 'Most illnesses are cured with drugs. Build a Pharmacy, then hire a Nurse to run it.', hl: h => (builtK(h, 'pharm') ? 'staffBtn' : 'buildBtn'), done: h => staffedK(h, 'pharm') },
+    { say: 'When the GP isn\'t sure what\'s wrong, patients go for tests. Build a General Diagnosis room: it needs a doctor too.', hl: h => (builtK(h, 'gendiag') ? 'staffBtn' : 'buildBtn'), done: h => staffedK(h, 'gendiag') },
+    { say: 'Patients get thirsty and impatient. Build Toilets, then use Corridor to put down a couple of benches and a drinks machine.', hl: h => (builtK(h, 'toilet') ? 'decorBtn' : 'buildBtn'), done: h => builtK(h, 'toilet') && Object.keys(h.decor).length >= 2 },
+    { say: 'You\'re ready! Press “Open the doors”, or wait for the timer. Tap any patient to see what\'s wrong with them.', hl: 'openBtn', done: h => h.open },
+    { say: 'That\'s the basics. Hire a Handyman to keep the floors clean, and build a Staff Room before your staff wear out. I\'ll keep giving advice from down here. Good luck!', next: 'Got it' },
+  ];
+  const tutOn = () => tut >= 0 && view && view.ph === 'play' && tab === ME && !mismatch && room.connected;
+  function tutEnd() { tut = -1; try { localStorage.setItem(TUT_KEY, 'done'); } catch (e) {} statusKey = ''; setStatus(); }
+  function tutAdvance() { if (tut < 0) return; tut++; if (tut >= TUT.length) tutEnd(); else { statusKey = ''; setStatus(); } }
+  let hlEl = null;
+  function tutHighlight(id) { const el = id && $(id); if (el === hlEl) return; if (hlEl) hlEl.classList.remove('hl'); hlEl = el || null; if (hlEl) hlEl.classList.add('hl'); }
+  function tutStep() {
+    if (!tutOn()) { tutHighlight(null); return null; }
+    const h = view.h[ME];
+    while (tut < TUT.length && TUT[tut].done && TUT[tut].done(h)) tut++;
+    if (tut >= TUT.length) { tutEnd(); return null; }
+    const st = TUT[tut];
+    tutHighlight(typeof st.hl === 'function' ? st.hl(h) : st.hl);
+    return st;
+  }
+  function renderTutBar(st) {
+    const bar = $('tutBar');
+    if (!st) { bar.hidden = true; return; }
+    bar.hidden = false;
+    bar.replaceChildren(el('small', null, `Tutorial ${tut + 1} of ${TUT.length}`));
+    if (st.next) bar.append(btn(st.next, 'tnext', tutAdvance));
+    if (tut < TUT.length - 1) bar.append(btn('Skip tutorial', 'ghost', tutEnd));
+  }
+
   function advice() {
     if (mismatch) return [mismatchText(), 'warn'];
     if (!room.connected) return ['Waiting for your friend to join…' + (view && view.ph === 'play' ? ' (paused)' : '')];
@@ -438,6 +490,7 @@
     if (hoverTxt) return [hoverTxt, 'info'];
     const h = view.h[ME], rooms = Object.entries(h.rooms).filter(([, r]) => r.phase === 'built'), live = h.staff.filter(s => !s.gone);
     const ed = edAdvice(); if (ed) return ed;
+    const ts = tutStep(); if (ts) return [typeof ts.say === 'function' ? ts.say() : ts.say, 'tut'];
     if (!h.desk) return ['Tap the dashed outline by the entrance to buy a reception desk ($150). Without one, no patients come.', 'warn'];
     if (!live.some(s => s.k === 'r')) return ['Hire a receptionist under Staff. Without one, no patients come.', 'warn'];
     if (!rooms.some(([, r]) => r.k === 'gp')) return ['Build a GP\'s Office: every patient starts there. Press Build.', 'warn'];
@@ -467,9 +520,14 @@
   function setStatus() {
     placeStatus();
     const [s, cls] = advice();
-    const key = s + (cls || '') + advisorOff;
-    if (key !== statusKey) { statusKey = key; $('status').textContent = s; $('status').classList.toggle('warn', cls === 'warn'); $('status').classList.toggle('info', cls === 'info'); }
-    $('status').hidden = advisorOff;
+    const key = s + (cls || '') + advisorOff + tut;
+    if (key !== statusKey) {
+      statusKey = key; $('status').textContent = s; $('status').classList.toggle('warn', cls === 'warn'); $('status').classList.toggle('info', cls === 'info');
+      renderTutBar(cls === 'tut' ? TUT[tut] : null);
+      talkUntil = performance.now() + Math.min(2600, 500 + s.length * 22);
+    }
+    if (cls !== 'tut') tutHighlight(null);
+    $('advisor').hidden = advisorOff;
     if (host) { $('startBtn').disabled = !room.connected; $('startBtn').hidden = !(view && view.ph === 'ready'); }
   }
   const lvlInfo = () => RH.LEVELS[(view && view.solo ? view.solo.lvl : 1) - 1];
@@ -760,10 +818,10 @@
   }
   function renderEdit() {
     const bar = $('editbar');
-    if (!view || tab !== ME || view.ph !== 'play') { bar.hidden = true; $('status').style.visibility = ''; return; }
+    if (!view || tab !== ME || view.ph !== 'play') { bar.hidden = true; $('advisor').style.visibility = ''; return; }
     const tg = edTarget();
-    if (!tg && !(ed && ed.mode === 'decor')) { bar.hidden = true; edKey = ''; $('status').style.visibility = ''; return; }
-    $('status').style.visibility = 'hidden';   // the edit bar says what to do
+    if (!tg && !(ed && ed.mode === 'decor')) { bar.hidden = true; edKey = ''; $('advisor').style.visibility = ''; return; }
+    $('advisor').style.visibility = 'hidden';   // the edit bar says what to do
     const h = view.h[ME];
     let title, hint, chips = [], btns = [];
     if (ed && ed.mode === 'decor' && !tg) {
@@ -1333,6 +1391,7 @@
   $('legendClose').addEventListener('click', () => { $('legend').hidden = true; });
   $('startBtn').addEventListener('click', requestStart);
   $('openBtn').addEventListener('click', () => act('open'));
+  $('advFace').addEventListener('click', () => { $('advisor').classList.toggle('quiet'); });   // tap the advisor to hide or show what they're saying
   $('buildClose').addEventListener('click', () => { $('buildSheet').hidden = true; });
   $('roomClose').addEventListener('click', () => { $('roomSheet').hidden = true; });
   $('staffClose').addEventListener('click', () => { $('staffSheet').hidden = true; });
@@ -1414,7 +1473,6 @@
     const bx = cam.x + (px - cw / 2) / z0, by = cam.y + (py - ch / 2) / z0;
     cam.z = z1; cam.x = bx - (px - cw / 2) / z1; cam.y = by - (py - ch / 2) / z1; clampCam();
   }
-  function rotate(dir) { HI.setRot(HI.getRot() + dir); hudKey = ''; }
   function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (V)' : 'Aerial view (V)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
   try { if (localStorage.getItem('rh3d_flat') === '1') setFlat(true); } catch (e) {}
   addEventListener('resize', resize); resize(); fitView(); setTimeout(() => { resize(); fitView(); }, 300);
@@ -1459,14 +1517,13 @@
   cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); else { cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); } }, { passive: false });
-  $('camRotL').addEventListener('click', () => rotate(-1)); $('camRotR').addEventListener('click', () => rotate(1));
   $('camFlat').addEventListener('click', () => setFlat(!HI.getFlat()));
   $('camIn').addEventListener('click', () => zoomAt(1.3, cw / 2, ch / 2)); $('camOut').addEventListener('click', () => zoomAt(1 / 1.3, cw / 2, ch / 2)); $('camFit').addEventListener('click', fitView);
   const keysDown = new Set();
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || !$('profile').hidden || panelOpen()) return;
     const k = e.key.toLowerCase();
-    if (k === 'q') rotate(-1); else if (k === 'e') rotate(1); else if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
+    if (k === 'f') fitView(); else if (k === 'v') setFlat(!HI.getFlat());
     else if (k === '+' || k === '=') zoomAt(1.25, cw / 2, ch / 2); else if (k === '-' || k === '_') zoomAt(0.8, cw / 2, ch / 2);
     else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 'd'].includes(k) || (k === 's' && !e.repeat && false)) { keysDown.add(k); e.preventDefault(); }
   });
@@ -1605,7 +1662,7 @@
     const h = view ? view.h[tab] : null;
     const mine = tab === ME;
     // floors
-    HI.floorAt(bctx, groundC, 0, 0);
+    HI.floorAt(bctx, groundC, -HI.GM, -HI.GM);
     if (h) for (const key in h.rooms) { const r = h.rooms[key]; if (RH.walled(r)) HI.floorAt(bctx, HI.roomFloor(r.k, r.rect.w, r.rect.h), r.rect.x * T, r.rect.y * T); }
     if (h) drawBuildOverlays(h, t, mine);
     const objs = HI.outside();
@@ -1714,7 +1771,7 @@
 
     // ---- blit through the camera (with an earthquake or explosion shake) ----
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#f6f1e9'; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = '#3f9c33'; ctx.fillRect(0, 0, cw, ch);   // the lawn carries on past the edge of the grounds
     ctx.imageSmoothingEnabled = cam.z < 1;
     let shx = 0, shy = 0;
     if (shake > 0) { shake -= dt; const a = Math.min(1, shake) * 4; shx = (Math.random() - 0.5) * a; shy = (Math.random() - 0.5) * a; }
@@ -1781,7 +1838,7 @@
     const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
     panKeys(dt);
     try {
-      render(now / 1000, dt); renderHud(); placeStatus(); monthBar(now);
+      render(now / 1000, dt); renderHud(); placeStatus(); advisorTick(now); monthBar(now);
       if ((slow += dt) > 0.5) { slow = 0; setStatus(); renderFaxes(); if (host) refreshSheets(); }
     } catch (err) { console.error(err); }
     requestAnimationFrame(frame);

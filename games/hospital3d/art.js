@@ -248,6 +248,33 @@
     x.drawImage(managerSheet(av).down[0], 0, 0, 16, 14, 0, size * 0.14, size, size * 0.875);
     return (portraitCache[key] = c);
   }
+  // the advisor who talks you through the game: a doctor with a head mirror, glasses and a bow tie. talk = mouth open
+  const advCache = {};
+  function advisorFace(talk) {
+    const key = talk ? 1 : 0; if (advCache[key]) return advCache[key];
+    const [c, x] = canvas(40, 44);
+    const ell = (X, Y, rx, ry, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(X, Y, rx, ry, 0, 0, Math.PI * 2); x.fill(); };
+    // white coat, shoulders and lapels
+    x.fillStyle = '#f4f4f0'; x.beginPath(); x.moveTo(3, 44); x.quadraticCurveTo(4, 31, 20, 30); x.quadraticCurveTo(36, 31, 37, 44); x.fill();
+    rect(x, 15, 31, 10, 13, '#9fc6e8'); rect(x, 19, 31, 2, 13, '#3c7bd6');
+    x.fillStyle = '#dcdcd6'; x.beginPath(); x.moveTo(14, 31); x.lineTo(19, 44); x.lineTo(12, 44); x.fill(); x.beginPath(); x.moveTo(26, 31); x.lineTo(21, 44); x.lineTo(28, 44); x.fill();
+    rect(x, 15, 32, 4, 3, '#e8762f'); rect(x, 21, 32, 4, 3, '#e8762f'); rect(x, 19, 32, 2, 3, '#c45a1c');   // bow tie
+    rect(x, 17, 26, 6, 6, '#e8b48a');   // neck
+    // head, ears, ginger hair round a bald crown
+    ell(20, 17, 10, 11, '#f2c49a'); ell(9.5, 18, 2, 3, '#e8b48a'); ell(30.5, 18, 2, 3, '#e8b48a');
+    ell(10, 13, 3, 5, '#d9772f'); ell(30, 13, 3, 5, '#d9772f'); rect(x, 8, 10, 3, 6, '#d9772f'); rect(x, 29, 10, 3, 6, '#d9772f');
+    ell(20, 8, 7, 3, '#f7d4ae');
+    // head mirror on its band
+    rect(x, 11, 9, 18, 2, '#4a4d55'); ell(16, 8, 4, 4, '#c8ced8'); ell(16, 8, 2.6, 2.6, '#eef4fa'); rect(x, 15, 7, 1, 1, '#ffffff');
+    // glasses, eyes, brows, nose
+    x.strokeStyle = '#2b2e3a'; x.lineWidth = 1; x.beginPath(); x.arc(15.5, 18, 3, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(24.5, 18, 3, 0, Math.PI * 2); x.stroke(); rect(x, 18, 17, 4, 1, '#2b2e3a');
+    rect(x, 15, 18, 2, 2, '#2b2e3a'); rect(x, 24, 18, 2, 2, '#2b2e3a'); rect(x, 13, 13, 5, 1, '#b8601f'); rect(x, 22, 13, 5, 1, '#b8601f');
+    rect(x, 19, 20, 2, 4, '#e0a47a');
+    // moustache and mouth
+    rect(x, 15, 24, 10, 2, '#c8642a'); rect(x, 14, 25, 2, 1, '#c8642a'); rect(x, 24, 25, 2, 1, '#c8642a');
+    if (talk) { ell(20, 28, 3, 2, '#7a2a2a'); rect(x, 18, 27, 4, 1, '#ffffff'); } else rect(x, 17, 27, 6, 1, '#9a4a3a');
+    return (advCache[key] = outline(c));
+  }
   function ghost() {
     const [c, x] = canvas(14, 16);
     blob(x, 7, 6, 5, 5.5, '#eef2ff', { flat: true });
@@ -273,6 +300,23 @@
       const leaf = (X, Y, r, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(X, Y, r, r * 0.8, 0, 0, Math.PI * 2); x.fill(); };
       leaf(12, 13, 11, '#2e6b3a'); leaf(7, 10, 6, '#3a8a48'); leaf(16, 8, 6, '#3a8a48'); leaf(12, 5, 5, '#4aa45a'); leaf(9, 17, 4, '#255a30');
       rect(x, 6, 9, 2, 1, '#ff6b9a'); rect(x, 15, 6, 2, 1, '#ff6b9a'); rect(x, 12, 12, 2, 1, '#ffd23f');
+      return outline(c);
+    },
+    // Theme Hospital's grounds: a big round tree, a street lamp
+    bigtree() {
+      const [c, x] = canvas(34, 46);
+      rect(x, 15, 30, 4, 16, '#6b4320'); rect(x, 16, 30, 1, 16, '#8a5a34'); rect(x, 13, 44, 8, 2, '#5a3a1c');
+      const leaf = (X, Y, r, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(X, Y, r, r * 0.9, 0, 0, Math.PI * 2); x.fill(); };
+      leaf(17, 20, 15, '#2a7a2a'); leaf(10, 24, 8, '#256a26'); leaf(25, 23, 8, '#256a26');
+      leaf(12, 15, 8, '#3a9a36'); leaf(22, 13, 8, '#3a9a36'); leaf(17, 8, 7, '#48ad40'); leaf(14, 19, 6, '#48ad40');
+      leaf(12, 12, 3, '#6fcf5a'); leaf(20, 7, 3, '#6fcf5a'); leaf(24, 15, 2, '#6fcf5a'); leaf(9, 20, 2, '#5cbd4c');
+      for (let i = 0; i < 26; i++) rect(x, 4 + Math.floor(hash(i, 5) * 26), 4 + Math.floor(hash(i, 9) * 26), 1, 1, i % 2 ? '#1f5a20' : '#7ad86a');
+      return outline(c);
+    },
+    streetlamp() {
+      const [c, x] = canvas(14, 44);
+      rect(x, 3, 41, 6, 3, '#4a4d55'); rect(x, 5, 8, 2, 34, '#5c6068'); rect(x, 5, 8, 1, 34, '#8a8f99');
+      rect(x, 6, 5, 6, 2, '#5c6068'); rect(x, 9, 4, 5, 4, '#3a3d44'); rect(x, 10, 7, 3, 2, '#fff2a8'); rect(x, 10, 8, 3, 1, '#ffd23f');
       return outline(c);
     },
     bush() { const [c, x] = canvas(18, 12); const leaf = (X, Y, r, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(X, Y, r, r * 0.75, 0, 0, Math.PI * 2); x.fill(); }; leaf(9, 7, 8, '#2e6b3a'); leaf(5, 5, 4, '#3a8a48'); leaf(12, 4, 4, '#4aa45a'); rect(x, 4, 3, 1, 1, '#7acb7a'); rect(x, 13, 7, 1, 1, '#7acb7a'); return outline(c); },
@@ -332,5 +376,5 @@
     training: { floor: ['plank', '#b88a58', '#a07848'], wall: ['#c9b08a', 'stripe'] },
   };
 
-  window.HA = { T, W, H, OUT, canvas, shade, outline, flipH, hash, rect, box, blob, look, patientSheet, staffSheet, vipSheet, inspSheet, AVATARS, managerSheet, portrait, ghost, furniture, floor, ROOM_STYLE, C };
+  window.HA = { T, W, H, OUT, canvas, shade, outline, flipH, hash, rect, box, blob, look, patientSheet, staffSheet, vipSheet, inspSheet, AVATARS, managerSheet, portrait, advisorFace, ghost, furniture, floor, ROOM_STYLE, C };
 })();
