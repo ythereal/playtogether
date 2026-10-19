@@ -948,7 +948,8 @@
   // to the front wall and the camera, the monitor turned to her. Returns two items: her chair is behind her.
   function deskItem(bought, t) {
     const X = RH.DESK_TILES[0][0] * T - 2, Y = RH.DESK_TILES[0][1] * T;   // the counter's footprint: 14 x 28
-    if (!bought) return [{ d: depth(X + 7, Y + 14) - 40, draw: c => decal(c, X, Y, ctx => { ctx.globalAlpha = 0.5 + Math.sin(t * 3) * 0.2; ctx.setLineDash([3, 2]); ctx.strokeStyle = '#3a5a8a'; ctx.lineWidth = 1.5; ctx.strokeRect(0.5, 0.5, 13, 27); ctx.setLineDash([]); ctx.globalAlpha = 1; }) }];
+    if (!bought) return [{ d: 1e9, draw:   // drawn over the walls so the outline is never hidden behind the front wall
+       c => decal(c, X, Y, ctx => { ctx.globalAlpha = 0.5 + Math.sin(t * 3) * 0.2; ctx.setLineDash([3, 2]); ctx.strokeStyle = '#3a5a8a'; ctx.lineWidth = 1.5; ctx.strokeRect(0.5, 0.5, 13, 27); ctx.setLineDash([]); ctx.globalAlpha = 1; }) }];
     const BLUE = '#4a72b0', TOP = '#e6e2d6';
     const desk = { d: depthBox(X, Y, 14, 28), draw: c => {
       box(c, X, Y, 14, 28, 11, BLUE, {

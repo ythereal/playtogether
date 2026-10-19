@@ -17,10 +17,10 @@
   const MONTHS = 24;                // two years; targets are checked at every quarter-end
   const GRACE = 120;                // build timer: patients start arriving after this, or when you open the doors
   // Theme Hospital's entrance hall: the sliding doors are in the south wall just along from the building's front
-  // corner (columns 3-5 of row 12's edge), and the reception desk stands in that corner against the west wall, a
-  // couple of tiles in from the doors. The receptionist sits between the desk and the wall (DESK_STAFF) facing into
-  // the hall; patients walk in and turn to check in on the hall side (RECEP).
-  const EXIT = [-14, 290], RECEP = [74, 160], DESK_STAFF = [40, 160];
+  // corner (columns 3-5 of row 12's edge), and the reception desk stands in that corner a tile in from the west wall,
+  // a couple of tiles in from the doors. The receptionist sits between the desk and the wall (DESK_STAFF) facing into
+  // the hall, far enough from the full-height outer wall to be seen over it; patients check in on the hall side (RECEP).
+  const EXIT = [-14, 290], RECEP = [90, 160], DESK_STAFF = [56, 160];
   // the car park south of the entrance path: bays one under the other, cars nose-in towards the road. Walkers go up
   // the walkway beside it to the path (y = path), along it into the forecourt and up to the doors.
   const LOT = { x: -30, y0: 278, n: 8, walk: -8, path: 232 };
@@ -63,7 +63,7 @@
   // (columns 2-8, rows 0-5 are outside). The rest of the hospital runs the full depth of the map.
   const WING = { x1: 9, y0: 6 };
   const DOOR = { x0: 3, x1: 5, mid: 4, y: 12 };   // the three door panels; everyone uses the middle (sliding) pair
-  const DESK_TILES = [[3, 9], [3, 10]];
+  const DESK_TILES = [[4, 9], [4, 10]];
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // N E S W
 
   // ---------- objects ----------
@@ -746,7 +746,7 @@
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
   const LAND_VALUE = (W - 2) * H * 25 + 20000;
-  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(y === DOOR.y - 1 && x >= DOOR.x0 && x <= DOOR.x1) && !(x === 2 && y >= 9 && y <= 10) && !(x === 4 && y >= 9 && y <= 10)) LOBBY_TILES.push([x, y]);
+  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(y === DOOR.y - 1 && x >= DOOR.x0 && x <= DOOR.x1) && !(x <= 3 && y >= 9 && y <= 10) && !(x === 5 && y >= 9 && y <= 10)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
   function assign(h) {
