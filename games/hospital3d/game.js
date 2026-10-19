@@ -1583,15 +1583,16 @@
     clampCam();
   }
   // pushing the mouse against an edge of the window scrolls the map, faster the closer it gets
-  const EDGE = 100;  // how close to an edge (px) the mouse must be to scroll
+  const EDGE = 100, EDGE_BOTTOM = 10;   // how close to an edge (px) the mouse must be to scroll
   let mouse = null;
   addEventListener('mousemove', e => { mouse = { x: e.clientX, y: e.clientY }; });
   document.addEventListener('mouseleave', () => { mouse = null; });
   addEventListener('blur', () => { mouse = null; });
   function edgePan(dt) {
     if (!mouse || HI.getFlat() || modalOpen() || !$('profile').hidden || (gesture && gesture.kind !== 'tap')) return;
-    const f = d => (d < EDGE ? 0.25 + 0.75 * (1 - d / EDGE) ** 1.5 : 0);   // gentle at the zone's inner edge, full speed at the screen edge
-    const dx = f(cw - 1 - mouse.x) - f(mouse.x), dy = f(ch - 1 - mouse.y) - f(mouse.y);
+    const f = (d, e) => (d < e ? 0.25 + 0.75 * (1 - d / e) ** 1.5 : 0);   // gentle at the zone's inner edge, full speed at the screen edge
+    // the bottom edge has only a thin zone, so reaching for the control bar doesn't scroll the map
+    const dx = f(cw - 1 - mouse.x, EDGE) - f(mouse.x, EDGE), dy = f(ch - 1 - mouse.y, EDGE_BOTTOM) - f(mouse.y, EDGE);
     if (!dx && !dy) return;
     const v = 520 * dt / cam.z;
     cam.x += dx * v; cam.y += dy * v; clampCam();
