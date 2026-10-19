@@ -22,6 +22,9 @@
   // ?solo=1 skips PeerJS: a local stand-in for the room, a campaign menu, and the save kept in localStorage.
   const params = new URLSearchParams(location.search);
   const SOLO = params.get('solo') === '1';
+  // ?bot=1: the ordinary two-hospital game, but the rival hospital is run by the computer (bot.js) on this device
+  const BOT = !SOLO && params.get('bot') === '1', LOCAL = SOLO || BOT, BOT_SAVE = 'rh3d_bot';
+  const BOT_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Marvin', 'Cerebro', 'Mother'];
   const SOLO_SAVE = 'rh3d_solo', CAMP_KEY = 'rh3d_campaign', CARRY_KEY = 'rh3d_carry';   // carry: the hospital a promotion takes along
   const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -49,29 +52,56 @@
         b.append(el('b', null, `${n} · ${L.nm}`), el('small', null, n > best ? 'Locked: win the level before' : L.intro || ' '));
         list.append(b);
       });
-      body.append(list, el('a', 'pt-btn pt-btn-ghost', 'Play with a friend instead'));
+      const vs = el('a', 'pt-btn pt-btn-ghost', 'One-on-one against the computer'); vs.href = '?bot=1';
+      body.append(list, vs, el('a', 'pt-btn pt-btn-ghost', 'Play with a friend instead'));
+      body.lastChild.href = location.pathname;
+    });
+  }
+  // the vs-computer menu: carry on a saved match, or pick how good the computer is
+  function botMenu() {
+    return new Promise(done => {
+      const sv = lsGet(BOT_SAVE);
+      const ov = el('div', 'pt-overlay'), card = el('div', 'pt-card'), body = el('div', 'pt-card-body');
+      card.append(el('div', 'pt-eyebrow', 'Against the computer'), el('h2', 'pt-title', 'Rival Hospital 3D'), body);
+      ov.append(card); document.body.append(ov);
+      const go = pick => { ov.remove(); done(pick); };
+      body.append(el('p', 'pt-muted', 'The full two-hospital duel, with the rival hospital run by the computer. Same town, same patients, same rules: the first to meet every target at a quarter-end check wins, or whoever is closest after two years.'));
+      if (sv && sv.v === RH.VERSION && !sv.solo && sv.bot && sv.ph !== 'over') {
+        const ym = RH.yearMonth(sv.month);
+        body.append(btn(`Continue against ${sv.bot.nm} (${sv.bot.diff}) · ${RH.MONTH_NAMES[ym.month]} year ${ym.year}`, 'pt-btn pt-btn-big', () => go({ cont: true })));
+        body.append(el('div', 'pt-or', 'or start a new match'));
+      }
+      const list = el('div', 'lvl-list');
+      for (const [d, nm, txt] of [['easy', 'Easy', 'A careless rival: cheap staff, no toilets or staff room, slow to react.'], ['normal', 'Normal', 'A steady rival that builds sensibly and saves for the targets.'], ['hard', 'Hard', 'A sharp rival: quick decisions, good staff, opens early and saves hard.']]) {
+        const b = btn('', 'lvl' + (d === 'normal' ? ' next' : ''), () => go({ cont: false, diff: d }));
+        b.append(el('b', null, nm), el('small', null, txt)); list.append(b);
+      }
+      const camp = el('a', 'pt-btn pt-btn-ghost', 'Single-player campaign'); camp.href = '?solo=1';
+      body.append(list, camp, el('a', 'pt-btn pt-btn-ghost', 'Play with a friend instead'));
       body.lastChild.href = location.pathname;
     });
   }
   let soloPick = null;
   async function makeRoom() {
-    if (!SOLO) {
+    if (!LOCAL) {
       const pr = PT.room({ game: 'hospital3d', title: 'Rival Hospital 3D' });
-      // net.js has drawn its host / join card by now: offer the campaign beside it
+      // net.js has drawn its host / join card by now: offer the campaign and the computer opponent beside it
       const card = document.querySelector('.pt-card-body');
       if (card && !params.get('room')) {
         const a = el('a', 'pt-btn pt-btn-ghost', 'Single-player campaign'); a.href = '?solo=1';
-        card.append(el('div', 'pt-or', 'or play alone'), a);
+        const b = el('a', 'pt-btn pt-btn-ghost', 'One-on-one against the computer'); b.href = '?bot=1';
+        card.append(el('div', 'pt-or', 'or play alone'), a, b);
       }
       return pr;
     }
     const lobby = el('a', 'pt-lobby-link', '← All games'); lobby.href = '../../index.html'; document.body.append(lobby);
-    soloPick = await soloMenu();
+    soloPick = await (SOLO ? soloMenu() : botMenu());
+    const KEY = SOLO ? SOLO_SAVE : BOT_SAVE;
     return {
-      role: 'host', connected: true, code: 'SOLO',
+      role: 'host', connected: true, code: SOLO ? 'SOLO' : 'BOT',
       send() {}, on(ev, fn) { if (ev === 'connected') setTimeout(fn, 0); return this; },
-      save(st) { if (st && st.solo) lsSet(SOLO_SAVE, st); },
-      get saved() { return soloPick.cont ? lsGet(SOLO_SAVE) : null; },
+      save(st) { if (st && !!st.solo === SOLO) lsSet(KEY, st); },
+      get saved() { return soloPick.cont ? lsGet(KEY) : null; },
     };
   }
   const room = await makeRoom();
@@ -87,6 +117,10 @@
   if (host) {
     const sv = room.saved;
     state = sv && sv.v === RH.VERSION && !!sv.solo === SOLO ? sv : RH.newState(SOLO ? soloPick.lvl : 0);
+    if (BOT) {   // the computer plays the second hospital under a machine's name
+      if (!state.bot) state.bot = { diff: soloPick.diff || 'normal', nm: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] };
+      state.prof[1] = { nm: state.bot.nm, av: 1 };
+    }
     if (state !== sv && SOLO && soloPick.carry) { RH.carryOver(state, soloPick.carry); localStorage.removeItem(CARRY_KEY); room.save(state); }
     state.ev = []; if (!state.prof) state.prof = [{ nm: '', av: 0 }, { nm: '', av: 1 }];
     view = state;
@@ -275,7 +309,7 @@
   try { const v = +localStorage.getItem('rh3d_speed'); if (v >= 1 && v <= 5) speed = v; } catch (e) {}
   let lastSpeed = speed;
   function setSpeed(v) {
-    if (!SOLO) return;
+    if (!LOCAL) return;
     if (v === 0 && speed === 0) v = lastSpeed;   // P toggles
     speed = clamp(v, 0, 5); if (speed) { lastSpeed = speed; try { localStorage.setItem('rh3d_speed', String(speed)); } catch (e) {} }
     $('pauseBtn').textContent = speed ? '⏸' : '▶'; $('pauseBtn').title = speed ? 'Pause (P)' : 'Carry on (P)';
@@ -283,12 +317,13 @@
     statusKey = ''; setStatus();
   }
   let acc = 0, lastTick = performance.now(), lastSnap = 0, lastSave = 0;
+  const brain = BOT ? RB.newBrain(state.bot.diff) : null;   // the computer's working memory (not saved: it re-reads the state)
   if (host) setInterval(() => {
     const now = performance.now();
     const dt = Math.min((now - lastTick) / 1000, 0.1); lastTick = now;
-    const paused = (!room.connected || (SOLO && !speed)) && state.ph === 'play';
-    if (!paused) { acc += dt * (SOLO ? SPEEDS[speed][1] : 1); while (acc >= TICK) { RH.step(state, TICK); acc -= TICK; } drainEvents(); onPhase(); } else acc = 0;
-    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected && !SOLO) room.send(snapshot()); refreshSheets(); }
+    const paused = (!room.connected || (LOCAL && !speed)) && state.ph === 'play';
+    if (!paused) { acc += dt * (LOCAL ? SPEEDS[speed][1] : 1); while (acc >= TICK) { if (BOT) RB.tick(state, 1, TICK, brain); RH.step(state, TICK); acc -= TICK; } drainEvents(); onPhase(); } else acc = 0;
+    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected && !LOCAL) room.send(snapshot()); refreshSheets(); }
     if (now - lastSave > 3000) { lastSave = now; room.save(state); }
   }, 1000 / 120);
 
@@ -443,7 +478,7 @@
   const builtK = (h, k) => Object.values(h.rooms).some(r => r.k === k && r.phase === 'built');
   const staffedK = (h, k) => Object.values(h.rooms).some(r => r.k === k && r.phase === 'built' && r.sts.length);
   const TUT = [
-    { say: () => `Welcome to ${SOLO ? lvlInfo().nm : 'your new hospital'}! I'm your advisor. I'll show you how to get the place open before the first patients turn up${SOLO ? ' (press P to pause while you read)' : ''}.`, next: 'Let\'s go' },
+    { say: () => `Welcome to ${SOLO ? lvlInfo().nm : 'your new hospital'}! I'm your advisor. I'll show you how to get the place open before the first patients turn up${LOCAL ? ' (press P to pause while you read)' : ''}.`, next: 'Let\'s go' },
     { say: 'Patients need somewhere to check in. Tap the dashed outline just inside the front doors to buy a reception desk.', done: h => h.desk },
     { say: 'A desk needs someone behind it. Open Staff and hire a Receptionist.', hl: 'staffBtn', done: h => h.staff.some(x => x.k === 'r' && !x.gone) },
     { say: 'Every patient sees a GP first. Press Build, choose GP\'s Office and drag out a blueprint on the grey floor. I\'ll step aside while you build.', hl: 'buildBtn', done: h => builtK(h, 'gp') },
@@ -483,9 +518,9 @@
     if (!view) return ['Syncing…'];
     if (SOLO && view.ph === 'ready') return [`Level ${view.solo.lvl}: ${lvlInfo().nm}. Read the briefing (?), then press “Start level”.`];
     if (SOLO && view.ph === 'over') return [view.winner === 0 ? 'Promoted! Take the job, or stay on here.' : 'The Health Ministry stepped in. Restart the level.'];
-    if (view.ph === 'ready') return [host ? 'Press “Start the match” when you\'re both ready.' : 'Waiting for the host to start the match…'];
+    if (view.ph === 'ready') return [BOT ? `Press “Start the match” when you're ready. ${nameOf(FRIEND)} (${view.bot ? view.bot.diff : 'normal'}) runs the rival hospital.` : host ? 'Press “Start the match” when you\'re both ready.' : 'Waiting for the host to start the match…'];
     if (view.ph === 'over') return ['Game over. ' + (host ? 'Press Play again for a rematch.' : 'Ask the host for a rematch.')];
-    if (SOLO && !speed) return ['Paused. Press P or ▶ to carry on; you can still build and hire.', 'info'];
+    if (LOCAL && !speed) return ['Paused. Press P or ▶ to carry on; you can still build and hire.', 'info'];
     if (tab !== ME) return [`Peeking at ${nameOf(FRIEND)}'s hospital. Tap a room to see what they have.`];
     if (hoverTxt) return [hoverTxt, 'info'];
     const h = view.h[ME], rooms = Object.entries(h.rooms).filter(([, r]) => r.phase === 'built'), live = h.staff.filter(s => !s.gone);
@@ -1418,8 +1453,9 @@
   $('ovStay').addEventListener('click', () => { if (!RH.stayOn(state)) { try { localStorage.removeItem(CARRY_KEY); } catch (e) {} drainEvents(); onPhase(); $('over').hidden = true; room.save(state); } });
   $('ovAgain').addEventListener('click', () => { if (SOLO) { const n = view.solo.lvl, up = view.winner === 0 && n < RH.LEVELS.length; soloLevel(up ? n + 1 : n, up ? RH.carrySnapshot(state) : view.solo.carry); return; } if (host) { RH.start(state); drainEvents(); onPhase(); room.save(state); } else { requestStart(); $('ovAgain').textContent = 'Asked the host…'; setTimeout(() => ($('ovAgain').textContent = 'Play again'), 2000); } });
   function setTab(p) { tab = p; $('tabMine').classList.toggle('on', p === ME); $('tabRival').classList.toggle('on', p !== ME); selected = null; closeSheets(); hudKey = ''; statusKey = ''; setStatus(); if (!host && room.connected) room.send({ t: 'tab', p }); }
-  if (SOLO) {
-    $('tabRival').hidden = true; $('speedBox').hidden = false; $('startBtn').textContent = 'Start level';
+  if (LOCAL) {
+    if (SOLO) { $('tabRival').hidden = true; $('startBtn').textContent = 'Start level'; }
+    $('speedBox').hidden = false;
     $('profSub').textContent = 'Pick your administrator and a name. They walk your corridor.';
     $('pauseBtn').addEventListener('click', () => setSpeed(speed ? 0 : lastSpeed));
     $('speedBtn').addEventListener('click', () => setSpeed(speed >= 5 || !speed ? 1 : speed + 1));
@@ -1438,7 +1474,7 @@
     if (k === 'a' && e.shiftKey) { advisorOff = !advisorOff; setStatus(); return; }
     if (k === 'h' || k === '?') { if (!e.repeat) toggleLegend(); return; }
     if (k === 'tab') { e.preventDefault(); if (!SOLO) setTab(tab === ME ? FRIEND : ME); return; }
-    if (SOLO && !e.metaKey && !e.ctrlKey && !e.altKey) { if (k === 'p') { setSpeed(0); return; } if (k >= '1' && k <= '5') { setSpeed(+k); return; } }
+    if (LOCAL && !e.metaKey && !e.ctrlKey && !e.altKey) { if (k === 'p') { setSpeed(0); return; } if (k >= '1' && k <= '5') { setSpeed(+k); return; } }
   });
 
   // ============================ canvas, camera, input ============================

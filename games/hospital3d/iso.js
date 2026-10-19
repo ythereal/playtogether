@@ -65,7 +65,9 @@
   function bill(ctx, img, x, y, lift) { const [sx, sy] = px(x, y); ctx.drawImage(img, Math.round(sx - img.width / 2), Math.round(sy - img.height + (lift || 0))); }
   function shadow(ctx, x, y, rx) { const [sx, sy] = px(x, y); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(sx, sy, rx, rx / 2, 0, 0, Math.PI * 2); ctx.fill(); }
   const topM = () => (flat ? [1, 0, 0, 1] : [KX, KY, -KX, KY]);
-  function decal(ctx, x, y, fn) { const [a, b] = rw(x, y), [ox, oy] = pxr(a, b), m = topM(); ctx.setTransform(m[0], m[1], m[2], m[3], ox, oy); fn(ctx); reset(ctx); }
+  // fn paints in world units (u = world +x, v = world +y) with its origin at world (x, y); turns with the view like floors
+  const ROTM = { flat: [[1, 0, 0, 1], [0, 1, -1, 0], [-1, 0, 0, -1], [0, -1, 1, 0]], iso: [[KX, KY, -KX, KY], [-KX, KY, -KX, -KY], [-KX, -KY, KX, -KY], [KX, -KY, KX, KY]] };
+  function decal(ctx, x, y, fn) { const [a, b] = rw(x, y), [ox, oy] = pxr(a, b), m = ROTM[flat ? 'flat' : 'iso'][rot]; ctx.setTransform(m[0], m[1], m[2], m[3], ox, oy); fn(ctx); reset(ctx); }
 
   // ---------- iso box: footprint (x, y, w, d) in world units, height h in screen px ----------
   function box(ctx, x, y, w, d, h, col, faces) {
@@ -463,7 +465,7 @@
     const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 230], [-24, 330], [-34, 410], [-20, 10]];
     for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
     // street lamps along the road and the path
-    for (const [x, y] of [[-46, 56], [-46, 124], [-46, -20], [-46, 250], [-46, 380], [18, 56], [18, 124]]) items.push(sprite('streetlamp', x, y, 3));
+    for (const [x, y] of [[-46, 56], [-46, 124], [-46, -20], [-46, 250], [-46, 380], [-2, 28], [-2, 150]]) items.push(sprite('streetlamp', x, y, 3));
     // clipped hedges beside the flower beds
     for (const [x, y] of [[-42, 30], [-42, 144]]) items.push(bx(x, y, 48, 4, 7, '#2f7a2a', { top: ctx => { for (let i = 0; i < 48; i += 3) R(ctx, i, 1, 2, 2, '#4aab3c'); }, south: (ctx, w, h) => { for (let i = 1; i < w; i += 4) R(ctx, i, 2, 2, 2, '#3f9c33'); } }));
     for (const [x, y] of [[-10, 20], [6, 170], [-6, 300]]) items.push(sprite('bush', x, y));
