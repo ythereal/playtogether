@@ -1630,7 +1630,7 @@
   }
   if (document.fullscreenEnabled || document.webkitFullscreenEnabled) $('camFull').hidden = false;
   $('camFull').addEventListener('click', toggleFull);
-  const fsIcon = () => { $('camFull').textContent = fsEl() ? '🗗' : '⛶'; $('camFull').title = fsEl() ? 'Leave full screen (Esc)' : 'Full screen (Shift+F)'; };
+  const fsIcon = () => { $('camFull').title = fsEl() ? 'Leave full screen (Esc)' : 'Full screen (Shift+F)'; $('camFull').setAttribute('aria-label', fsEl() ? 'Leave full screen' : 'Full screen'); };   // the icon stays the same
   document.addEventListener('fullscreenchange', fsIcon); document.addEventListener('webkitfullscreenchange', fsIcon);
   const keysDown = new Set();
   addEventListener('keydown', e => {
