@@ -1,4 +1,4 @@
-// Rival Hospital 3D: the computer opponent for the 1-on-1 game. Pure (no DOM, no networking): it reads the state and
+// Rival Hospital: the computer opponent for the 1-on-1 game. Pure (no DOM, no networking): it reads the state and
 // calls the same rule functions a player's actions go through, so it can do nothing a person couldn't.
 // Loads in the browser as window.RB and in Node (module.exports), so its play can be checked headless.
 (function (root) {

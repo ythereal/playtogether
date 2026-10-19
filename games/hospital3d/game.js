@@ -1,4 +1,4 @@
-// Rival Hospital 3D: networking, rendering, input and UI.
+// Rival Hospital: networking, rendering, input and UI.
 // The host runs the simulation (rules.js) for both hospitals at 60 Hz and broadcasts 10 Hz snapshots.
 // The guest sends intents (build / hire / fire / answer a fax / set prices …) and renders interpolated snapshots.
 (async () => {
@@ -34,7 +34,7 @@
     return new Promise(done => {
       const sv = lsGet(SOLO_SAVE), best = campBest();
       const ov = el('div', 'pt-overlay'), card = el('div', 'pt-card'), body = el('div', 'pt-card-body');
-      card.append(el('div', 'pt-eyebrow', 'Single player'), el('h2', 'pt-title', 'Rival Hospital 3D'), body);
+      card.append(el('div', 'pt-eyebrow', 'Single player'), el('h2', 'pt-title', 'Rival Hospital'), body);
       ov.append(card); document.body.append(ov);
       const go = pick => { ov.remove(); done(pick); };
       body.append(el('p', 'pt-muted', 'Run one hospital per level against three computer rivals. Meet every target at a quarter-end check, with no loan, to be promoted. Your rooms, staff, research and bank balance come with you to the next level.'));
@@ -63,7 +63,7 @@
     return new Promise(done => {
       const sv = lsGet(BOT_SAVE);
       const ov = el('div', 'pt-overlay'), card = el('div', 'pt-card'), body = el('div', 'pt-card-body');
-      card.append(el('div', 'pt-eyebrow', 'Against the computer'), el('h2', 'pt-title', 'Rival Hospital 3D'), body);
+      card.append(el('div', 'pt-eyebrow', 'Against the computer'), el('h2', 'pt-title', 'Rival Hospital'), body);
       ov.append(card); document.body.append(ov);
       const go = pick => { ov.remove(); done(pick); };
       body.append(el('p', 'pt-muted', 'The full two-hospital duel, with the rival hospital run by the computer. Same town, same patients, same rules: the first to meet every target at a quarter-end check wins, or whoever is closest after two years.'));
@@ -85,7 +85,7 @@
   let soloPick = null;
   async function makeRoom() {
     if (!LOCAL) {
-      const pr = PT.room({ game: 'hospital3d', title: 'Rival Hospital 3D' });
+      const pr = PT.room({ game: 'hospital3d', title: 'Rival Hospital' });
       // net.js has drawn its host / join card by now: offer the campaign and the computer opponent beside it
       const card = document.querySelector('.pt-card-body');
       if (card && !params.get('room')) {

@@ -1,4 +1,4 @@
-// Rival Hospital 3D: isometric scene. The simulation keeps plain 2D coordinates (rules.js); this file rotates
+// Rival Hospital: isometric scene. The simulation keeps plain 2D coordinates (rules.js); this file rotates
 // them (four 90° views), projects them 2:1 and draws floors, walls, furniture as shaded iso boxes and corridor
 // decoration. Everything is drawn in code; people and plants are upright "billboard" sprites from art.js.
 (function () {

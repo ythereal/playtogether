@@ -1,4 +1,4 @@
-// Rival Hospital 3D rules: pure simulation, no DOM and no networking. Follows the Theme Hospital mechanics reference:
+// Rival Hospital rules: pure simulation, no DOM and no networking. Follows the Theme Hospital mechanics reference:
 // reception → GP → diagnosis rooms (building a diagnosis %) → cure room; staff ranks, qualifications, happiness and
 // tiredness; machines that wear out and explode; research, training, hospital policy, the casebook's prices, loans;
 // emergencies, VIPs, earthquakes, epidemics and rats; targets checked at every quarter-end.
