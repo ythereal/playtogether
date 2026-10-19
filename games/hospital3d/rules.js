@@ -389,6 +389,11 @@
     return { foot, use, side, blk };
   }
   // can object o go at (x, y, rot) in room r? Returns per-tile results for the preview.
+  // The view looks at the hospital from the south-west, so every room's south and west walls are the two nearest the
+  // camera. Nothing bigger than a tile goes against them, nothing backs onto them: it would hide the room (and a
+  // large piece straddling two wall sections would be drawn across the wall).
+  const NEAR_SIDES = new Set([2, 3]);
+  const FRONT_WHY = 'Keep that away from the two front walls: it would block the view into the room';
   function objCheck(h, r, o, x, y, rot, ignore) {
     const B = OBJ[o], rc = r.rect, t = objTiles(o, x, y, rot), occ = occupancy(r, ignore);
     const dt = new Set(doorTiles(r).map(a => a.join(',')));
@@ -396,9 +401,9 @@
     const tiles = [];
     if (B.side) {
       const [fx, fy] = t.foot[0];
-      const good = inRect(rc, fx, fy) && perimeter(rc, fx, fy, t.bdir) && !isDoorEdge(r, fx, fy, t.bdir) && !occ.side.has(fx + ',' + fy + ':' + t.bdir) && !occ.foot.has(fx + ',' + fy);
+      const good = inRect(rc, fx, fy) && perimeter(rc, fx, fy, t.bdir) && !isDoorEdge(r, fx, fy, t.bdir) && !occ.side.has(fx + ',' + fy + ':' + t.bdir) && !occ.foot.has(fx + ',' + fy) && !NEAR_SIDES.has(t.bdir);
       tiles.push([fx, fy, good]);
-      if (!good) { ok = false; why = 'It has to go against a wall'; }
+      if (!good) { ok = false; why = NEAR_SIDES.has(t.bdir) ? FRONT_WHY : 'It has to go against a wall'; }
       return { ok, why, tiles, use: null };
     }
     for (const [fx, fy] of t.foot) {
@@ -407,6 +412,9 @@
       tiles.push([fx, fy, good]); if (!good) { ok = false; why = why || 'Not enough free floor there'; }
     }
     if (ok && B.back) for (const [bx, by] of t.back) if (!perimeter(rc, bx, by, t.bdir) || isDoorEdge(r, bx, by, t.bdir)) { ok = false; why = 'It has to back onto a wall'; }
+    if (ok && (B.back && NEAR_SIDES.has(t.bdir) || B.fw * B.fd > 1 && t.foot.some(([fx, fy]) => fx === rc.x || fy === rc.y + rc.h - 1))) {
+      ok = false; why = FRONT_WHY; for (const tl of tiles) if (tl[0] === rc.x || tl[1] === rc.y + rc.h - 1) tl[2] = false;
+    }
     let use = null;
     if (t.use && B.use === 'front') {
       const [ux, uy] = t.use, k = ux + ',' + uy;
