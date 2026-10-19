@@ -766,7 +766,7 @@
       const front = !tall && r ? r.id : 0, at = items.length;
       if (r) items.push(...wallPiece(ax, ay, bx, by, n[0], n[1], r.k + 'd' + gap.join('-'), WALLCOL[RH.ROOMS[r.k].wall], A.ROOM_STYLE[r.k].wall[1], null, tall, LOW_H, gap));
       if (!wide) items.push(swingDoor(ax, ay, bx, by, n, 14));
-      else if (r && r.k === 'ward') { if (i === 0) items.push(slideDoor(ax, ay, ax + (bx - ax) * span.length, ay + (by - ay) * span.length, n)); }
+      else if (r && r.k === 'ward' && span.length === 3) { const ex = (bx - ax) / T, ey = (by - ay) / T; items.push(wardSlice(ax - (bx - ax) * i, ay - (by - ay) * i, ex * T, ey * T, n, i)); }
       else {
         const len = span.length * 8 - 1;   // each leaf covers half the opening
         if (i === 0) items.push(swingDoor(ax, ay, ax + (bx - ax) * span.length, ay + (by - ay) * span.length, n, len));
@@ -873,34 +873,22 @@
     else { R(x, w - 3.5, 13, 1.5, 1, '#ffd23f'); R(x, w - 3.5, 13.5, 1.5, q, '#b8901c'); }
     return (leafCache[w] = c);
   }
-  // The ward's doors: two blue panels, each with a porthole window and a steel edge, that slide apart into the walls
-  const slideCache = {};
-  function slideImg(w) {
-    if (slideCache[w]) return slideCache[w];
-    const h = DOOR_H - 1, [c, x] = A.hcanvas(w, h), q = 0.5;
-    R(x, 0, 0, w, h, '#3c7bd6'); R(x, 0, 0, w, q, '#7fb2ee'); R(x, 0, h - 2, w, 2, '#244f94');
-    R(x, 1.5, 2, w - 3, h - 6, '#4a8ae0'); R(x, 1.5, 2, w - 3, q, '#2e62b0'); R(x, 1.5, h - 4 - q, w - 3, q, '#8ab8f0');
-    const wx = w / 2 - 3; R(x, wx, 4, 6, 6, '#244f94'); R(x, wx + 0.75, 4.75, 4.5, 4.5, '#9fd8ff'); R(x, wx + 0.75, 4.75, 4.5, 1.5, '#d6f0ff');   // the window
-    R(x, 2, 14, w - 4, 1, '#2e62b0'); R(x, 2, 14 + q, w - 4, q, '#8ab8f0');
-    R(x, 0, 0, 1, h, '#c8ccd4'); R(x, w - 1, 0, 1, h, '#c8ccd4'); R(x, 0, 0, q, h, '#ffffff');   // steel edges
-    return (slideCache[w] = c);
-  }
-  // the whole opening from (ax, ay) to (bx, by): each panel slides from the middle out into the wall beside it, so
-  // only the part still in the opening shows
-  function slideDoor(ax, ay, bx, by, n) {
-    const len = Math.hypot(bx - ax, by - ay), ex = (bx - ax) / len, ey = (by - ay) / len, mx = (ax + bx) / 2, my = (ay + by) / 2;
-    const key = 's' + ax + ',' + ay + ',' + bx + ',' + by, half = (len - 2) / 2;
-    return { d: depth(mx, my) + 0.4, draw: c => {
-      const want = near(mx + n[0] * 4, my + n[1] * 4, 6 + len / 2, 6 + len / 2) ? 1 : 0;
-      let o = doorOpen.get(key) || 0; o += (want - o) * Math.min(1, frameDt * (want ? 7 : 3)); doorOpen.set(key, o);
-      const hh = flat ? 3 : DOOR_H - 1, w = half * (1 - o * 0.94), img = slideImg(half), k = img.width / half;
-      if (w < 0.3) return;
-      // each panel slides out towards its own end of the opening; what's left in view is its inner edge
-      for (const [s0, src] of [[1, half - w], [len - 1 - w, 0]]) {
-        const [u1, u2] = px(ax + ex * s0, ay + ey * s0), [v1, v2] = px(ax + ex * (s0 + w), ay + ey * (s0 + w));
-        ST(c, (v1 - u1) / w, (v2 - u2) / w, 0, 1, u1, u2 - hh);
-        c.drawImage(img, src * k, flat ? (DOOR_H - 1 - 3) * k : 0, w * k, hh * k, 0, 0, w, hh); reset(c);
+  // The ward's doors: the front doors' sliding glass, framed in blue, in its three-tile doorway (DOOR_H tall, under the
+  // lintel). One item per tile, like the front doors, so people walking through sort against the right slice.
+  const wardDoorC = new Map(), wardOpen = new Map(), wardTick = new Map();
+  function wardSlice(sx, sy, ex, ey, n, i) {   // (sx, sy): the doorway's start; (ex, ey): one tile along it
+    const key = sx + ',' + sy + ',' + ex + ',' + ey, x0 = sx + ex * i, y0 = sy + ey * i, x1 = x0 + ex, y1 = y0 + ey;
+    return { d: (depth(x0, y0) + depth(x1, y1)) / 2 + 0.2, draw: c => {
+      if (wardTick.get(key) !== now) {   // the doors move once per frame, whichever slice is drawn first
+        wardTick.set(key, now);
+        const mx = sx + ex * 1.5 + n[0] * 4, my = sy + ey * 1.5 + n[1] * 4, want = near(mx, my, 30, 30) ? 1 : 0;
+        let o = wardOpen.get(key) || 0; o += (want - o) * Math.min(1, frameDt * (want ? 7 : 3)); wardOpen.set(key, o);
+        let img = wardDoorC.get(key); if (!img) { img = A.hcanvas(48, DOOR_H - 1)[0]; img.drawn = -1; wardDoorC.set(key, img); }
+        if (Math.abs(o - img.drawn) >= 0.01) { img.drawn = o; paintGlassDoors(img.getContext('2d'), DOOR_H - 1, o, GLASS_DOORS.ward); }
       }
+      const img = wardDoorC.get(key), hh = flat ? 3 : DOOR_H - 1, k = img.width / 48, [u1, u2] = px(x0, y0), [v1, v2] = px(x1, y1);
+      ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - hh);
+      c.drawImage(img, i * 16 * k, (flat ? DOOR_H - 1 - 3 : 0) * k, 16 * k, hh * k, 0, 0, 16, hh); reset(c);
     } };
   }
   // a leaf of length L hinged near (ax, ay), lying along the edge towards (bx, by) when shut
@@ -944,22 +932,28 @@
   }
   // the front doors: a green frame with fixed side panes, and two glass leaves that slide apart when anyone comes near
   let doorsC = null, slideOpen = 0, slideDrawn = -1;
+  // Three tiles (48 px) of sliding glass doors, H tall: fixed glass panes at the ends, two glass leaves that slide
+  // apart (open 0-1), and a header with the red-cross sign. The front doors are framed in green, the ward's in blue.
+  const GLASS_DOORS = { front: { G: '#2f8a3e', GL: '#5cc06a', track: '#24703a' }, ward: { G: '#2f62b8', GL: '#6a9fe6', track: '#1f4a8a' } };
+  function paintGlassDoors(x, H, open, pal) {
+    const { G, GL } = pal, glass = 'rgba(150,215,240,.5)';
+    x.clearRect(0, 0, 48, H);
+    for (const [u, w] of [[0, 13], [35, 13]]) { R(x, u, 7, w, H - 7, glass); R(x, u + 2, 9, 2, 10, 'rgba(255,255,255,.55)'); R(x, u, 7, 2, H - 7, G); R(x, u + w - 2, 7, 2, H - 7, G); R(x, u + 1, 7, 1, H - 7, GL); R(x, u, H - 3, w, 3, G); }
+    const shift = 10 * (open < 0.001 ? 0 : open);
+    for (const [u, dir] of [[13, -1], [24, 1]]) {   // the sliding leaves
+      const L = u + dir * shift;
+      R(x, L, 8, 11, H - 9, 'rgba(170,225,245,.55)'); R(x, L, 8, 1, H - 9, G); R(x, L + 10, 8, 1, H - 9, G); R(x, L, H - 2, 11, 1, G);
+      R(x, L + 2, 10, 1.5, 8, 'rgba(255,255,255,.6)'); R(x, L + (dir < 0 ? 9 : 1), 18, 1, 3, '#c9a43a');
+    }
+    R(x, 0, 0, 48, 7, G); R(x, 0, 0, 48, 1, GL); R(x, 3, 2, 42, 3, '#f4f4f0'); R(x, 22, 2, 4, 3, '#e8533f'); R(x, 23, 1, 2, 5, '#e8533f');
+    R(x, 0, 6.5, 48, 1, pal.track);   // the track the leaves run in
+  }
   function doorsImg() {
     const want = near((RH.DOOR.mid + 0.5) * T, RH.DOOR.y * T, 30, 30) ? 1 : 0;
     slideOpen += (want - slideOpen) * Math.min(1, frameDt * (want ? 7 : 3));
     if (doorsC && Math.abs(slideOpen - slideDrawn) < 0.01) return doorsC;
     if (!doorsC) doorsC = A.hcanvas(48, WALL_H)[0];
-    const x = doorsC.getContext('2d'); x.clearRect(0, 0, 48, WALL_H); slideDrawn = slideOpen;
-    const G = '#2f8a3e', GL = '#5cc06a', glass = 'rgba(150,215,240,.5)';
-    for (const [u, w] of [[0, 13], [35, 13]]) { R(x, u, 7, w, WALL_H - 7, glass); R(x, u + 2, 9, 2, 10, 'rgba(255,255,255,.55)'); R(x, u, 7, 2, WALL_H - 7, G); R(x, u + w - 2, 7, 2, WALL_H - 7, G); R(x, u + 1, 7, 1, WALL_H - 7, GL); R(x, u, WALL_H - 3, w, 3, G); }
-    const shift = 10 * (slideOpen < 0.001 ? 0 : slideOpen);
-    for (const [u, dir] of [[13, -1], [24, 1]]) {   // the sliding leaves
-      const L = u + dir * shift;
-      R(x, L, 8, 11, WALL_H - 9, 'rgba(170,225,245,.55)'); R(x, L, 8, 1, WALL_H - 9, G); R(x, L + 10, 8, 1, WALL_H - 9, G); R(x, L, WALL_H - 2, 11, 1, G);
-      R(x, L + 2, 10, 1.5, 8, 'rgba(255,255,255,.6)'); R(x, L + (dir < 0 ? 9 : 1), 18, 1, 3, '#c9a43a');
-    }
-    R(x, 0, 0, 48, 7, G); R(x, 0, 0, 48, 1, GL); R(x, 3, 2, 42, 3, '#f4f4f0'); R(x, 22, 2, 4, 3, '#e8533f'); R(x, 23, 1, 2, 5, '#e8533f');
-    R(x, 0, 6.5, 48, 1, '#24703a');   // the track the leaves run in
+    slideDrawn = slideOpen; paintGlassDoors(doorsC.getContext('2d'), WALL_H, slideOpen, GLASS_DOORS.front);
     return doorsC;
   }
   function doorItems() {
