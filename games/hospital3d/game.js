@@ -1481,7 +1481,7 @@
   const HI = window.HI;
   const cv = $('view'), ctx = cv.getContext('2d');
   const BW = HI.BW, BH = HI.BH;
-  const [buf, bctx] = HA.canvas(BW, BH);
+  const SS = HA.SS, [buf, bctx] = HA.canvas(BW * SS, BH * SS);   // the scene is drawn at SS times its logical size
   const groundC = HI.ground(), ghostSpr = HA.ghost(), mopSpr = HA.furniture('mop');
   let cw = 1, ch = 1, DPR = 1;
   const cam = { x: BW / 2, y: BH / 2 - 10, z: 2 };          // centre of the view in buffer px, zoom
@@ -1647,7 +1647,7 @@
     const dir = sheet[DIRS[HI.facing(e.f)]] || sheet.down, sh = dir[frame] || dir[0];
     const [sx, sy] = HI.px(wx, wy);
     bctx.fillStyle = 'rgba(0,0,0,.28)'; bctx.beginPath(); bctx.ellipse(sx, sy, 6, 3, 0, 0, Math.PI * 2); bctx.fill();
-    bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23);
+    bctx.drawImage(sh, Math.round(sx) - 8, Math.round(sy) - 23, 16, 24);
     return [Math.round(sx), Math.round(sy)];
   }
   const labels = [];  // text drawn after the blit (positions in buffer px)
@@ -1705,7 +1705,7 @@
   }
   function render(t, dt) {
     labels.length = 0;
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.setTransform(SS, 0, 0, SS, 0, 0);
     bctx.clearRect(0, 0, BW, BH);
     const h = view ? view.h[tab] : null;
     const mine = tab === ME;
@@ -1736,7 +1736,7 @@
       for (const st of h.staff) objs.push({ d: HI.depth(st.x, st.y), draw: () => {
         const [x, y] = posOf('s', st);
         const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y);
-        if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
+        if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
         if (st.mode === 'rest' && Math.floor(t * 1.5) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'z', col: '#9fd8ff', size: 4.5 });
         else if (st.tired > 0.85 && Math.floor(t * 2) % 2) labels.push({ x: sx + 6, y: sy - 27, txt: 'zz', col: '#ff9a7a', size: 3.6 });
         if (st.hap < 0.3 && !st.gone && Math.floor(t * 2) % 2) icon('angry', sx - 7, sy - 27, t);
@@ -1813,7 +1813,7 @@
       if (g.p !== tab) continue;
       const [sx, sy] = HI.px(g.x, g.y);
       bctx.globalAlpha = clamp(g.life / 1.2, 0, 1) * 0.9;
-      bctx.drawImage(ghostSpr, Math.round(sx - 7 + Math.sin(g.life * 6) * 2), Math.round(sy - 20 - (2.2 - g.life) * 14));
+      bctx.drawImage(ghostSpr, Math.round(sx - 7 + Math.sin(g.life * 6) * 2), Math.round(sy - 20 - (2.2 - g.life) * 14), ghostSpr.lw, ghostSpr.lh);
       bctx.globalAlpha = 1;
     }
 
@@ -1825,7 +1825,7 @@
     if (shake > 0) { shake -= dt; const a = Math.min(1, shake) * 4; shx = (Math.random() - 0.5) * a; shy = (Math.random() - 0.5) * a; }
     const sx0 = cam.x - cw / cam.z / 2 + shx, sy0 = cam.y - ch / cam.z / 2 + shy;
     ctx.setTransform(DPR * cam.z, 0, 0, DPR * cam.z, -sx0 * DPR * cam.z, -sy0 * DPR * cam.z);
-    ctx.drawImage(buf, 0, 0);
+    ctx.drawImage(buf, 0, 0, BW, BH);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     if (flash) { flash.life -= dt; ctx.fillStyle = `rgba(255,236,180,${clamp(flash.life * 1.5, 0, 0.6)})`; ctx.fillRect(0, 0, cw, ch); if (flash.life <= 0) flash = null; }
     if (h && h.warm < 0.6 && mine && view.ph === 'play') { ctx.fillStyle = 'rgba(120,170,230,.07)'; ctx.fillRect(0, 0, cw, ch); }
@@ -1896,5 +1896,5 @@
   requestAnimationFrame(frame);
 
   // test hook (read-only)
-  window.__rh = { get view() { return view; }, role: room.role, _state: host ? () => state : undefined, act, setTab, cam, fitView };
+  window.__rh = { get view() { return view; }, role: room.role, _state: host ? () => state : undefined, act, setTab, cam, fitView, buf };
 })();

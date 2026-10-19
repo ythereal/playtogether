@@ -41,7 +41,11 @@
   // sprite facing (0 down, 1 up, 2 left, 3 right) seen from the rotated view
   const ROTF = [[0, 1, 2, 3], [2, 3, 1, 0], [1, 0, 3, 2], [3, 2, 0, 1]];
   const facing = f => ROTF[rot][f] == null ? 0 : ROTF[rot][f];
-  const reset = ctx => ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // the scene buffer is SS times the logical size: every transform here is in logical pixels, scaled up by SS
+  const SS = A.SS;
+  const ST = (ctx, a, b, c, d, e, f) => ctx.setTransform(a * SS, b * SS, c * SS, d * SS, e * SS, f * SS);
+  const reset = ctx => ctx.setTransform(SS, 0, 0, SS, 0, 0);
+  const lw = img => img.lw || img.width, lh = img => img.lh || img.height;
   const R = (ctx, x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
   const shade = A.shade;
 
@@ -53,21 +57,21 @@
     const m = (flat ? [[1, 0, 0, 1], [0, 1, -1, 0], [-1, 0, 0, -1], [0, -1, 1, 0]] : [[KX, KY, -KX, KY], [-KX, KY, -KX, -KY], [-KX, -KY, KX, -KY], [KX, -KY, KX, KY]])[rot];
     // the image's u axis is world +x and v axis is world +y; both rotate with the view
     const [ox, oy] = pxr(a, b);
-    ctx.setTransform(m[0], m[1], m[2], m[3], ox, oy);
-    ctx.drawImage(img, 0, 0); reset(ctx);
+    ST(ctx, m[0], m[1], m[2], m[3], ox, oy);
+    ctx.drawImage(img, 0, 0, lw(img), lh(img)); reset(ctx);
   }
   // a vertical wall image standing on the floor from world A to world B (left edge of the image at A)
   function wallSeg(ctx, img, ax, ay, bx, by, h) {
     const [a1, a2] = px(ax, ay), [b1, b2] = px(bx, by), len = Math.hypot(bx - ax, by - ay);
-    ctx.setTransform((b1 - a1) / len, (b2 - a2) / len, 0, 1, a1, a2 - h);
+    ST(ctx, (b1 - a1) / len, (b2 - a2) / len, 0, 1, a1, a2 - h);
     ctx.drawImage(img, 0, 0, len, h); reset(ctx);
   }
-  function bill(ctx, img, x, y, lift) { const [sx, sy] = px(x, y); ctx.drawImage(img, Math.round(sx - img.width / 2), Math.round(sy - img.height + (lift || 0))); }
+  function bill(ctx, img, x, y, lift) { const [sx, sy] = px(x, y); ctx.drawImage(img, Math.round(sx - lw(img) / 2), Math.round(sy - lh(img) + (lift || 0)), lw(img), lh(img)); }
   function shadow(ctx, x, y, rx) { const [sx, sy] = px(x, y); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(sx, sy, rx, rx / 2, 0, 0, Math.PI * 2); ctx.fill(); }
   const topM = () => (flat ? [1, 0, 0, 1] : [KX, KY, -KX, KY]);
   // fn paints in world units (u = world +x, v = world +y) with its origin at world (x, y); turns with the view like floors
   const ROTM = { flat: [[1, 0, 0, 1], [0, 1, -1, 0], [-1, 0, 0, -1], [0, -1, 1, 0]], iso: [[KX, KY, -KX, KY], [-KX, KY, -KX, -KY], [-KX, -KY, KX, -KY], [KX, -KY, KX, KY]] };
-  function decal(ctx, x, y, fn) { const [a, b] = rw(x, y), [ox, oy] = pxr(a, b), m = ROTM[flat ? 'flat' : 'iso'][rot]; ctx.setTransform(m[0], m[1], m[2], m[3], ox, oy); fn(ctx); reset(ctx); }
+  function decal(ctx, x, y, fn) { const [a, b] = rw(x, y), [ox, oy] = pxr(a, b), m = ROTM[flat ? 'flat' : 'iso'][rot]; ST(ctx, m[0], m[1], m[2], m[3], ox, oy); fn(ctx); reset(ctx); }
 
   // ---------- iso box: footprint (x, y, w, d) in world units, height h in screen px ----------
   function box(ctx, x, y, w, d, h, col, faces) {
@@ -77,7 +81,7 @@
     const x0 = Math.min(...c.map(p => p[0])), y0 = Math.min(...c.map(p => p[1])), x1 = Math.max(...c.map(p => p[0])), y1 = Math.max(...c.map(p => p[1]));
     const vw = x1 - x0, vd = y1 - y0;
     const p00 = pxr(x0, y0), p10 = pxr(x1, y0), p11 = pxr(x1, y1), p01 = pxr(x0, y1);
-    const poly = (pts, fill) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = 'rgba(27,23,32,.75)'; ctx.lineWidth = 1; ctx.stroke(); };
+    const poly = (pts, fill) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = 'rgba(27,23,32,.7)'; ctx.lineWidth = 0.6; ctx.stroke(); };
     if (flat) h = 0;
     const up = p => [p[0], p[1] - h];
     if (!flat) {
@@ -87,9 +91,9 @@
     poly([up(p00), up(p10), up(p11), up(p01)], shade(col, flat ? 0.08 : 0.18)); // top
     if (!faces) return;
     ctx.save();
-    if (faces.top) { const m = topM(); ctx.setTransform(m[0], m[1], m[2], m[3], p00[0], p00[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, vd); ctx.clip(); faces.top(ctx, vw, vd); reset(ctx); }
-    if (faces.south && !flat) { ctx.setTransform(KX, KY, 0, 1, p01[0], p01[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, h); ctx.clip(); faces.south(ctx, vw, h); reset(ctx); }
-    if (faces.east && !flat) { ctx.setTransform(-KX, KY, 0, 1, p10[0], p10[1] - h); ctx.beginPath(); ctx.rect(0, 0, vd, h); ctx.clip(); faces.east(ctx, vd, h); reset(ctx); }
+    if (faces.top) { const m = topM(); ST(ctx, m[0], m[1], m[2], m[3], p00[0], p00[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, vd); ctx.clip(); faces.top(ctx, vw, vd); reset(ctx); }
+    if (faces.south && !flat) { ST(ctx, KX, KY, 0, 1, p01[0], p01[1] - h); ctx.beginPath(); ctx.rect(0, 0, vw, h); ctx.clip(); faces.south(ctx, vw, h); reset(ctx); }
+    if (faces.east && !flat) { ST(ctx, -KX, KY, 0, 1, p10[0], p10[1] - h); ctx.beginPath(); ctx.rect(0, 0, vd, h); ctx.clip(); faces.east(ctx, vd, h); reset(ctx); }
     ctx.restore();
   }
   // small decal painters (local units)
@@ -225,37 +229,64 @@
   function ground() {
     if (groundC) return groundC;
     const GW = W * T + 2 * GM, GH = H * T + 2 * GM;
-    const [c, x] = A.canvas(GW, GH);
+    const [c, x] = A.hcanvas(GW, GH);
     const g = (X, Y, w, h, col) => R(x, X + GM, Y + GM, w, h, col);
-    // mown lawn: broad stripes in two greens, a little speckle
+    const hs = (a, b) => A.hash(a, b);
+    const q = 0.5;   // one real pixel at the remastered resolution
+    // mown lawn: broad stripes in two greens, then thousands of blades and the odd daisy
     for (let X = -GM; X < W * T + GM; X += 24) g(X, -GM, 24, GH, ((X + GM) / 24) % 2 ? '#4aab3c' : '#3f9c33');
-    for (let i = 0; i < 1400; i++) g(Math.floor(A.hash(i, 7) * GW) - GM, Math.floor(A.hash(i, 11) * GH) - GM, 1, 1, i % 3 ? '#358a2b' : '#5cbd4c');
-    // paving slabs
-    const pave = (X, Y, w, h) => { g(X, Y, w, h, '#c4c1b8'); for (let j = 0; j < h; j += 8) g(X, Y + j, w, 1, '#aeaba2'); for (let j = 0; j < h; j += 8) for (let i = ((j / 8) % 2) * 6; i < w; i += 12) g(X + i, Y + j, 1, 8, '#aeaba2'); };
-    // the road along the west side, with a kerb and a dashed centre line
-    g(-GM, -GM, 42, GH, '#6b6d72'); for (let i = 0; i < 260; i++) g(-GM + Math.floor(A.hash(i, 51) * 42), Math.floor(A.hash(i, 53) * GH) - GM, 1, 1, '#5c5e63');
-    for (let Y = -GM; Y < H * T + GM; Y += 18) g(-GM + 20, Y, 2, 10, '#efe3a2');
-    g(-GM + 42, -GM, 3, GH, '#dcd8cc'); g(-GM + 45, -GM, 1, GH, '#9a978e');
+    for (let i = 0; i < 16000; i++) { const X = hs(i, 7) * GW - GM, Y = hs(i, 11) * GH - GM; g(Math.floor(X * 2) / 2, Math.floor(Y * 2) / 2, q, i % 4 ? 1 : 1.5, ['#358a2b', '#5cbd4c', '#2f7d27', '#66c656'][i % 4]); }
+    for (let i = 0; i < 160; i++) { const X = Math.floor(hs(i, 91) * GW) - GM, Y = Math.floor(hs(i, 93) * GH) - GM; g(X, Y, q, q, '#ffffff'); g(X + q, Y, q, q, '#ffe36b'); }
+    // paving slabs, each a slightly different stone with a bevelled edge
+    const pave = (X, Y, w, h) => {
+      g(X, Y, w, h, '#c4c1b8');
+      for (let j = 0; j < h; j += 8) for (let i = -((j / 8) % 2) * 6; i < w; i += 12) {
+        const x0 = Math.max(0, i), x1 = Math.min(w, i + 12), sw = x1 - x0, sh = Math.min(8, h - j); if (sw <= 0) continue;
+        const v = hs(X + i, Y + j); g(X + x0, Y + j, sw, sh, v < 0.33 ? '#c9c6bd' : v < 0.66 ? '#c0bdb4' : '#c6c3b9');
+        g(X + x0, Y + j, sw, q, '#d8d5cc'); g(X + x0, Y + j, q, sh, '#d2cfc6'); g(X + x0, Y + j + sh - q, sw, q, '#a7a49b'); g(X + x1 - q, Y + j, q, sh, '#aeaba2');
+      }
+      for (let i = 0; i < w * h / 10; i++) g(X + Math.floor(hs(i, X * 3 + Y) * w * 2) / 2, Y + Math.floor(hs(Y + i, X + 5) * h * 2) / 2, q, q, i % 2 ? '#b5b2a9' : '#d6d3ca');
+    };
+    // the road along the west side: speckled asphalt, white edge lines, a dashed centre line, a bevelled kerb
+    g(-GM, -GM, 42, GH, '#66686d');
+    for (let i = 0; i < 9000; i++) g(-GM + Math.floor(hs(i, 51) * 84) / 2, Math.floor(hs(i, 53) * GH * 2) / 2 - GM, q, q, ['#5a5c61', '#74767b', '#5f6166'][i % 3]);
+    g(-GM + 2, -GM, 1, GH, '#e8e6de'); g(-GM + 39, -GM, 1, GH, '#e8e6de');
+    for (let Y = -GM; Y < H * T + GM; Y += 18) { g(-GM + 20, Y, 2, 10, '#efe3a2'); g(-GM + 20, Y, q, 10, '#fff4c0'); }
+    g(-GM + 42, -GM, 3, GH, '#dcd8cc'); g(-GM + 42, -GM, 3, q, '#ece9e0'); g(-GM + 42, -GM, q, GH, '#f0ede4'); g(-GM + 44.5, -GM, q, GH, '#9a978e');
+    for (let Y = -GM + 40; Y < H * T + GM; Y += 90) { g(-GM + 37, Y, 4, 3, '#3e4045'); for (let k = 0; k < 4; k++) g(-GM + 37.5 + k, Y + q, q, 2, '#2a2c30'); }
     // a pavement round the building and a path from the road to the front doors
     pave(24, -8, W * T - 24 + 8, H * T + 16);
     pave(-GM + 46, 60, GM + 24 - 46 + 32, 56);
     // flower beds either side of the path
-    for (const [X, Y] of [[-40, 34], [-40, 124]]) { g(X, Y, 44, 18, '#6b4a2c'); g(X, Y, 44, 1, '#8a6440'); for (let i = 0; i < 46; i++) g(X + 2 + Math.floor(A.hash(i, X + Y) * 40), Y + 2 + Math.floor(A.hash(Y, i + 3) * 14), 2, 2, ['#ff5a7a', '#ffd23f', '#f4f0e6', '#c86ad8', '#ff8a3a'][i % 5]); }
-    // the open hospital floor: Theme Hospital's grey tiles with a pale inset square on each
-    for (let r = 0; r < H; r++) for (let col = 2; col < W; col++) {
-      const X = col * T, Y = r * T, lob = RH.inLobby(col, r);
-      g(X, Y, 16, 16, lob ? '#b2b8bd' : '#bcbbb5'); g(X, Y, 16, 1, '#a6a59f'); g(X, Y, 1, 16, '#a6a59f');
-      g(X + 4, Y + 4, 8, 8, lob ? '#c9d0d6' : '#d3d2cc'); g(X + 4, Y + 4, 8, 1, lob ? '#d8dee3' : '#e0dfda'); g(X + 4, Y + 11, 8, 1, lob ? '#b9c0c6' : '#c2c1bb');
+    for (const [X, Y] of [[-40, 34], [-40, 124]]) {
+      g(X, Y, 44, 18, '#6b4a2c'); g(X, Y, 44, 1, '#8a6440'); g(X, Y + 17, 44, 1, '#4a3220');
+      for (let i = 0; i < 260; i++) g(X + Math.floor(hs(i, X + Y + 1) * 88) / 2, Y + 1 + Math.floor(hs(Y, i + 7) * 32) / 2, q, q, i % 2 ? '#5a3c22' : '#7c5634');
+      for (let i = 0; i < 60; i++) {
+        const fx = X + 2 + Math.floor(hs(i, X + Y) * 80) / 2, fy = Y + 3 + Math.floor(hs(Y, i + 3) * 24) / 2, col = ['#ff5a7a', '#ffd23f', '#f4f0e6', '#c86ad8', '#ff8a3a'][i % 5];
+        g(fx, fy + 1, q, 1, '#2f7d27'); g(fx - q, fy, q, q, col); g(fx + q, fy, q, q, col); g(fx, fy - q, q, q, col); g(fx, fy + q, q, q, col); g(fx, fy, q, q, '#ffe36b');
+      }
     }
-    // a doormat inside the front doors
-    g(33, 66, 12, 44, '#5a5650'); for (let j = 68; j < 108; j += 3) g(35, j, 8, 1, '#6e6a62');
+    // the open hospital floor: Theme Hospital's grey tiles, bevelled, with a raised pale square on each
+    for (let r = 0; r < H; r++) for (let col = 2; col < W; col++) {
+      const X = col * T, Y = r * T, lob = RH.inLobby(col, r), v = (hs(col, r) - 0.5) * 0.04;
+      const base = shade(lob ? '#b2b8bd' : '#bcbbb5', v), inset = lob ? '#c9d0d6' : '#d3d2cc';
+      g(X, Y, 16, 16, base);
+      g(X, Y, 16, q, shade(base, 0.22)); g(X, Y, q, 16, shade(base, 0.16)); g(X, Y + 16 - q, 16, q, shade(base, -0.16)); g(X + 16 - q, Y, q, 16, shade(base, -0.12));
+      g(X + 4, Y + 4, 8, 8, inset);
+      g(X + 4, Y + 4, 8, q, shade(inset, 0.3)); g(X + 4, Y + 4, q, 8, shade(inset, 0.22)); g(X + 4, Y + 12 - q, 8, q, shade(inset, -0.14)); g(X + 12 - q, Y + 4, q, 8, shade(inset, -0.1));
+      g(X + 5, Y + 5, 2, q, shade(inset, 0.4));
+      for (let i = 0; i < 6; i++) g(X + Math.floor(hs(i + X, Y) * 30) / 2, Y + Math.floor(hs(Y + i, X) * 30) / 2, q, q, shade(base, i % 2 ? -0.08 : 0.08));
+    }
+    // a bristly doormat inside the front doors
+    g(33, 66, 12, 44, '#5a5650'); g(33, 66, 12, q, '#77726a'); g(33, 109.5, 12, q, '#3e3b36');
+    for (let j = 67; j < 109; j += 1) for (let i = 34; i < 44; i += 1) if (hs(i, j) < 0.5) g(i + (j % 2) * q, j, q, q, '#6e6a62');
     return (groundC = c);
   }
   const floorCache = {};
   function roomFloor(kind, w, h) {
     const key = kind + ':' + w + 'x' + h;
     if (floorCache[key]) return floorCache[key];
-    const [c, x] = A.canvas(w * T, h * T);
+    const [c, x] = A.hcanvas(w * T, h * T);
     const st = A.ROOM_STYLE[kind];
     A.floor(x, 0, 0, w * T, h * T, st.floor[0], st.floor[1], st.floor[2]);
     R(x, 0, 0, w * T, 1, 'rgba(0,0,0,.18)'); R(x, 0, 0, 1, h * T, 'rgba(0,0,0,.18)');
@@ -267,17 +298,29 @@
   // wallpaper strip w x h with cornice, baseboard and optional decal; `gap` = [u0, u1] door opening
   function wallImg(key, w, h, col, style, decal, gap) {
     if (wallCache[key]) return wallCache[key];
-    const [c, x] = A.canvas(w, h);
+    const [c, x] = A.hcanvas(w, h);
+    const q = 0.5;
     R(x, 0, 0, w, h, col);
     const d = shade(col, -0.1), l = shade(col, 0.12);
-    if (style === 'stripe') for (let i = 0; i < w; i += 6) R(x, i, 0, 2, h, d);
-    else if (style === 'dots') for (let j = 3; j < h - 4; j += 5) for (let i = (j % 10 ? 1 : 4); i < w; i += 6) R(x, i, j, 1, 1, l);
-    else if (style === 'tiles') { for (let j = 0; j < h; j += 5) R(x, 0, j, w, 1, d); for (let i = 0; i < w; i += 9) R(x, i, 0, 1, h, d); }
-    else if (style === 'brick') { for (let j = 3; j < h; j += 3) { R(x, 0, j, w, 1, shade(col, -0.22)); for (let i = (j / 3) % 2 ? 3 : 0; i < w; i += 6) R(x, i, j, 1, 3, shade(col, -0.22)); } for (let i = 0; i < w; i += 5) R(x, i, 3 + (i % 3) * 3, 2, 1, shade(col, 0.1)); }
-    else if (style === 'plaster') { R(x, 0, h - 9, w, 1, shade(col, -0.12)); R(x, 0, h - 8, w, 5, shade(col, -0.05)); }
+    if (style === 'stripe') for (let i = 0; i < w; i += 4) { R(x, i, 0, 1.5, h, d); R(x, i + 1.5, 0, q, h, shade(col, -0.16)); R(x, i + 2.5, 0, q, h, l); }
+    else if (style === 'dots') for (let j = 4; j < h - 4; j += 3) for (let i = (j % 6 ? 1 : 2.5); i < w; i += 3) { R(x, i, j, 1, 1, l); R(x, i + q, j + q, q, q, d); }
+    else if (style === 'tiles') {
+      for (let j = 0; j < h; j += 4) for (let i = 0; i < w; i += 4) { R(x, i, j, 4, q, l); R(x, i, j, q, 4, l); R(x, i, j + 3.5, 4, q, d); R(x, i + 3.5, j, q, 4, d); }
+    } else if (style === 'brick') {
+      // individual bricks: each its own shade, a lit top edge, mortar between
+      for (let j = 3, row = 0; j < h; j += 2, row++) for (let i = row % 2 ? -2 : 0; i < w; i += 4) {
+        const b = shade(col, (A.hash(i + 31 * row, key.length + j) - 0.5) * 0.22);
+        R(x, i, j, 4, 2, b); R(x, i, j, 4, q, shade(b, 0.18)); R(x, i + 3.5, j, q, 2, shade(col, -0.32)); R(x, i, j + 1.5, 4, q, shade(col, -0.32));
+      }
+    } else if (style === 'plaster') {
+      for (let i = 0; i < w * h / 5; i++) R(x, Math.floor(A.hash(i, w) * w * 2) / 2, Math.floor(A.hash(h, i) * h * 2) / 2, q, q, i % 2 ? shade(col, -0.05) : shade(col, 0.05));
+      // a dado rail and a skirting board
+      R(x, 0, h - 11, w, 1, shade(col, 0.15)); R(x, 0, h - 10, w, q, shade(col, -0.2));
+      R(x, 0, h - 10 + q, w, 6.5, shade(col, -0.04));
+    }
     // the top of the wall seen from above: pale with a shadowed lip, like Theme Hospital's wall caps
-    R(x, 0, 0, w, 2, '#ecebe6'); R(x, 0, 2, w, 1, '#a9a7a0');
-    if (h > 12) { R(x, 0, h - 3, w, 3, shade(col, -0.35)); R(x, 0, h - 3, w, 1, shade(col, -0.15)); }
+    R(x, 0, 0, w, 2, '#ecebe6'); R(x, 0, 0, w, q, '#fbfaf6'); R(x, 0, 2, w, 1, '#a9a7a0'); R(x, 0, 3, w, q, shade(col, -0.25));
+    if (h > 12) { R(x, 0, h - 3, w, 3, shade(col, -0.35)); R(x, 0, h - 3, w, q, shade(col, -0.05)); R(x, 0, h - 2.5, w, q, shade(col, -0.18)); }
     else { R(x, 0, h - 1, w, 1, shade(col, -0.35)); }
     if (decal && h > 12) decal(x, w, h);
     if (gap) { x.clearRect(gap[0], 0, gap[1] - gap[0], h); R(x, gap[0] - 2, 0, 2, h, '#5a4634'); R(x, gap[1], 0, 2, h, '#5a4634'); R(x, gap[0] - 2, 0, gap[1] - gap[0] + 4, 2, '#5a4634'); }
@@ -326,17 +369,37 @@
       const t0 = i / n, t1 = (i + 1) / n;
       const p0 = [sx + (ex - sx) * t0, sy + (ey - sy) * t0], p1 = [sx + (ex - sx) * t1, sy + (ey - sy) * t1];
       const q0 = rw(p0[0], p0[1]), q1 = rw(p1[0], p1[1]);
-      items.push({ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); c.setTransform((v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), h, 0, 0, len, h); reset(c); } });
+      items.push({ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); ST(c, (v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), img.height, 0, 0, len, h); reset(c); } });
     }
     return items;
   }
   // wall colours by room type: white, green, yellow for imaging, blue for clinics
   const WALLCOL = { white: '#ece8de', green: '#a6cf9c', yellow: '#e9d27e', blue: '#98bfe3' };
   // an outside window seen from the corridor: white frame, the lawn beyond
-  const lawnWin = (x, w, h) => { R(x, 2, 6, w - 4, 16, '#f4f4f0'); R(x, 3, 7, w - 6, 14, '#3f9c33'); R(x, 3, 7, w - 6, 5, '#7fc7e8'); R(x, 3, 12, w - 6, 2, '#2f7a2a'); for (let i = 4; i < w - 4; i += 3) R(x, i, 15 + (i % 2), 1, 1, '#5cbd4c'); R(x, 4, 8, 2, 3, '#d8f0fa'); R(x, w / 2 - 0.5, 7, 1, 14, '#f4f4f0'); R(x, 3, 14, w - 6, 1, '#f4f4f0'); R(x, 1, 22, w - 2, 2, '#e6e4dc'); };
+  const lawnWin = (x, w, h) => {
+    const q = 0.5;
+    R(x, 2, 6, w - 4, 16, '#f4f4f0'); R(x, 2, 6, w - 4, q, '#ffffff'); R(x, w - 2.5, 6, q, 16, '#c9c7c0');
+    R(x, 3, 7, w - 6, 14, '#3f9c33'); R(x, 3, 7, w - 6, 5, '#8fd0ee'); R(x, 3, 7, w - 6, 2, '#b8e2f4');
+    R(x, 3, 11, w - 6, 1.5, '#2f7a2a'); for (let i = 3.5; i < w - 3; i += 1.5) R(x, i, 10 + (i % 3 ? q : 0), 1, 1.5, '#2a6e26');
+    for (let i = 3.5; i < w - 3.5; i += 1) R(x, i, 15 + (i % 2), q, 1, i % 3 ? '#5cbd4c' : '#4aab3c');
+    x.globalAlpha = 0.45; for (let k = 0; k < 6; k++) R(x, 4 + k * q, 8 + k, 1.5, q, '#ffffff'); x.globalAlpha = 1;
+    R(x, w / 2 - 0.5, 7, 1, 14, '#f4f4f0'); R(x, 3, 14, w - 6, 1, '#f4f4f0'); R(x, w / 2 + 0.5, 7, q, 14, '#c9c7c0');
+    R(x, 1, 22, w - 2, 2, '#e6e4dc'); R(x, 1, 22, w - 2, q, '#ffffff'); R(x, 1, 23.5, w - 2, q, '#a9a7a0');
+  };
   // a window in the brick front, seen from outside: white frame, dark glass catching the sky
-  const frontWin = (x, w, h) => { R(x, 3, 4, w - 6, h - 6, '#f4f4f0'); R(x, 4, 5, w - 8, h - 8, '#4a6a84'); R(x, 4, 5, w - 8, 2, '#8fc4e0'); R(x, 5, 7, 2, 2, '#c8e6f4'); R(x, w / 2 - 0.5, 5, 1, h - 8, '#f4f4f0'); R(x, 2, h - 3, w - 4, 1, '#e6e4dc'); };
-  const winDecal = (x, w, h) => { R(x, 2, 6, w - 4, 14, '#6b5a44'); R(x, 3, 7, w - 6, 12, '#9fd8ff'); R(x, 4, 8, 3, 4, '#dff3ff'); R(x, w / 2 - 0.5, 7, 1, 12, '#6b5a44'); R(x, 2, 20, w - 4, 2, '#f4f0e6'); };
+  const frontWin = (x, w, h) => {
+    const q = 0.5;
+    R(x, 3, 3, w - 6, h - 6, '#f4f4f0'); R(x, 3, 3, w - 6, q, '#ffffff');
+    R(x, 4, 4, w - 8, h - 8, '#3e5c76'); R(x, 4, 4, w - 8, 2, '#86bcda'); R(x, 4, 6, w - 8, 1, '#5f88a6');
+    x.globalAlpha = 0.5; for (let k = 0; k < 4; k++) R(x, 5 + k * q, 5 + k, 1, q, '#ffffff'); x.globalAlpha = 1;
+    R(x, w / 2 - 0.5, 4, 1, h - 8, '#f4f4f0'); R(x, 2, h - 3, w - 4, 1, '#e6e4dc'); R(x, 2, h - 2, w - 4, q, '#8a6a52');
+  };
+  const winDecal = (x, w, h) => {
+    const q = 0.5;
+    R(x, 2, 6, w - 4, 14, '#6b5a44'); R(x, 2, 6, w - 4, q, '#8a7658'); R(x, 3, 7, w - 6, 12, '#9fd8ff'); R(x, 3, 7, w - 6, 4, '#c6eaff');
+    x.globalAlpha = 0.5; for (let k = 0; k < 6; k++) R(x, 4 + k * q, 8 + k, 1.5, q, '#ffffff'); x.globalAlpha = 1;
+    R(x, w / 2 - 0.5, 7, 1, 12, '#6b5a44'); R(x, 3, 12.5, w - 6, q, '#6b5a44'); R(x, 2, 20, w - 4, 2, '#f4f0e6'); R(x, 2, 21.5, w - 4, q, '#a9a090');
+  };
   // a poster for each room type, cut out of its old wall decal
   const posterCache = {};
   function poster(kind) {
@@ -414,7 +477,7 @@
     const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
     const q0 = rw(sx, sy), q1 = rw(ex, ey);
     void nx; void ny;
-    return [{ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(sx, sy), [v1, v2] = px(ex, ey); c.setTransform((v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); c.drawImage(img, 0, 0); reset(c); } }];
+    return [{ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(sx, sy), [v1, v2] = px(ex, ey); ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); c.drawImage(img, 0, 0, 16, h); reset(c); } }];
   }
   // ---------- building overlays (blueprints, door and window marks, placement previews) ----------
   function tileQuad(ctx, tx, ty, fill, stroke) {
@@ -434,7 +497,7 @@
   let doorsC = null;
   function doorsImg() {
     if (doorsC) return doorsC;
-    const [c, x] = A.canvas(48, WALL_H);
+    const [c, x] = A.hcanvas(48, WALL_H);
     const G = '#2f8a3e', GL = '#5cc06a', glass = 'rgba(150,215,240,.5)';
     R(x, 0, 0, 48, 7, G); R(x, 0, 0, 48, 1, GL); R(x, 3, 2, 42, 3, '#f4f4f0'); R(x, 22, 2, 4, 3, '#e8533f'); R(x, 23, 1, 2, 5, '#e8533f');
     for (const [u, w] of [[0, 13], [35, 13]]) { R(x, u, 7, w, WALL_H - 7, glass); R(x, u + 2, 9, 2, 10, 'rgba(255,255,255,.55)'); R(x, u, 7, 2, WALL_H - 7, G); R(x, u + w - 2, 7, 2, WALL_H - 7, G); R(x, u + 1, 7, 1, WALL_H - 7, GL); R(x, u, WALL_H - 3, w, 3, G); R(x, u + 5, 18, 3, 1, '#c9a43a'); }
@@ -447,7 +510,7 @@
       const y0 = 64 + i * 16, y1 = y0 + 16;
       items.push({ d: Math.min(depth(32, y0), depth(32, y1)) + 0.5, draw: c => {
         const h = flat ? 4 : WALL_H, [u1, u2] = px(32, y0), [v1, v2] = px(32, y1);
-        c.setTransform((v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); c.drawImage(img, i * 16, flat ? WALL_H - 4 : 0, 16, h, 0, 0, 16, h); reset(c);
+        ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); const k = img.width / 48; c.drawImage(img, i * 16 * k, (flat ? WALL_H - 4 : 0) * k, 16 * k, h * k, 0, 0, 16, h); reset(c);
       } });
     }
     return items;

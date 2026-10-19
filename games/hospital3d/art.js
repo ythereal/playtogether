@@ -6,7 +6,14 @@
   const OUT = '#1b1720';
   const T = 16, W = 22, H = 11;
 
-  function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; }
+  // The scene is drawn at SS times its logical resolution. Art made while HI is set gets an SS-times canvas whose
+  // context is pre-scaled, so painters keep working in logical pixels but curves, outlines and fine detail come out
+  // sharper. c.lw / c.lh give the logical size to draw it at.
+  const SS = 2;
+  let HI = 1;
+  function canvas(w, h) { const c = document.createElement('canvas'); c.width = Math.ceil(w * HI); c.height = Math.ceil(h * HI); c.lw = w; c.lh = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; if (HI !== 1) x.scale(HI, HI); return [c, x]; }
+  function hcanvas(w, h) { const k = HI; HI = SS; try { return canvas(w, h); } finally { HI = k; } }
+  const hiRes = fn => { const k = HI; HI = SS; try { return fn(); } finally { HI = k; } };
   function hex2rgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
   function shade(h, amt) {
     const [r, g, b] = hex2rgb(h);
@@ -26,7 +33,39 @@
     x.putImageData(d, 0, 0);
     return c;
   }
-  function flipH(c) { const [o, x] = canvas(c.width, c.height); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); return o; }
+  function flipH(c) { const k = HI; HI = 1; const [o, x] = canvas(c.width, c.height); HI = k; x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); o.lw = c.lw || c.width; o.lh = c.lh || c.height; return o; }
+  // ---------- remastering pixel sprites: Scale2x, then light and shade for volume, then a fine outline ----------
+  function scale2x(c) {
+    const w = c.width, h = c.height, src = new Uint32Array(c.getContext('2d').getImageData(0, 0, w, h).data.buffer);
+    const k = HI; HI = 1; const [o, x] = canvas(w * 2, h * 2); HI = k;
+    const img = x.createImageData(w * 2, h * 2), dst = new Uint32Array(img.data.buffer);
+    const at = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? 0 : src[j * w + i]);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const P = at(i, j), A = at(i, j - 1), B = at(i + 1, j), C = at(i - 1, j), D = at(i, j + 1), o0 = (j * 2) * w * 2 + i * 2, o1 = o0 + w * 2;
+      dst[o0] = C === A && C !== D && A !== B ? A : P;
+      dst[o0 + 1] = A === B && A !== C && B !== D ? B : P;
+      dst[o1] = D === C && D !== B && C !== A ? C : P;
+      dst[o1 + 1] = B === D && B !== A && D !== C ? D : P;
+    }
+    x.putImageData(img, 0, 0);
+    return o;
+  }
+  // light from the top left: pixels near the upper-left edge of a shape brighten, near the lower-right edge darken
+  function volume(c) {
+    const x = c.getContext('2d'), w = c.width, h = c.height, d = x.getImageData(0, 0, w, h), a = d.data, al = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? 0 : a[(j * w + i) * 4 + 3]);
+    const src = new Uint8ClampedArray(a);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const k = (j * w + i) * 4; if (src[k + 3] < 40) continue;
+      let f = 0;
+      if (!al(i - 2, j) || !al(i, j - 2)) f += 0.16;
+      if (!al(i + 2, j) || !al(i, j + 2)) f -= 0.2;
+      if (!f) continue;
+      for (let ch = 0; ch < 3; ch++) a[k + ch] = f > 0 ? src[k + ch] + (255 - src[k + ch]) * f : src[k + ch] * (1 + f);
+    }
+    x.putImageData(d, 0, 0);
+    return c;
+  }
+  function remaster(c) { const o = outline(volume(scale2x(c)), '#231d2a'); o.lw = c.lw || c.width; o.lh = c.lh || c.height; return o; }
   function hash(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
   const rect = (x, X, Y, w, h, col) => { x.fillStyle = col; x.fillRect(X, Y, w, h); };
   // bevelled box: light top edge, dark bottom/right edge, optional top surface colour
@@ -64,7 +103,7 @@
   }
 
   // o: look + { coat: 'doctor'|'nurse'|'recep', dis: disease id or null }
-  function drawPerson(o, dir, f) {
+  function drawPerson(o, dir, f, raw) {
     const [c, x] = canvas(16, 24);
     const R = (X, Y, w, h, col) => rect(x, X, Y, w, h, col);
     const d = o.dis || '', side = dir === 'left', back = dir === 'up';
@@ -217,13 +256,23 @@
     if (o.tophat) { R(3, 2, 10, 1, '#1d1f2c'); R(5, -1, 6, 3, '#26283a'); R(5, 1, 6, 1, '#c43c2c'); R(6, -1, 2, 1, '#4a4f6a'); }
     if (o.coat === 'insp' && !o.tophat) { R(3, 2, 10, 1, '#3a3f48'); R(5, 0, 6, 2, '#4a4f5a'); }
     if (o.coat === 'recep' && !side) { R(3, 6, 1, 3, '#2b2e3a'); R(3, 9, 2, 1, '#2b2e3a'); }
-    return outline(c);
+    return raw ? c : outline(c);
+  }
+  // the remastered person: upscaled and shaded, then given highlights only possible at the higher resolution
+  function hiPerson(o, dir, f) {
+    const c = remaster(drawPerson(o, dir, f, true)), x = c.getContext('2d');
+    const P = (X, Y, w, h, col) => { x.fillStyle = col; x.fillRect(X, Y, w, h); };   // in remastered pixels (half a logical pixel)
+    const d = o.dis || '', plainHead = !['tv', 'balloon', 'alien', 'invis'].includes(d);
+    if (plainHead && dir === 'down' && d !== 'sleep') { P(12, 14, 1, 1, '#ffffff'); P(18, 14, 1, 1, '#ffffff'); }   // a glint in each eye
+    if (plainHead && dir === 'down') { x.globalAlpha = 0.35; P(10, 17, 2, 1, '#e8806a'); P(20, 17, 2, 1, '#e8806a'); x.globalAlpha = 1; }   // cheeks
+    if (plainHead && dir === 'left' && d !== 'sleep') P(10, 14, 1, 1, '#ffffff');
+    return c;
   }
   const personCache = {};
   function personSheet(key, o) {
     if (personCache[key]) return personCache[key];
     const sh = {};
-    for (const d of ['down', 'up', 'left']) sh[d] = [0, 1, 2].map(f => drawPerson(o, d, f));
+    for (const d of ['down', 'up', 'left']) sh[d] = [0, 1, 2].map(f => hiPerson(o, d, f));
     sh.right = sh.left.map(flipH);
     return (personCache[key] = sh);
   }
@@ -245,13 +294,14 @@
     const [c, x] = canvas(size, size);
     const g = x.createLinearGradient(0, 0, 0, size); g.addColorStop(0, av ? '#2a6f6a' : '#2a3a6a'); g.addColorStop(1, av ? '#154a46' : '#141f3a');
     x.fillStyle = g; x.fillRect(0, 0, size, size);
-    x.drawImage(managerSheet(av).down[0], 0, 0, 16, 14, 0, size * 0.14, size, size * 0.875);
+    const m = managerSheet(av).down[0], k = m.width / 16;
+    x.drawImage(m, 0, 0, 16 * k, 14 * k, 0, size * 0.14, size, size * 0.875);
     return (portraitCache[key] = c);
   }
   // the advisor who talks you through the game: a doctor with a head mirror, glasses and a bow tie. talk = mouth open
   const advCache = {};
-  function advisorFace(talk) {
-    const key = talk ? 1 : 0; if (advCache[key]) return advCache[key];
+  function advisorFace(talk) { const key = talk ? 1 : 0; return advCache[key] || (advCache[key] = hiRes(() => drawAdvisor(talk))); }
+  function drawAdvisor(talk) {
     const [c, x] = canvas(40, 44);
     const ell = (X, Y, rx, ry, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(X, Y, rx, ry, 0, 0, Math.PI * 2); x.fill(); };
     // white coat, shoulders and lapels
@@ -273,9 +323,10 @@
     // moustache and mouth
     rect(x, 15, 24, 10, 2, '#c8642a'); rect(x, 14, 25, 2, 1, '#c8642a'); rect(x, 24, 25, 2, 1, '#c8642a');
     if (talk) { ell(20, 28, 3, 2, '#7a2a2a'); rect(x, 18, 27, 4, 1, '#ffffff'); } else rect(x, 17, 27, 6, 1, '#9a4a3a');
-    return (advCache[key] = outline(c));
+    return outline(c);
   }
-  function ghost() {
+  function ghost() { return hiRes(drawGhost); }
+  function drawGhost() {
     const [c, x] = canvas(14, 16);
     blob(x, 7, 6, 5, 5.5, '#eef2ff', { flat: true });
     rect(x, 2, 8, 10, 5, '#eef2ff'); rect(x, 2, 13, 2, 2, '#eef2ff'); rect(x, 6, 13, 2, 2, '#eef2ff'); rect(x, 10, 13, 2, 2, '#eef2ff');
@@ -331,23 +382,43 @@
     mop() { const [c, x] = canvas(8, 22); rect(x, 3, 0, 2, 16, '#c8a05a'); rect(x, 1, 15, 6, 5, '#e8e0d0'); rect(x, 0, 17, 8, 3, '#d6cdbc'); return outline(c); },
   };
   const furnCache = {};
-  function furniture(name) { return furnCache[name] || (furnCache[name] = FURN[name]()); }
+  function furniture(name) { return furnCache[name] || (furnCache[name] = hiRes(FURN[name])); }
 
   // ======================= FLOORS, WALLS, MAP =======================
   const C = { grass: '#6fae4a', grassD: '#5f9a3e', pave: '#cfc8ba', paveD: '#bbb4a5', hall: '#eceef0', hallD: '#b9bec6', lot: '#cbc3b4', lotD: '#b8af9f' };
   function speckle(x, X, Y, w, h, col, n, seed) { for (let i = 0; i < n; i++) rect(x, X + Math.floor(hash(seed + i, X + Y) * (w - 1)), Y + Math.floor(hash(seed * 3 + i, X - Y) * (h - 1)), 1, 1, col); }
   // room floors: 'tile' (grout grid), 'plank' (wood grain), 'carpet' (pattern), 'lino' (big checks)
   function floor(x, X, Y, w, h, kind, a, b) {
+    const q = 0.5;   // fine detail: half a logical pixel, one pixel on the remastered canvases
     rect(x, X, Y, w, h, a);
     if (kind === 'tile') {
-      for (let j = 0; j < h; j += 8) for (let i = 0; i < w; i += 8) { if (((i + j) / 8) % 2) rect(x, X + i, Y + j, 8, 8, b); rect(x, X + i, Y + j, 8, 1, shade(a, -0.1)); rect(x, X + i, Y + j, 1, 8, shade(a, -0.1)); }
+      // glazed tiles: alternate shades, bevelled edges, a gloss streak, grout between
+      for (let j = 0; j < h; j += 8) for (let i = 0; i < w; i += 8) {
+        const c = ((i + j) / 8) % 2 ? b : a;
+        rect(x, X + i, Y + j, 8, 8, c);
+        rect(x, X + i, Y + j, 8, q, shade(c, 0.25)); rect(x, X + i, Y + j, q, 8, shade(c, 0.18));
+        rect(x, X + i, Y + j + 8 - q, 8, q, shade(c, -0.18)); rect(x, X + i + 8 - q, Y + j, q, 8, shade(c, -0.14));
+        rect(x, X + i + 1.5, Y + j + 1.5, 2, q, shade(c, 0.4));
+      }
     } else if (kind === 'plank') {
-      for (let j = 0; j < h; j += 5) { rect(x, X, Y + j, w, 1, shade(a, -0.18)); const off = (j / 5) % 2 ? 24 : 8; for (let i = off; i < w; i += 32) rect(x, X + i, Y + j, 1, 5, shade(a, -0.18)); for (let i = 2; i < w; i += 7) rect(x, X + i + (j % 3), Y + j + 2, 3, 1, b); }
+      // floorboards: staggered seams, grain lines, a knot here and there, a highlight on each board's edge
+      for (let j = 0; j < h; j += 5) {
+        const tone = shade(a, (hash(j, X) - 0.5) * 0.1);
+        rect(x, X, Y + j, w, 5, tone); rect(x, X, Y + j, w, q, shade(tone, 0.18)); rect(x, X, Y + j + 4.5, w, q, shade(a, -0.25));
+        const off = (j / 5) % 2 ? 24 : 8;
+        for (let i = off; i < w; i += 32) { rect(x, X + i, Y + j, q, 5, shade(a, -0.28)); rect(x, X + i + q, Y + j, q, 5, shade(a, 0.12)); }
+        for (let i = 0; i < w; i += 3) if (hash(i, j + Y) < 0.6) rect(x, X + i + hash(j, i) * 2, Y + j + 1 + Math.floor(hash(i + 1, j) * 6) / 2, 2 + hash(i, j) * 3, q, shade(tone, -0.1));
+        if (hash(j, w) < 0.4) { const kx = X + Math.floor(hash(j, 3) * (w - 4)); rect(x, kx, Y + j + 2, 1.5, 1, shade(a, -0.3)); }
+      }
     } else if (kind === 'carpet') {
-      for (let j = 0; j < h; j += 4) for (let i = (j / 4) % 2 ? 2 : 0; i < w; i += 4) rect(x, X + i, Y + j, 2, 2, b);
-      for (let j = 0; j < h; j += 16) for (let i = 0; i < w; i += 16) rect(x, X + i + 7, Y + j + 7, 2, 2, shade(b, 0.2));
+      // woven carpet: a fine twill and a small medallion pattern
+      for (let j = 0; j < h; j += 1) for (let i = (j % 2) * q; i < w; i += 1) rect(x, X + i, Y + j, q, q, shade(a, -0.08));
+      for (let j = 0; j < h; j += 4) for (let i = (j / 4) % 2 ? 2 : 0; i < w; i += 4) { rect(x, X + i, Y + j, 1.5, 1.5, b); rect(x, X + i, Y + j, 1.5, q, shade(b, 0.12)); }
+      for (let j = 0; j < h; j += 16) for (let i = 0; i < w; i += 16) { rect(x, X + i + 6.5, Y + j + 7.5, 3, 1, shade(b, 0.25)); rect(x, X + i + 7.5, Y + j + 6.5, 1, 3, shade(b, 0.25)); rect(x, X + i + 7.5, Y + j + 7.5, 1, 1, shade(b, 0.45)); }
     } else {
-      for (let j = 0; j < h; j += 16) for (let i = 0; i < w; i += 16) { if (((i + j) / 16) % 2) rect(x, X + i, Y + j, 16, 16, b); rect(x, X + i, Y + j, 16, 1, shade(a, 0.1)); }
+      // lino: big checks with a soft speckle and a sheen
+      for (let j = 0; j < h; j += 16) for (let i = 0; i < w; i += 16) { const c = ((i + j) / 16) % 2 ? b : a; rect(x, X + i, Y + j, 16, 16, c); rect(x, X + i, Y + j, 16, q, shade(a, 0.14)); rect(x, X + i, Y + j, q, 16, shade(a, 0.1)); }
+      for (let i = 0; i < w * h / 6; i++) rect(x, X + Math.floor(hash(i, X + 7) * w * 2) / 2, Y + Math.floor(hash(Y + 3, i) * h * 2) / 2, q, q, shade(a, i % 2 ? -0.1 : 0.12));
     }
   }
   const ROOM_STYLE = {
@@ -376,5 +447,5 @@
     training: { floor: ['plank', '#b88a58', '#a07848'], wall: ['#c9b08a', 'stripe'] },
   };
 
-  window.HA = { T, W, H, OUT, canvas, shade, outline, flipH, hash, rect, box, blob, look, patientSheet, staffSheet, vipSheet, inspSheet, AVATARS, managerSheet, portrait, advisorFace, ghost, furniture, floor, ROOM_STYLE, C };
+  window.HA = { SS, T, W, H, OUT, canvas, hcanvas, hiRes, remaster, shade, outline, flipH, hash, rect, box, blob, look, patientSheet, staffSheet, vipSheet, inspSheet, AVATARS, managerSheet, portrait, advisorFace, ghost, furniture, floor, ROOM_STYLE, C };
 })();
