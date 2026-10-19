@@ -524,7 +524,7 @@
   function renderHud() {
     if (!view) return;
     const h = view.h[ME], r = view.h[FRIEND];
-    const key = [view.ph, view.month, h.cash, h.rep, h.cured, r.cash, r.rep, tab, nameOf(ME), nameOf(FRIEND), h.open].join('|');
+    const hv = RH.value(h), key = [view.ph, view.month, h.cash, hv, h.rep, h.cured, r.cash, r.rep, tab, nameOf(ME), nameOf(FRIEND), h.open].join('|');
     if (key === hudKey) return; hudKey = key;
     const ym = RH.yearMonth(SOLO ? view.month : Math.min(view.month, RH.MONTHS - 1));
     // the desk calendar: day and month, Theme Hospital style (the day ticks over in monthBar)
@@ -535,7 +535,7 @@
     const digs = String(Math.abs(Math.round(h.cash))).padStart(7, ' ').split(''), cash = $('hudCash');
     if (h.cash < 0) digs[Math.max(0, digs.lastIndexOf(' '))] = digs.includes(' ') ? '-' : (digs.unshift('-'), '-');
     cash.innerHTML = digs.map(c => `<i>${c === ' ' ? '&nbsp;' : c}</i>`).join(''); cash.classList.toggle('neg', h.cash < 0); cash.title = money(h.cash);
-    $('hudRepBar').style.left = clamp(h.rep / 10, 0, 100) + '%'; $('hudRep').textContent = h.rep; $('stRep').title = `Reputation ${h.rep} of 1000`;
+    $('hudRepBar').style.left = clamp(h.rep / 10, 0, 100) + '%'; $('hudRep').textContent = h.rep; $('hudValue').textContent = money(hv); $('stRep').title = `Reputation ${h.rep} of 1000`;
     $('hudCured').textContent = h.cured; $('curesBox').title = `Patients cured${h.seen ? `: ${RH.curePct(h)}% of those treated` : ''}`;
     $('tabMine').textContent = SOLO ? 'Mine' : `${nameOf(ME)}'s`;
     $('tabRival').textContent = `${nameOf(FRIEND)}'s`;
