@@ -12,8 +12,8 @@
   const OX = OX0 + 2 * GM * KX, OY = OY0 + 2 * GM * KY;
   const OXF = OXF0 + GM, OYF = OYF0 + GM;          // flat (aerial) view origin
   const BW = Math.max(OX * 2, L + 16 + 2 * GM), BH = Math.max(Math.ceil(L * K) + OY + 30 + 2 * GM * KY, L + OYF + 40 + GM);
-  const WALL_H = 34, LOW_H = 13;     // walls facing the viewer are cut down to a third, Theme Hospital style: every wall still reads
-  const EXT_LOW = 16;                // …except the outside of the building: a brick front with windows, Theme Hospital style
+  const WALL_H = 34, LOW_H = WALL_H; // every wall stands full height, front walls included, as in Theme Hospital
+  const EXT_LOW = WALL_H;            // the building's brick front too
   let rot = 3;                                      // 0..3, quarter turns clockwise; 3 looks at the front doors, like Theme Hospital
   let flat = false;                                 // aerial view: plain top-down instead of isometric
   const setRot = r => { rot = ((r % 4) + 4) % 4; };
@@ -437,17 +437,12 @@
   // a window in the brick front, seen from outside: white frame, dark glass catching the sky
   const frontWin = (x, w, h) => {
     const q = 0.5;
-    R(x, 3, 3, w - 6, h - 6, '#f4f4f0'); R(x, 3, 3, w - 6, q, '#ffffff');
-    R(x, 4, 4, w - 8, h - 8, '#3e5c76'); R(x, 4, 4, w - 8, 2, '#86bcda'); R(x, 4, 6, w - 8, 1, '#5f88a6');
-    x.globalAlpha = 0.5; for (let k = 0; k < 4; k++) R(x, 5 + k * q, 5 + k, 1, q, '#ffffff'); x.globalAlpha = 1;
-    R(x, w / 2 - 0.5, 4, 1, h - 8, '#f4f4f0'); R(x, 2, h - 3, w - 4, 1, '#e6e4dc'); R(x, 2, h - 2, w - 4, q, '#8a6a52');
+    R(x, 2, 6, w - 4, 16, '#f4f4f0'); R(x, 2, 6, w - 4, q, '#ffffff');
+    R(x, 3, 7, w - 6, 14, '#3e5c76'); R(x, 3, 7, w - 6, 3, '#86bcda'); R(x, 3, 10, w - 6, 1, '#5f88a6');
+    x.globalAlpha = 0.5; for (let k = 0; k < 6; k++) R(x, 4 + k * q, 8 + k, 1.5, q, '#ffffff'); x.globalAlpha = 1;
+    R(x, w / 2 - 0.5, 7, 1, 14, '#f4f4f0'); R(x, 3, 14, w - 6, 1, '#f4f4f0'); R(x, 1, 22, w - 2, 2, '#e6e4dc'); R(x, 1, 23.5, w - 2, q, '#8a6a52');
   };
-  // a window in a cut-down front wall
-  const lowWin = (x, w, h) => {
-    const q = 0.5;
-    R(x, 2, 4, w - 4, h - 7, '#6b5a44'); R(x, 3, 5, w - 6, h - 9, '#9fd8ff'); R(x, 3, 5, w - 6, 1.5, '#c6eaff');
-    R(x, w / 2 - 0.5, 5, 1, h - 9, '#6b5a44'); R(x, 2, h - 3, w - 4, 1, '#f4f0e6'); R(x, 2, h - 2, w - 4, q, '#a9a090');
-  };
+
   const winDecal = (x, w, h) => {
     const q = 0.5;
     R(x, 2, 6, w - 4, 14, '#6b5a44'); R(x, 2, 6, w - 4, q, '#8a7658'); R(x, 3, 7, w - 6, 12, '#9fd8ff'); R(x, 3, 7, w - 6, 4, '#c6eaff');
@@ -506,7 +501,7 @@
       const extWin = ext && tall && ((x + y) & 1) === 0;
       const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
       const brickWin = ext && !tall && ((x + y) & 1) === 0;
-      const deco = extWin ? lawnWin : brickWin ? frontWin : isWin ? (tall ? winDecal : lowWin) : isPoster ? (c2, w, hh) => { const pc = poster(r.k); if (pc) c2.drawImage(pc, Math.round((w - pc.width) / 2), 5); } : null;
+      const deco = extWin ? lawnWin : brickWin ? frontWin : isWin ? winDecal : isPoster ? (c2, w, hh) => { const pc = poster(r.k); if (pc) c2.drawImage(pc, Math.round((w - pc.width) / 2), 5); } : null;
       const k2 = (ext ? 'X' : r.k) + (isWin || extWin || brickWin ? 'w' : isPoster ? 'p' : '');
       items.push(...wallPiece(ax, ay, bx, by, face.n[0], face.n[1], k2 + (ext && !tall ? 'b' : ''), col, style, deco, tall, ext && !tall ? EXT_LOW : LOW_H));
     };
