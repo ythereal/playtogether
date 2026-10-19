@@ -46,6 +46,20 @@
     .camctl button:active { transform: translateY(1px); }
     @media (max-width: 640px) { .tab .alt, .tab.who span, .stat.opt, .mbtn kbd { display: none; } .bar { gap: 4px; padding: 6px; } .stat b { font-size: .9rem; } .status { font-size: .78rem; } .mbtn { padding: .3rem .45rem; font-size: .78rem; } }
 
+    /* ---------- building editor ---------- */
+    .editbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--barh, 70px) + 52px + env(safe-area-inset-bottom)); width: min(620px, calc(100% - 24px)); background: var(--surface); border: 2px solid var(--accent-2); border-radius: 16px; box-shadow: var(--shadow); padding: 8px 12px; display: grid; gap: 6px; z-index: 12; }
+    .editbar[hidden] { display: none; }
+    .eb-title { font-weight: 800; font-size: .95rem; }
+    .eb-hint { color: var(--muted); font-size: .85rem; line-height: 1.3; }
+    .eb-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .eb-list[hidden] { display: none; }
+    .chip { display: inline-flex; align-items: center; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .chip.on { border-color: var(--accent-2); box-shadow: inset 0 0 0 1px var(--accent-2); }
+    .chip button { appearance: none; border: 0; background: none; color: var(--ink); font: 600 .8rem var(--font); cursor: pointer; padding: .22rem .55rem; }
+    .chip .chip-x { color: var(--muted); padding: .22rem .45rem; border-left: 1px solid var(--line); }
+    .eb-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    @media (max-width: 640px) { .editbar { padding: 6px 8px; } .eb-hint { font-size: .78rem; } }
+
     /* ---------- fax tray ---------- */
     .faxes { position: fixed; left: 10px; bottom: calc(var(--barh, 70px) + 52px + env(safe-area-inset-bottom)); display: flex; flex-direction: column-reverse; gap: 6px; max-height: 50vh; }
     .faxbtn { appearance: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 210px; padding: 6px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font: 600 .8rem var(--font); }
@@ -151,6 +165,12 @@
       <button id="camFlat" title="Aerial view (V)">2D</button>
     </div>
     <div class="faxes" id="faxes"></div>
+    <div class="editbar" id="editbar" hidden>
+      <div class="eb-title" id="ebTitle"></div>
+      <div class="eb-hint" id="ebHint"></div>
+      <div class="eb-list" id="ebList"></div>
+      <div class="eb-btns" id="ebBtns"></div>
+    </div>
     <p class="status" id="status">Connecting…</p>
     <div class="bar">
       <span class="stat" id="stCash" title="Bank balance (F1 statement, F7 bank manager)"><small>Balance</small><b id="hudCash">$0</b></span>
@@ -164,6 +184,7 @@
       <button class="pt-btn bar-btn primary" id="startBtn" hidden>Start the match</button>
       <button class="pt-btn bar-btn primary" id="openBtn" hidden>Open the doors</button>
       <span class="menu">
+        <button class="mbtn" id="buildBtn" title="Build a room (B)">Build<kbd>B</kbd></button>
         <button class="mbtn" id="decorBtn" title="Place corridor objects">Corridor</button>
         <button class="mbtn" id="staffBtn" title="Hire and manage staff (F6)">Staff<kbd>F6</kbd></button>
         <button class="mbtn" id="caseBtn" title="Drug Casebook: diseases and prices (F2)">Casebook<kbd>F2</kbd></button>
@@ -193,7 +214,7 @@
       <h4>Getting started</h4>
       <ul class="tips">
         <li>Tap the dashed outline by the entrance to buy a <b>reception desk</b>, then hire a <b>receptionist</b>. Without both, no patients come.</li>
-        <li>Tap an empty lot to build. Every patient starts at a <b>GP's Office</b>. If the GP isn't sure, they visit diagnosis rooms (General Diagnosis, Ward, Cardiogram…), each adding to their <b>diagnosis %</b>, then return to a GP. The higher the %, the better their chance of surviving the cure.</li>
+        <li><b>Build</b> a room the way Theme Hospital does: drag a blueprint on the floor (each room has a minimum size), tap a wall for the door, add windows if you like, wait while the site clears and the walls go up, then place the furniture one piece at a time (Rotate turns it, or right-click; “Place for me” does it all). You pay for the furniture as it arrives and for the room itself when you finish. Rooms can't cut off any part of the hospital. Every patient starts at a <b>GP's Office</b>. If the GP isn't sure, they visit diagnosis rooms (General Diagnosis, Ward, Cardiogram…), each adding to their <b>diagnosis %</b>, then return to a GP. The higher the %, the better their chance of surviving the cure.</li>
         <li>Cures happen in the <b>Pharmacy</b> (drugs, with an effectiveness %), <b>Psychiatric</b> room (needs a psychiatrist), single-disease <b>clinics</b>, and the <b>Operating Theatre</b> (two surgeons; patients stay in a Ward first).</li>
         <li>You have a few minutes to build before patients arrive. Press <b>Open the doors</b> to start early.</li>
       </ul>
@@ -209,6 +230,7 @@
         <li>The <b>Research Dept.</b> (researcher doctors) splits points across Cure and Diagnosis equipment (new rooms), Drugs, Improvements (machine strength, then cheaper rooms) and Specialisation.</li>
         <li>The <b>Casebook</b> sets each charge as a % of a recommended price that grows with reputation. Overcharging drives patients to your rival; some cured patients refuse to pay. Insured patients pay at month end. The bank lends in $5,000 steps.</li>
         <li>Corridor objects: benches, plants, radiators (warmth: heat level is in Policy), fire extinguishers and drinks machines. Patients need toilets, or they wet themselves.</li>
+        <li>Tap a room to <b>edit</b> it (it empties first; then move, buy or sell furniture, or go back a step to resize or move it, all free) or <b>delete</b> it (half the room's price and all the furniture back). Windows, extra space and nearby extinguishers, bookcases, skeletons and bins make staff a little happier each day.</li>
       </ul>
       <h4>Events</h4>
       <ul class="tips">
@@ -217,7 +239,7 @@
       <h4>Winning</h4>
       <p class="tips" style="padding:0" id="legendWin"></p>
       <h4>Controls</h4>
-      <p class="tips" style="padding:0">Drag to pan, pinch or scroll to zoom, Q/E or ↺↻ to rotate, F to fit, V for the flat aerial view. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
+      <p class="tips" style="padding:0">Drag to pan, pinch or scroll to zoom, Q/E or ↺↻ to rotate, F to fit, V for the flat aerial view, B to build, R or right-click to rotate furniture. F1 statement · F2 casebook · F3 policy · F4 research · F6 staff · F7 bank · F8 status · Tab switches hospital · Shift+A hides the advisor line.</p>
       <h4>Diseases</h4>
       <table class="t" id="disTable"></table>
       <div class="row">
@@ -253,13 +275,14 @@
       <h2 id="roomTitle"></h2>
       <p class="sub" id="roomSub"></p>
       <div class="list" id="roomInfo"></div>
-      <div id="roomExtrasWrap"><h4>Extras</h4><div class="grid2" id="roomExtras"></div></div>
+      <div id="roomExtrasWrap"><h4>Add without emptying the room</h4><div class="grid2" id="roomExtras"></div></div>
       <div id="roomAssignWrap"><h4>Move staff in</h4><div class="list" id="roomAssign"></div></div>
       <p class="err" id="roomErr"></p>
       <div class="row">
         <span class="note" id="roomNote"></span>
         <button class="pt-btn pt-btn-ghost" id="roomClose">Close</button>
-        <button class="pt-btn" id="roomRaze" hidden>Demolish</button>
+        <button class="pt-btn pt-btn-ghost" id="roomRaze" hidden>Delete</button>
+        <button class="pt-btn" id="roomEdit" hidden>Edit room</button>
       </div>
     </div>
   </div>
@@ -328,6 +351,23 @@
     <div class="sheet" style="width:min(460px,100%)">
       <div class="fax" id="faxBody"></div>
       <div class="row"><button class="pt-btn pt-btn-ghost" id="faxClose">Later</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="shopSheet" hidden>
+    <div class="sheet">
+      <h2>Buy furniture</h2>
+      <p class="sub" id="shopSub"></p>
+      <div class="list" id="shopList"></div>
+      <div class="row"><button class="pt-btn" id="shopClose">Done</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="infoSheet" hidden>
+    <div class="sheet" style="width:min(460px,100%)">
+      <h2 id="infoTitle"></h2>
+      <div class="tips" id="infoBody" style="padding:0"></div>
+      <div class="row"><button class="pt-btn" id="infoClose">Got it</button></div>
     </div>
   </div>
 

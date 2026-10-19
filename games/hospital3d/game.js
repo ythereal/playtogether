@@ -7,7 +7,7 @@
   const { T } = HA;
   const DIRS = ['down', 'up', 'left', 'right'];
   const TICK = 1 / 60, SNAP_HZ = 10;
-  const PROTO = 2;   // snapshot format: bump whenever host and guest stop understanding each other
+  const PROTO = 3;   // snapshot format: bump whenever host and guest stop understanding each other
   let mismatch = '';   // who has the out-of-date copy: 'me' or 'friend'
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -81,21 +81,26 @@
   let pendingEv = [];
   function packH(h, full, ents) {
     const rm = {};
-    for (const k in h.rooms) { const r = h.rooms[k]; rm[k] = { k: r.k, bt: r1(r.bt), sts: r.sts, p: r.p, prog: r2(r.prog), n: r.n, q: r.q.length, dis: r.dis, str: r.str, used: r.used, wreck: r.wreck ? 1 : 0, ex: r.ex, water: r2(r.water), users: r.users.length }; }
+    for (const k in h.rooms) {
+      const r = h.rooms[k];
+      rm[k] = { id: r.id, k: r.k, phase: r.phase, rect: r.rect, door: r.door, wins: r.wins, objs: r.objs.map(ob => ({ id: ob.id, o: ob.o, x: ob.x, y: ob.y, r: ob.r, w: r2(ob.w == null ? 1 : ob.w) })), list: r.list, paid: r.paid,
+        sts: r.sts, p: r.p, prog: r2(r.prog), n: r.n, q: r.q.length, dis: r.dis, str: r.str, used: r.used, users: r.users.length, sp: r.sp && { p: r.sp.p, s: r.sp.s, seats: r.sp.seats.length } };
+    }
     const dry = []; for (const k in h.decor) if (h.decor[k] === 'plant' && (h.water[k] || 0) <= 0) dry.push(k);
     const ps = patStat(h.pats);
-    const o = { cash: h.cash, loan: h.loan, rep: h.rep, cured: h.cured, died: h.died, angry: h.angry, home: h.home, seen: h.seen, visits: h.visits, open: h.open, desk: h.desk,
+    const o = { lv: h.lv, cash: h.cash, loan: h.loan, rep: h.rep, cured: h.cured, died: h.died, angry: h.angry, home: h.home, seen: h.seen, visits: h.visits, open: h.open, desk: h.desk,
       comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, dry, mess: h.mess,
       em: h.em ? { dis: h.em.dis, n: h.em.n, saved: h.em.saved, end: r1(h.em.end) } : null, epi: h.epi ? { phase: h.epi.phase, t: r1(h.epi.t), dis: h.epi.dis } : null, pstat: ps,
-      res: { done: h.res.done, disc: h.res.disc },
       staff: h.staff.map(s => ({ id: s.id, k: s.k, nm: s.nm, sk: s.sk, q: s.q, sal: s.sal, slot: s.slot, desk: s.desk, room: s.room, x: r1(s.x), y: r1(s.y), f: s.f, mv: s.mv, gone: s.gone ? 1 : 0, look: s.look,
-        cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, quit: s.quit, inRoom: s.inRoom })) };
+        cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, quit: s.quit })), res: undefined };
     if (ents) {
       o.pats = h.pats.map(q => ({ id: q.id, nm: q.nm, dis: q.dis, dx: q.dx, x: r1(q.x), y: r1(q.y), f: q.f, mv: q.mv, st: q.st, slot: q.slot, pat: Math.round(q.pat), look: q.look, why: q.why,
-        hp: r2(q.hp), dg: r2(q.dg), em: q.em, inf: q.inf, vax: q.vax, mk: q.mk, inRoom: q.inRoom }));
+        hp: r2(q.hp), dg: r2(q.dg), em: q.em, inf: q.inf, vax: q.vax, mk: q.mk }));
       o.vis = h.vis.map(v => ({ id: v.id, k: v.k, x: r1(v.x), y: r1(v.y), f: v.f, mv: v.mv }));
       o.rats = h.rats.map(v => ({ id: v.id, x: r1(v.x), y: r1(v.y), f: v.f }));
     }
+    o.res = { done: h.res.done, disc: h.res.disc };
+    o.built = h.built;
     if (full) Object.assign(o, { pol: h.pol, price: h.price, dprice: h.dprice, res: h.res, known: h.known, cb: h.cb, fin: h.fin, owed: h.owed, fax: h.fax, specStr: h.specStr || {} });
     return o;
   }
@@ -122,7 +127,7 @@
     for (const e of m.ev || []) onEvent(e);
     onPhase(); refreshSheets();
   }
-  const SAVE_EV = new Set(['month', 'over', 'built', 'hired', 'fired', 'razed', 'start', 'profile', 'decor', 'undecor', 'desk', 'extra', 'research', 'boom', 'replaced', 'raise', 'resigned', 'open']);
+  const SAVE_EV = new Set(['month', 'over', 'built', 'bp', 'walls', 'bought', 'cleared', 'hired', 'fired', 'razed', 'start', 'profile', 'decor', 'undecor', 'desk', 'research', 'boom', 'replaced', 'raise', 'resigned', 'open']);
   // friendOld: the other player is running an older copy of the game than this one
   function versionMismatch(friendOld) {
     const who = friendOld ? 'friend' : 'me';
@@ -145,13 +150,25 @@
   function doAct(p, m) {
     const s = state, n = v => (v == null ? -1 : +v | 0);
     switch (m.t) {
-      case 'build': return RH.build(s, p, n(m.slot), String(m.kind));
-      case 'raze': return RH.demolish(s, p, n(m.slot));
-      case 'extra': return RH.buyExtra(s, p, n(m.slot), String(m.e));
-      case 'replace': return RH.replaceMachine(s, p, n(m.slot));
+      case 'bp': { const rc = m.rect || {}; return RH.bpPlace(s, p, m.id == null ? null : n(m.id), String(m.kind), { x: n(rc.x), y: n(rc.y), w: n(rc.w), h: n(rc.h) }); }
+      case 'door': return RH.doorPlace(s, p, n(m.id), n(m.x), n(m.y), n(m.d));
+      case 'win': return RH.winToggle(s, p, n(m.id), n(m.x), n(m.y), n(m.d));
+      case 'wdone': return RH.winsDone(s, p, n(m.id));
+      case 'oplace': return RH.objPlace(s, p, n(m.id), n(m.li), n(m.x), n(m.y), n(m.r));
+      case 'opick': return RH.objPick(s, p, n(m.id), n(m.oid));
+      case 'osell': return RH.objSell(s, p, n(m.id), m.oid == null ? null : n(m.oid), n(m.li));
+      case 'obuy': return RH.objBuy(s, p, n(m.id), String(m.o));
+      case 'oauto': return RH.autoPlace(s, p, n(m.id));
+      case 'finish': return RH.finishBuild(s, p, n(m.id));
+      case 'back': return RH.buildBack(s, p, n(m.id));
+      case 'del': return RH.deleteRoom(s, p, n(m.id));
+      case 'edit': return RH.editRoom(s, p, n(m.id));
+      case 'clear': return RH.clearWreck(s, p, n(m.id));
+      case 'extra': return RH.addExtra(s, p, n(m.id), String(m.o));
+      case 'replace': return RH.replaceMachine(s, p, n(m.id));
       case 'hire': return RH.hire(s, p, n(m.id));
       case 'fire': return RH.fire(s, p, n(m.id));
-      case 'place': return RH.place(s, p, n(m.id), n(m.slot));
+      case 'place': return RH.place(s, p, n(m.id), n(m.room));
       case 'train': return RH.setTrain(s, p, n(m.id), !!m.on);
       case 'pri': return RH.setPri(s, p, n(m.id), String(m.pri));
       case 'pay': return RH.pay(s, p, n(m.id), m.kind === 'bonus' ? 'bonus' : 'raise');
@@ -243,7 +260,7 @@
       case 'repaired': if (mine) toast(`Machine repaired · strength now ${e.str}`, 'dim'); break;
       case 'boom': {
         if (mine) toast(`BOOM! The ${rname(e.kind)} machine exploded. Everyone inside died and the room is wrecked.`, 'bad');
-        const cx = RH.slotCx(e.slot), cy = RH.slotY0(e.slot) * T + 32;
+        const cx = e.x, cy = e.y;
         for (let i = 0; i < 40; i++) sparks.push({ p: e.p, x: cx + (Math.random() - .5) * 40, y: cy + (Math.random() - .5) * 40, z: Math.random() * 30, vx: (Math.random() - .5) * 90, vy: (Math.random() - .5) * 90, life: .6 + Math.random() * .8, col: ['#ffd23f', '#ff6b57', '#f4f0e6', '#5a5246'][i % 4] });
         if (e.p === tab) { shake = 1.2; flash = { life: 0.4 }; }
         break;
@@ -260,7 +277,14 @@
       case 'decor': if (!mine) toast(`${nameOf(e.p)} added a ${RH.DECOR[e.kind].name.toLowerCase()}`, 'dim'); break;
       case 'month': if (mine) { const f = e.fin || {}; let inc = 0, out = 0; for (const k in f) { if (f[k] > 0) inc += f[k]; else out -= f[k]; } toast(`${RH.MONTH_NAMES[(e.m - 1) % 12]}: in ${money(inc)} · out ${money(out)}`, inc >= out ? 'dim' : 'bad'); } break;
       case 'pool': if (staffTab !== 'pay') lastPoolKey = ''; break;
-      case 'built': if (!mine) toast(`${nameOf(e.p)} built a ${rname(e.kind)}`, 'dim'); break;
+      case 'built':
+        if (!mine) { toast(`${nameOf(e.p)} built a ${rname(e.kind)}`, 'dim'); break; }
+        if (e.first) roomInfo(e.kind);
+        else toast(`${rname(e.kind)} open for business`, 'good');
+        if (e.hint) setTimeout(() => toast(`Your new ${rname(e.kind)} needs a ${needWord(e.kind)}: hire one under Staff`, 'bad'), 900);
+        break;
+      case 'walls': if (mine) toast('The walls are up. Now place the furniture.', 'dim'); break;
+      case 'cleared': if (mine) toast(`The wrecked ${rname(e.kind)} has been cleared away`, 'dim'); break;
       case 'desk': if (mine) toast('Reception desk installed. Now hire a receptionist under Staff.', 'good'); break;
       case 'open': if (!mine) toast(`${nameOf(e.p)} has opened the doors`, 'dim'); else toast('The doors are open!', 'good'); break;
       case 'profile': hudKey = ''; statusKey = ''; setStatus(); break;
@@ -269,7 +293,7 @@
       case 'resigned': if (mine) toast(`${e.nm} resigned and walked out`, 'bad'); break;
       case 'raise': if (mine) toast(`${e.nm} got a raise: ${money(e.sal)}/month`, 'dim'); break;
       case 'bonus': if (mine) toast(`${e.nm} is delighted with the bonus`, 'dim'); break;
-      case 'razed': if (mine) toast(`Demolished the ${rname(e.kind)} · 40% refunded`, 'dim'); break;
+      case 'razed': if (mine) toast(e.paid ? `${rname(e.kind)} deleted · half the shell and all the furniture refunded` : 'Building cancelled · furniture refunded', 'dim'); break;
       case 'emStart': if (mine) toast(`Emergency! ${e.n} patients with ${dname(e.dis)} are on their way`, 'bad'); break;
       case 'emEnd': if (mine) toast(e.pay ? `Emergency over: ${e.saved}/${e.n} saved · bonus ${money(e.pay)}` : `Emergency over: only ${e.saved}/${e.n} saved, no bonus`, e.pay ? 'good' : 'bad'); break;
       case 'vipIn': if (mine) toast(`${cap(e.who)} has arrived for a tour`, 'dim'); break;
@@ -335,15 +359,16 @@
     if (view.ph === 'over') return ['Game over. ' + (host ? 'Press Play again for a rematch.' : 'Ask the host for a rematch.')];
     if (tab !== ME) return [`Peeking at ${nameOf(FRIEND)}'s hospital. Tap a room to see what they have.`];
     if (hoverTxt) return [hoverTxt, 'info'];
-    const h = view.h[ME], rooms = Object.entries(h.rooms).filter(([, r]) => !r.wreck), live = h.staff.filter(s => !s.gone);
+    const h = view.h[ME], rooms = Object.entries(h.rooms).filter(([, r]) => r.phase === 'built'), live = h.staff.filter(s => !s.gone);
+    const ed = edAdvice(); if (ed) return ed;
     if (!h.desk) return ['Tap the dashed outline by the entrance to buy a reception desk ($150). Without one, no patients come.', 'warn'];
     if (!live.some(s => s.k === 'r')) return ['Hire a receptionist under Staff. Without one, no patients come.', 'warn'];
-    if (!rooms.some(([, r]) => r.k === 'gp')) return ['Build a GP\'s Office: every patient starts there. Tap an empty lot.', 'warn'];
+    if (!rooms.some(([, r]) => r.k === 'gp')) return ['Build a GP\'s Office: every patient starts there. Press Build.', 'warn'];
     if (h.epi && h.epi.phase === 'cover') return [`Cover-up! Tap patients with the bug icon to vaccinate them, then cure them. Inspector arrives in ${Math.max(0, Math.round(h.epi.t - view.t))}s`, 'warn'];
     if (h.em) return [`Emergency: ${h.em.saved}/${h.em.n} with ${dname(h.em.dis)} cured · ${Math.max(0, Math.round(h.em.end - view.t))}s left`, 'warn'];
     const smoking = rooms.find(([, r]) => RH.ROOMS[r.k].mach && r.used > r.str);
     if (smoking) return [`The ${rname(smoking[1].k)} machine is smoking! Get a handyman to repair it or replace it before it explodes.`, 'warn'];
-    const unst = rooms.find(([, r]) => r.bt <= 0 && RH.capacity(r) && r.sts.length < (RH.ROOMS[r.k].need || 1));
+    const unst = rooms.find(([, r]) => RH.capacity(r) && r.sts.length < (RH.ROOMS[r.k].need || 1));
     if (unst) return [`Your ${rname(unst[1].k)} needs a ${needWord(unst[1].k)}. Hire one under Staff.`, 'warn'];
     if (!h.open && view.t < RH.GRACE) return [`Patients start arriving in ${Math.ceil(RH.GRACE - view.t)}s. Build and hire now, or open the doors early.`];
     if (h.mess.length >= 4 && !live.some(x => x.k === 'h')) return [`${h.mess.length} messes on the floor and nobody to clean them. Hire a handyman.`, 'warn'];
@@ -355,7 +380,7 @@
     if (h.fax.length) return ['You have faxes waiting at the bottom left.'];
     if (!rooms.some(([, r]) => r.k !== 'gp' && RH.ROOMS[r.k].cat !== 'fac')) return ['Build a Pharmacy and a General Diagnosis room next.'];
     if (!rooms.some(([, r]) => r.k === 'research')) return ['A Research Dept. (with a Researcher doctor) unlocks new rooms and better drugs.'];
-    return ['Tap a lot to build · tap the corridor to place objects · tap people for details · F1–F8 for screens'];
+    return ['Build adds rooms · tap a room to manage it · Corridor places objects · tap people for details · F1–F8 for screens'];
   }
   function setStatus() {
     placeStatus();
@@ -419,7 +444,7 @@
         const d = RH.DISEASES[f.dis];
         body.append(el('h3', null, `Patient: ${f.nm}`), P(`Your doctors are only ${f.dg}% sure what's wrong, and there are no more diagnosis rooms to try. (Policy: send home below ${pol.home}%, cure above ${pol.guess}%.)`), P(`Best guess: ${d.name}. The odds of a cure are roughly ${f.dg}%; a failed cure for a serious disease is fatal.`));
         opt(`Guess at the cure (${f.dg}% odds)`, 'guess', true); opt('Wait while you build more diagnosis rooms', 'wait'); opt('Send them home', 'home');
-        if (view.h[ME].rooms && Object.values(view.h[ME].rooms).some(r => r.k === 'research' && !r.wreck)) opt('Auto-Autopsy (research boost, reputation −8)', 'autopsy');
+        if (view.h[ME].rooms && Object.values(view.h[ME].rooms).some(r => r.k === 'research' && r.phase === 'built')) opt('Auto-Autopsy (research boost, reputation −8)', 'autopsy');
         break;
       }
       case 'nocure': {
@@ -427,7 +452,7 @@
         const locked = !RH.unlocked(view.h[ME], rk);
         body.append(el('h3', null, `Patient: ${f.nm}`), P(`Diagnosed with ${d.name}. It's cured in a ${rname(rk)}${rk === 'op' ? ' (after a stay in a Ward)' : ''}, which you don't have.` + (locked ? ' You need to research it first (Cure Equipment).' : '')));
         opt('Wait while you build one', 'wait', !locked); opt('Send them home', 'home', locked);
-        if (Object.values(view.h[ME].rooms).some(r => r.k === 'research' && !r.wreck)) opt('Auto-Autopsy (research boost, reputation −8)', 'autopsy');
+        if (Object.values(view.h[ME].rooms).some(r => r.k === 'research' && r.phase === 'built')) opt('Auto-Autopsy (research boost, reputation −8)', 'autopsy');
         break;
       }
       case 'raise': {
@@ -457,10 +482,10 @@
   $('faxClose').addEventListener('click', () => { $('faxSheet').hidden = true; openFax = null; });
 
   // ============================ sheets ============================
-  const sheets = ['legend', 'buildSheet', 'roomSheet', 'staffSheet', 'over', 'profile', 'decorSheet', 'caseSheet', 'polSheet', 'resSheet', 'bankSheet', 'statSheet', 'faxSheet'];
+  const sheets = ['legend', 'buildSheet', 'roomSheet', 'staffSheet', 'over', 'profile', 'decorSheet', 'caseSheet', 'polSheet', 'resSheet', 'bankSheet', 'statSheet', 'faxSheet', 'shopSheet', 'infoSheet'];
   const panelOpen = () => sheets.some(id => !$(id).hidden);
-  function closeSheets() { for (const id of sheets) if (id !== 'legend' && id !== 'over') $(id).hidden = true; openSlot = null; openFax = null; }
-  let openSlot = null, razeArmed = false;
+  function closeSheets() { for (const id of sheets) if (id !== 'legend' && id !== 'over') $(id).hidden = true; openFax = null; }
+  let razeArmed = false;
   let fireArmed = null;        // { id, at }: a Fire button waiting for its confirming second tap
   const FIRE_ARM_MS = 2500;
   const errFor = id => { $(id).textContent = lastErr && performance.now() - lastErr.at < 4000 ? lastErr.m : ''; };
@@ -480,41 +505,47 @@
 
   // ---- build ----
   let buildCat = 'diag';
-  function openBuild(k) { openSlot = k; razeArmed = false; lastErr = null; $('buildSheet').hidden = false; $('buildList').dataset.key = ''; refreshBuild(); }
+  function openBuild() { if (tab !== ME) setTab(ME); closeSheets(); lastErr = null; $('buildSheet').hidden = false; $('buildList').dataset.key = ''; refreshBuild(); }
   function refreshBuild() {
     if ($('buildSheet').hidden || !view) return;
     const h = view.h[ME];
-    if (h.rooms[openSlot] || view.ph !== 'play') { $('buildSheet').hidden = true; return; }
-    $('buildSub').textContent = `Lot ${openSlot + 1} · you have ${money(h.cash)}`;
+    if (view.ph !== 'play') { $('buildSheet').hidden = true; return; }
+    const busy = RH.editing(h);
+    $('buildSub').textContent = busy ? `Finish the ${rname(busy.k)} you're building first.` : `You have ${money(h.cash)}. The price covers the room and its required furniture.`;
     const cats = $('buildCats');
-    if (!cats.children.length) for (const [c, nm] of RH.CATS) cats.append(btn(nm, '', () => { buildCat = c; $('buildList').dataset.key = ''; [...cats.children].forEach(b => b.classList.toggle('on', b.dataset.c === buildCat)); refreshBuild(); }));
-    [...cats.children].forEach((b, i) => { b.dataset.c = RH.CATS[i][0]; b.classList.toggle('on', b.dataset.c === buildCat); });
+    if (!cats.children.length) for (const [c, nm] of RH.CATS) { const b = btn(nm, '', () => { buildCat = c; $('buildList').dataset.key = ''; refreshBuild(); }); b.dataset.c = c; cats.append(b); }
+    [...cats.children].forEach(b => b.classList.toggle('on', b.dataset.c === buildCat));
     // Rebuilt only when what it shows changes: replacing a button mid-press swallows the click.
     const list = $('buildList');
-    const kinds = RH.ROOM_ORDER.filter(k => (RH.ROOMS[k].cat === 'treat' && buildCat === 'treat') || RH.ROOMS[k].cat === buildCat);
-    const key = [openSlot, buildCat].concat(kinds.map(k => (RH.unlocked(h, k) ? 1 : 0) + (h.cash < RH.roomCost(h, k) ? 0 : 2))).join('|');
+    const kinds = RH.ROOM_ORDER.filter(k => RH.inCat(k, buildCat));
+    const key = [buildCat, !!busy].concat(kinds.map(k => (RH.unlocked(h, k) ? 1 : 0) + (h.cash < RH.roomCost(h, k) ? 0 : 2))).join('|');
     if (list.dataset.key !== key) {
       list.dataset.key = key; list.replaceChildren();
       for (const kind of kinds) {
         const R = RH.ROOMS[kind], open = RH.unlocked(h, kind), cost = RH.roomCost(h, kind);
         const cures = RH.DISEASES.filter(d => d.room === kind).map(d => d.name);
-        const b = el('button', 'item room' + (open ? '' : ' locked')); b.disabled = !open || h.cash < cost;
+        const b = el('button', 'item room' + (open ? '' : ' locked')); b.disabled = !open || !!busy;
         const body = el('div');
         let what = '';
         if (kind === 'gp') what = 'First diagnosis for every patient. Consultants diagnose most cases in one visit.';
         else if (R.cat === 'diag') what = `Adds to the diagnosis % (finds ${R.det.split(' ').map(g => ({ pharm: 'drug', psych: 'mental', clinic: 'clinic', op: 'surgical' })[g]).join(', ')} illnesses). Fee ${money(R.fee)}.`;
         else if (kind === 'ward') what = 'Diagnoses, and prepares patients for surgery. More beds, faster stays.';
         else if (kind === 'psych') what = 'Diagnoses and cures mental illness: ' + cures.join(', ') + '.';
-        else if (kind === 'staff') what = 'Tired staff rest here: one sofa each.';
-        else if (kind === 'toilet') what = 'One patient per cubicle. Drinks and some illnesses send people often.';
-        else if (kind === 'research') what = 'Researchers unlock rooms, improve drugs and machines. One desk per researcher.';
-        else if (kind === 'training') what = 'A consultant teaches students skill and their qualifications.';
+        else if (kind === 'staff') what = 'Tired staff rest here: one sofa, video game or pool table each.';
+        else if (kind === 'toilet') what = 'One patient per toilet. Build at least one sink.';
+        else if (kind === 'research') what = 'Researchers unlock rooms, improve drugs and machines. One desk or computer per researcher.';
+        else if (kind === 'training') what = 'A consultant teaches; one student per lecture chair.';
         else what = 'Cures ' + (cures.join(', ') || '—') + '.';
         const need = R.staff ? ` Needs ${R.need ? 'two surgeons' : 'a ' + needWord(kind)}.` : '';
-        const mach = R.mach ? ` Machine strength ${RH.machStr(h, kind)}.` : '';
-        body.append(el('b', null, R.name), el('small', null, open ? what + need + mach : `Not researched yet (${RH.RESEARCH.cure.list.includes(kind) ? 'Cure' : 'Diagnosis'} Equipment). ` + what));
-        b.append(body, el('span', 'price', money(cost)));
-        b.addEventListener('click', () => { act('build', { slot: openSlot, kind }); $('buildSheet').hidden = true; });
+        const size = ` At least ${R.min}×${R.min}${R.swing ? ', double doors' : ''}.`;
+        body.append(el('b', null, R.name), el('small', null, open ? what + need + size : `Not researched yet (${RH.RESEARCH.cure.list.includes(kind) ? 'Cure' : 'Diagnosis'} Equipment). ` + what));
+        const price = el('span', 'price' + (h.cash < cost ? ' bad' : ''), money(cost));
+        b.append(body, price);
+        // the cost check: refused with a hint about loans if you can't afford it
+        b.addEventListener('click', () => {
+          if (h.cash < cost) { fail(`You need ${money(cost)} for a ${R.name}. The Bank Manager can lend you money.`); return; }
+          startBlueprint(kind);
+        });
         list.append(b);
       }
     }
@@ -522,70 +553,284 @@
   }
 
   // ---- a room ----
-  function openRoom(k) { openSlot = k; razeArmed = false; lastErr = null; $('roomSheet').hidden = false; $('roomSheet').dataset.key = ''; refreshRoom(); }
+  let openId = null;
+  function openRoom(id) { openId = id; razeArmed = false; lastErr = null; closeSheets(); openId = id; $('roomSheet').hidden = false; $('roomSheet').dataset.key = ''; refreshRoom(); }
   function refreshRoom() {
     if ($('roomSheet').hidden || !view) return;
-    const h = view.h[tab], r = h.rooms[openSlot];
+    const h = view.h[tab], r = h.rooms[openId];
     if (!r) { $('roomSheet').hidden = true; return; }
-    const R = RH.ROOMS[r.k], mine = tab === ME && view.ph === 'play';
+    const R = RH.ROOMS[r.k], mine = tab === ME && view.ph === 'play', built = r.phase === 'built', wreck = r.phase === 'wreck';
     const sts = r.sts.map(id => h.staff.find(s => s.id === id)).filter(Boolean);
     const pt = r.p != null && h.pats ? h.pats.find(x => x.id === r.p) : null;
-    const cands = mine && R.staff ? h.staff.filter(s => !s.gone && !r.sts.includes(s.id) && RH.eligible(s, r.k)).sort((a, b) => b.sk - a.sk).slice(0, 6) : [];
-    const key = [tab, openSlot, r.k, r.bt > 0 ? 1 : 0, r.wreck, r.n, qn(r), un(r), r.str, r.used, JSON.stringify(r.ex), sts.map(s => `${s.id}:${Math.round(s.tired * 10)}:${Math.round(s.hap * 10)}`).join(','),
-      pt ? `${pt.id}:${Math.round(r.prog * 20)}` : '', mine, razeArmed, Math.floor(h.cash / 500), cands.map(c => c.id).join(',')].join('|');
+    const cands = mine && built && R.staff ? h.staff.filter(s => !s.gone && !r.sts.includes(s.id) && RH.eligible(s, r.k)).sort((a, b) => b.sk - a.sk).slice(0, 6) : [];
+    const objKey = r.objs.map(o => o.o).join(',');
+    const key = [tab, openId, r.k, r.phase, r.n, qn(r), un(r), r.str, r.used, objKey, sts.map(s => `${s.id}:${Math.round(s.tired * 10)}:${Math.round(s.hap * 10)}`).join(','),
+      pt ? `${pt.id}:${Math.round(r.prog * 20)}` : '', mine, razeArmed, Math.floor(h.cash / 500), cands.map(c => c.id).join(','), !!RH.editing(view.h[ME])].join('|');
     if ($('roomSheet').dataset.key === key) { errFor('roomErr'); return; }
     $('roomSheet').dataset.key = key;
     $('roomTitle').textContent = R.name + (tab !== ME ? ' (rival)' : '');
-    $('roomSub').textContent = r.wreck ? 'Wrecked by an exploding machine. It can never be used, edited or demolished.' : r.bt > 0 ? 'Under construction…' : `Lot ${openSlot + 1} · ${r.n} patient${r.n === 1 ? '' : 's'} seen · ${qn(r)} waiting`;
+    $('roomSub').textContent = wreck ? 'Wrecked by an exploding machine: out of use for good.' : !built ? 'Being built…' : `${r.rect.w}×${r.rect.h} · ${r.wins.length} window${r.wins.length === 1 ? '' : 's'} · ${r.n} patient${r.n === 1 ? '' : 's'} seen · ${qn(r)} waiting`;
     const info = $('roomInfo'); info.replaceChildren();
     const row = (icon, title, sub, right) => { const it = el('div', 'item'); it.append(icon || el('span', null, ''), (() => { const b = el('div'); b.append(el('b', null, title)); if (sub) b.append(sub instanceof Node ? sub : el('small', null, sub)); return b; })(), right || el('span')); info.append(it); return it; };
-    if (!r.wreck) {
+    if (built) {
       for (const s of sts) {
         const sub = el('small'); sub.append(skillTxt(s) + ' · tired', meter(s.tired, s.tired > 0.7 ? 'bad' : s.tired > 0.4 ? 'warn' : ''), 'happy', meter(s.hap, s.hap < 0.3 ? 'bad' : s.hap < 0.5 ? 'warn' : ''));
         const t = el('div'); t.append(el('b', null, s.nm), quals(s)); const it = el('div', 'item'); it.append(staffSprite(s), (() => { const b = el('div'); b.append(t, sub); return b; })(), el('span')); info.append(it);
       }
-      if (R.staff && sts.length < RH.capacity(r)) row(el('span', null, '—'), r.k === 'research' ? `${sts.length}/${RH.capacity(r)} researchers` : 'Nobody working here' + (R.need && sts.length ? ' (needs two)' : ''), `Needs a ${needWord(r.k)}${r.k === 'research' ? ' per desk' : ''}. Hire one under Staff${cands.length ? ' or move one in below' : ''}.`);
-      if (r.k === 'staff') row(el('span', null, '☕'), `${un(r)}/${r.ex.seat || 0} sofas in use`, `Staff rest here when tiredness reaches ${view.h[ME].pol ? view.h[ME].pol.rest : 60}% (Policy).`);
-      if (r.k === 'toilet') row(el('span', null, '🚻'), `${un(r)}/${r.ex.cub || 0} cubicles in use`, 'Patients nip in while they queue and keep their place.');
-      if (r.k === 'training') row(el('span', null, '🎓'), `${un(r)}/${r.ex.chair || 0} students`, 'Tick “Train” on a doctor in the Staff screen to send them. Students can\'t pass the teacher\'s skill.');
-      if (pt) row(spriteCanvas(HA.patientSheet(pt.look, patVis(pt.dis)), 33), pt.nm, (pt.dx ? (R.cat === 'diag' || r.k === 'ward' && !pt.dx ? 'Diagnosing ' : 'Treating ') + dname(pt.dis) : `Diagnosing · ${Math.round(pt.dg * 100)}% so far`) + ` · ${Math.round(r.prog * 100)}%`);
+      if (R.staff && sts.length < RH.capacity(r)) row(el('span', null, '—'), r.k === 'research' ? `${sts.length}/${RH.capacity(r)} researchers` : 'Nobody working here' + (R.need && sts.length ? ' (needs two)' : ''), `Needs a ${needWord(r.k)}${r.k === 'research' ? ' per desk or computer' : ''}. Hire one under Staff${cands.length ? ' or move one in below' : ''}.`);
+      const seats = r.sp ? r.sp.seats : 0;
+      if (r.k === 'staff') row(el('span', null, '☕'), `${un(r)}/${seats} resting`, `One per sofa, video game or pool table. Staff rest at ${view.h[ME].pol ? view.h[ME].pol.rest : 60}% tiredness (Policy).`);
+      if (r.k === 'toilet') row(el('span', null, '🚻'), `${un(r)}/${seats} toilets in use`, RH.countObj(r, 'sink') ? 'Patients nip in while they queue and keep their place.' : 'No sink! Patients who can\'t wash are less happy.');
+      if (r.k === 'training') row(el('span', null, '🎓'), `${un(r)}/${seats} students`, `Teaching speed ×${RH.teachSpeed(r).toFixed(1)} (projectors, skeletons, bookcases). Tick “Train” on a doctor in the Staff screen.`);
+      if (pt) row(spriteCanvas(HA.patientSheet(pt.look, patVis(pt.dis)), 33), pt.nm, (pt.dx ? 'Treating ' + dname(pt.dis) : `Diagnosing · ${Math.round(pt.dg * 100)}% so far`) + ` · ${Math.round(r.prog * 100)}%`);
       if (R.mach) {
         const left = r.str - r.used, sub = el('small');
-        sub.append(`Strength ${r.str} · used ${r.used} times · `, left > 0 ? `${left} uses left` : el('b', 'bad', 'SMOKING'), meter(left / Math.max(1, r.str), left <= 2 ? 'bad' : left <= 4 ? 'warn' : ''));
-        const cost = Math.round(R.cost * 0.5);
-        row(el('span', null, '⚙'), 'Machine', sub, mine ? btn(`Replace ${money(cost)}`, 'pt-btn pt-btn-small pt-btn-ghost', () => act('replace', { slot: openSlot }), h.cash < cost) : null);
+        sub.append(`${RH.OBJ[R.p].name}: strength ${r.str} · used ${r.used} times · `, left > 0 ? `${left} uses left` : el('b', 'bad', 'SMOKING'), meter(left / Math.max(1, r.str), left <= 2 ? 'bad' : left <= 4 ? 'warn' : ''));
+        const cost = RH.replaceCost(h, r.k);
+        row(el('span', null, '⚙'), 'Machine', sub, mine ? btn(`Replace ${money(cost)}`, 'pt-btn pt-btn-small pt-btn-ghost', () => act('replace', { id: openId }), h.cash < cost) : null);
       }
       const cures = RH.DISEASES.filter(d => d.room === r.k);
       if (cures.length) row(el('span', null, '✚'), 'Cures', cures.map(d => d.name).join(', '));
       else if (R.fee) row(el('span', null, '?'), 'Diagnosis', `Fee ${money(RH.diagFee(h.price ? h : view.h[ME], r.k))} per visit.`);
     }
-    // extras (the till)
+    // quick extras for a working room: the standard four go in without emptying it
     const exWrap = $('roomExtras'); exWrap.replaceChildren();
-    const exKinds = r.wreck || r.bt > 0 ? [] : RH.extrasFor(r.k);
-    $('roomExtrasWrap').hidden = !exKinds.length || !mine;
-    for (const e of exKinds) {
-      const E = RH.EXTRAS[e], have = (r.ex && r.ex[e]) || 0;
-      const b = el('button', 'item room'); b.disabled = !mine || have >= E.max || h.cash < E.cost;
-      const body = el('div'); body.append(el('b', null, `${E.name} ${have}/${E.max}`), el('small', null, E.desc));
-      b.append(body, el('span', 'price', have >= E.max ? 'full' : money(E.cost)));
-      b.addEventListener('click', () => act('extra', { slot: openSlot, e }));
+    const quick = built && mine ? RH.STD4.filter(o => R.extra.includes(o)) : [];
+    $('roomExtrasWrap').hidden = !quick.length;
+    for (const o of quick) {
+      const B = RH.OBJ[o], have = RH.countObj(r, o), c = RH.objCost(h, o);
+      const b = el('button', 'item room'); b.disabled = !mine || h.cash < c;
+      const body = el('div'); body.append(el('b', null, `${B.name} (${have})`), el('small', null, { ext: 'Lowers explosion odds; staff feel safe.', rad: 'Warms the room.', plant: 'Cheers staff up; needs watering.', bin: 'Less litter about.' }[o]));
+      b.append(body, el('span', 'price', '+ ' + money(c)));
+      b.addEventListener('click', () => act('extra', { id: openId, o }));
       exWrap.append(b);
     }
     const asg = $('roomAssign'); asg.replaceChildren();
-    $('roomAssignWrap').hidden = !cands.length || r.wreck || r.bt > 0;
+    $('roomAssignWrap').hidden = !cands.length;
     for (const s of cands) {
       const it = el('div', 'item'), t = el('div'); t.append(el('b', null, s.nm), quals(s));
       const where = s.desk ? 'reception' : s.slot != null && h.rooms[s.slot] ? rname(h.rooms[s.slot].k) : s.mode === 'rest' ? 'resting' : s.mode === 'train' ? 'training' : 'idle';
       const b2 = el('div'); b2.append(t, el('small', null, `${skillTxt(s)} · ${where}`));
-      it.append(staffSprite(s), b2, btn('Move here', 'pt-btn pt-btn-small', () => act('place', { id: s.id, slot: openSlot })));
+      it.append(staffSprite(s), b2, btn('Move here', 'pt-btn pt-btn-small', () => act('place', { id: s.id, room: openId })));
       asg.append(it);
     }
-    $('roomRaze').hidden = !mine || r.wreck;
-    $('roomRaze').textContent = razeArmed ? `Really demolish? +${money(R.cost * 0.4)}` : 'Demolish';
-    $('roomNote').textContent = mine && !r.wreck ? 'Demolishing refunds 40% of the cost.' : '';
+    // edit, delete, clear the wreckage
+    const busy = RH.editing(view.h[ME]);
+    $('roomEdit').hidden = !mine || !built;
+    $('roomEdit').disabled = !!busy;
+    $('roomRaze').hidden = !mine || !(built || wreck);
+    const half = Math.round(RH.shellCost(h, r.k) / 2);
+    $('roomRaze').textContent = wreck ? `Clear the wreckage −${money(RH.wreckCost(r.k))}` : razeArmed ? `Really delete? +${money(half)} + furniture` : 'Delete';
+    $('roomNote').textContent = !mine ? '' : wreck ? 'The original game never lets you touch a destroyed room; this is CorsixTH\'s paid option.' : busy ? `Finish the ${rname(busy.k)} first to edit this room.` : 'Edit to rearrange, buy or sell furniture, resize or move it (free). Deleting refunds half the shell and the furniture.';
     errFor('roomErr');
   }
-  $('roomRaze').addEventListener('click', () => { if (!razeArmed) { razeArmed = true; $('roomSheet').dataset.key = ''; refreshRoom(); return; } act('raze', { slot: openSlot }); $('roomSheet').hidden = true; });
+  $('roomRaze').addEventListener('click', () => {
+    const r = view.h[ME].rooms[openId]; if (!r) return;
+    if (r.phase === 'wreck') { act('clear', { id: openId }); $('roomSheet').hidden = true; return; }
+    if (!razeArmed) { razeArmed = true; $('roomSheet').dataset.key = ''; refreshRoom(); return; }
+    act('del', { id: openId }); $('roomSheet').hidden = true;
+  });
+  $('roomEdit').addEventListener('click', () => { act('edit', { id: openId }); $('roomSheet').hidden = true; ed = null; edLi = 0; });
+  // the information window the first time each room type is built
+  function roomInfo(kind) {
+    const R = RH.ROOMS[kind];
+    $('infoTitle').textContent = R.name + ' built!';
+    const body = $('infoBody'); body.replaceChildren();
+    const cures = RH.DISEASES.filter(d => d.room === kind).map(d => d.name);
+    const need = R.staff ? `It needs ${R.need ? 'two surgeons' : 'a ' + needWord(kind)} to run.` : 'It needs no staff of its own.';
+    const lines = [kind === 'gp' ? 'Every patient starts here. The better the doctor, the more sure the diagnosis.' : R.cat === 'diag' ? 'Patients the GP isn\'t sure about come here for tests, then go back to the GP.' : cures.length ? 'It cures ' + cures.join(', ') + '.' : '', need,
+      R.mach ? `Its ${RH.OBJ[R.p].name.toLowerCase()} wears out with use: keep a handyman about, and replace it before it explodes.` : '',
+      'Windows, a bit of extra space, fire extinguishers, bookcases, skeletons and bins nearby all keep staff a little happier.'];
+    for (const l of lines) if (l) body.append(el('p', null, l));
+    closeSheets(); $('infoSheet').hidden = false;
+  }
+  $('infoClose').addEventListener('click', () => { $('infoSheet').hidden = true; });
+
+  // ============================ the building editor ============================
+  // Building a room: draw a blueprint (client side until confirmed), then the host walks it through the door,
+  // windows, site clearing and furniture steps. One room is edited at a time; its state lives in the snapshot.
+  let ed = null;           // { mode: 'new', kind, rect } a blueprint being drawn · { mode: 'decor' } corridor objects
+  let edRot = 0, edLi = 0, edHover = null, edDrag = null, edArm = false, edKey = '';
+  const myEdit = () => (view && view.ph === 'play' ? RH.editing(view.h[ME]) : null);
+  function startBlueprint(kind) {
+    if (tab !== ME) setTab(ME);
+    closeSheets(); ed = { mode: 'new', kind, rect: null }; edDrag = null; edArm = false; edKey = '';
+    toast(`Drag on the floor to draw your ${rname(kind)} (at least ${RH.ROOMS[kind].min}×${RH.ROOMS[kind].min})`, 'dim');
+    renderEdit();
+  }
+  // what the editor is working on right now: a blueprint being drawn, or the room the host says is being built
+  function edTarget() {
+    const r = myEdit();
+    if (ed && ed.mode === 'new' && !r) return { phase: 'new', kind: ed.kind, rect: ed.rect };
+    if (r) { if (r.phase === 'bp' && (!ed || ed.mode !== 'move' || ed.id !== r.id)) ed = { mode: 'move', id: r.id, kind: r.k, rect: Object.assign({}, r.rect) }; return { phase: r.phase, room: r, kind: r.k, rect: r.phase === 'bp' ? ed.rect : r.rect }; }
+    if (ed && (ed.mode === 'new' || ed.mode === 'move')) ed = null;
+    return null;
+  }
+  function bpValid(tg) {
+    if (!tg.rect) return { ok: false, why: 'Drag on the floor to draw it', tiles: [] };
+    return RH.bpCheck(view.h[ME], tg.kind, tg.rect, tg.room ? tg.room.id : -1);
+  }
+  const STEP = { new: 1, bp: 1, door: 2, win: 3, wait: 4, furnish: 5, emptying: 5 };
+  function edAdvice() {
+    const tg = edTarget(); if (!tg) return ed && ed.mode === 'decor' ? ['Tap a corridor tile to place an object there. Press Done when you\'re finished.', 'info'] : null;
+    return null;
+  }
+  function renderEdit() {
+    const bar = $('editbar');
+    if (!view || tab !== ME || view.ph !== 'play') { bar.hidden = true; $('status').style.visibility = ''; return; }
+    const tg = edTarget();
+    if (!tg && !(ed && ed.mode === 'decor')) { bar.hidden = true; edKey = ''; $('status').style.visibility = ''; return; }
+    $('status').style.visibility = 'hidden';   // the edit bar says what to do
+    const h = view.h[ME];
+    let title, hint, chips = [], btns = [];
+    if (ed && ed.mode === 'decor' && !tg) {
+      title = 'Corridor objects'; hint = 'Tap a corridor floor tile to put a bench, plant, radiator, extinguisher or drinks machine there.';
+      btns = [['Done', 'pt-btn', () => { ed = null; renderEdit(); }]];
+    } else {
+      const R = RH.ROOMS[tg.kind], step = STEP[tg.phase];
+      title = `${R.name} · step ${step} of 5`;
+      if (tg.phase === 'new' || tg.phase === 'bp') {
+        const v = bpValid(tg);
+        hint = tg.rect ? `${tg.rect.w}×${tg.rect.h} (min ${R.min}×${R.min}). ` + (v.ok ? 'Looks good: place it, or drag inside to move it and on its edge to resize.' : v.why + '.') : `Drag on the floor to draw the room, at least ${R.min}×${R.min}. It can't cut off any part of the hospital.`;
+        btns.push([tg.phase === 'bp' ? (edArm ? 'Really delete?' : 'Delete') : 'Cancel', 'pt-btn pt-btn-ghost', () => {
+          if (tg.phase === 'new') { ed = null; renderEdit(); return; }
+          if (!edArm) { edArm = true; edKey = ''; renderEdit(); setTimeout(() => { edArm = false; edKey = ''; renderEdit(); }, 2500); return; }
+          act('back', { id: tg.room.id }); ed = null; edArm = false;
+        }]);
+        btns.push(['Place blueprint ✓', 'pt-btn', () => { if (!v.ok) { fail(v.why); return; } act('bp', { id: tg.room ? tg.room.id : null, kind: tg.kind, rect: tg.rect }); if (tg.phase === 'new') ed = null; }, !v.ok]);
+      } else if (tg.phase === 'door') {
+        hint = R.swing ? 'Tap a wall for the double doors (three tiles wide). They need clear corridor outside.' : 'Tap one of the new walls to put the door there. It needs clear corridor outside.';
+        btns.push(['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: tg.room.id })]);
+      } else if (tg.phase === 'win') {
+        hint = `Tap walls to add or remove windows (${tg.room.wins.length} so far). Windows make staff a little happier. Tap a wall right by the door to move the door.`;
+        btns.push(['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: tg.room.id })], ['Done ✓', 'pt-btn', () => act('wdone', { id: tg.room.id })]);
+      } else if (tg.phase === 'wait') {
+        hint = 'Waiting for everyone to clear the site, then the walls go up…';
+        btns.push(['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: tg.room.id })]);
+      } else if (tg.phase === 'emptying') {
+        hint = 'The room has stopped taking patients. Waiting for everyone inside to leave…';
+      } else if (tg.phase === 'furnish') {
+        const r = tg.room, miss = RH.missingReq(r);
+        if (edLi >= r.list.length) edLi = Math.max(0, r.list.length - 1);
+        hint = r.list.length ? `Tap the floor to place the ${RH.OBJ[r.list[edLi]].name.toLowerCase()}${HI ? '' : ''}. Rotate turns it (or right-click). Tap something already placed to pick it up.` : miss.length ? 'Still needed: ' + miss.map(o => RH.OBJ[o].name).join(', ') : 'Everything is placed. Finish to open the room' + (r.paid ? '.' : ` (the shell costs ${money(RH.shellCost(h, r.k))}).`);
+        chips = r.list.map((o, i) => ({ o, i }));
+        btns.push(['⟳ Rotate', 'pt-btn pt-btn-ghost', () => { edRot = (edRot + 1) & 3; }], ['Place for me', 'pt-btn pt-btn-ghost', () => act('oauto', { id: r.id }), !r.list.length], ['Shop', 'pt-btn pt-btn-ghost', () => openShop(r.id)],
+          ['Back', 'pt-btn pt-btn-ghost', () => act('back', { id: r.id })], ['Finish ✓', 'pt-btn', () => act('finish', { id: r.id }), miss.length > 0]);
+      }
+    }
+    const key = [title, hint, chips.map(c => c.o + c.i).join(','), edLi, btns.map(b => b[0] + (b[3] ? 1 : 0)).join(',')].join('|');
+    bar.hidden = false;
+    if (key === edKey) return; edKey = key;
+    $('ebTitle').textContent = title; $('ebHint').textContent = hint;
+    const cl = $('ebList'); cl.replaceChildren(); cl.hidden = !chips.length;
+    const tg2 = edTarget();
+    for (const c of chips) {
+      const ch = el('span', 'chip' + (c.i === edLi ? ' on' : ''));
+      const nm = el('button', 'chip-b', RH.OBJ[c.o].name); nm.addEventListener('click', () => { edLi = c.i; edKey = ''; renderEdit(); });
+      const x = el('button', 'chip-x', '×'); x.title = `Sell for ${money(RH.objCost(h, c.o))}`; x.addEventListener('click', () => act('osell', { id: tg2.room.id, li: c.i }));
+      ch.append(nm, x); cl.append(ch);
+    }
+    const bb = $('ebBtns'); bb.replaceChildren();
+    for (const [label, cls, fn, dis] of btns) bb.append(btn(label, cls + ' pt-btn-small', fn, dis));
+  }
+  // the shop: the room's extra objects (only those researched), paid for as they join the placement list
+  function openShop(id) {
+    const h = view.h[ME], r = h.rooms[id]; if (!r) return;
+    const R = RH.ROOMS[r.k], list = $('shopList'); list.replaceChildren();
+    $('shopSub').textContent = `${R.name} · you have ${money(h.cash)}. Objects are charged when added and refunded in full if sold.`;
+    for (const o of [...new Set(R.extra.concat(R.req))]) {
+      const B = RH.OBJ[o], c = RH.objCost(h, o), avail = RH.objAvailable(h, o);
+      const b = el('button', 'item room' + (avail ? '' : ' locked')); b.disabled = !avail;
+      const body = el('div'); body.append(el('b', null, `${B.name} (${RH.countObj(r, o) + r.list.filter(x => x === o).length})`), el('small', null, avail ? shopDesc(o) : 'Needs research (Diagnosis Equipment).'));
+      b.append(body, el('span', 'price', money(c)));
+      b.addEventListener('click', () => { act('obuy', { id, o }); setTimeout(() => openShop(id), 150); });
+      list.append(b);
+    }
+    $('shopSheet').hidden = false;
+  }
+  const shopDesc = o => ({ ext: 'Staff feel safe; lowers explosion odds.', rad: 'Warms the room.', plant: 'Cheers staff up; needs watering.', bin: 'Fewer cans dropped.', sofa: 'One more resting place.', pool: 'Staff love it when resting.', vgame: 'Staff love it most when resting.', tv: 'A little cheer nearby.', toilet: 'One more patient at a time.', sink: 'Patients want to wash.', desk: 'One more work station.', bed: 'More beds, faster stays.', computer: 'A researcher\'s station; speeds research.', atom: 'Speeds research up.', cabinet: 'Somewhere to file.', lchair: 'One more student.', bookcase: 'Staff are happier; speeds teaching and psychiatry.', skeleton: 'Staff are happier; speeds teaching.' })[o] || '';
+  $('shopClose').addEventListener('click', () => { $('shopSheet').hidden = true; });
+  // the nearest wall edge of a room to a world point: [x, y, d]
+  function nearestEdge(rc, wx, wy) {
+    let best = null, bd = 1e9;
+    for (let y = rc.y; y < rc.y + rc.h; y++) for (let x = rc.x; x < rc.x + rc.w; x++) for (let d = 0; d < 4; d++) {
+      if (!RH.perimeter(rc, x, y, d)) continue;
+      const mx = x * T + 8 + RH.DIRS[d][0] * 8, my = y * T + 8 + RH.DIRS[d][1] * 8, dd = Math.hypot(mx - wx, my - wy);
+      if (dd < bd) { bd = dd; best = [x, y, d]; }
+    }
+    return bd < 40 ? best : null;
+  }
+  // a placement anchor so that the object sits over the tapped tile
+  function anchorFor(o, rot, tx, ty) { const [w, d] = RH.objDims(o, rot); return [tx - ((w - 1) >> 1), ty - ((d - 1) >> 1)]; }
+  // pointer handling while drawing a blueprint: press-drag draws, inside moves, edges resize
+  function edPointer(kind, wx, wy) {
+    const tg = edTarget(); if (!tg || (tg.phase !== 'new' && tg.phase !== 'bp')) return false;
+    const target = tg.phase === 'new' ? ed : ed;
+    const tx = Math.floor(wx / T), ty = Math.floor(wy / T);
+    if (kind === 'down') {
+      const rc = target.rect;
+      if (rc && tx >= rc.x && ty >= rc.y && tx < rc.x + rc.w && ty < rc.y + rc.h) {
+        const fx = wx / T - rc.x, fy = wy / T - rc.y, e = 0.45;
+        const L = fx < e, Rr = fx > rc.w - e, U = fy < e, D = fy > rc.h - e;
+        edDrag = L || Rr || U || D ? { kind: 'resize', L, R: Rr, U, D, rc: Object.assign({}, rc) } : { kind: 'move', ox: tx - rc.x, oy: ty - rc.y };
+      } else {
+        const m = RH.ROOMS[tg.kind].min;
+        target.rect = { x: tx, y: ty, w: 1, h: 1 }; edDrag = { kind: 'draw', ax: tx, ay: ty, min: m, moved: false };
+      }
+      return true;
+    }
+    if (!edDrag) return false;
+    if (kind === 'move' || kind === 'up') {
+      const rc = target.rect;
+      if (edDrag.kind === 'draw') {
+        if (tx !== edDrag.ax || ty !== edDrag.ay) edDrag.moved = true;
+        target.rect = { x: Math.min(tx, edDrag.ax), y: Math.min(ty, edDrag.ay), w: Math.abs(tx - edDrag.ax) + 1, h: Math.abs(ty - edDrag.ay) + 1 };
+        // a tap without a drag drops a minimum-size room centred on the tap
+        if (kind === 'up' && !edDrag.moved) { const m = edDrag.min; target.rect = { x: tx - (m >> 1), y: ty - (m >> 1), w: m, h: m }; }
+      } else if (edDrag.kind === 'move') { rc.x = tx - edDrag.ox; rc.y = ty - edDrag.oy; }
+      else {
+        const o = edDrag.rc; let x0 = o.x, y0 = o.y, x1 = o.x + o.w - 1, y1 = o.y + o.h - 1;
+        if (edDrag.L) x0 = tx; if (edDrag.R) x1 = tx; if (edDrag.U) y0 = ty; if (edDrag.D) y1 = ty;
+        target.rect = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0) + 1, h: Math.abs(y1 - y0) + 1 };
+      }
+      const r2 = target.rect; r2.x = clamp(r2.x, 2, RH.W - 1); r2.y = clamp(r2.y, 0, RH.H - 1); r2.w = clamp(r2.w, 1, Math.min(14, RH.W - r2.x)); r2.h = clamp(r2.h, 1, Math.min(14, RH.H - r2.y));
+      if (kind === 'up') edDrag = null;
+      edKey = ''; renderEdit();
+      return true;
+    }
+    return false;
+  }
+  // a tap while building: door, windows, furniture
+  function edTap(wx, wy) {
+    const tg = edTarget();
+    if (ed && ed.mode === 'decor' && !tg) {
+      const c = Math.floor(wx / T), r = Math.floor(wy / T), h = view.h[ME];
+      if (h.decor[RH.decorKey(c, r)]) openDecorInfo(c, r); else if (RH.decorCheck(h, c, r, 'radiator')) openDecor(c, r); else toast('Objects go on free corridor floor (not the lobby, a doorway or a room)', 'dim');
+      return true;
+    }
+    if (!tg) return false;
+    const r = tg.room;
+    if (tg.phase === 'door' || tg.phase === 'win') {
+      const e = nearestEdge(r.rect, wx, wy); if (!e) return true;
+      if (tg.phase === 'win' && !(r.door && RH.isDoorEdge(r, e[0], e[1], e[2])) && !(r.door && Math.abs(e[0] - r.door.x) + Math.abs(e[1] - r.door.y) <= 1 && e[2] === r.door.d)) { act('win', { id: r.id, x: e[0], y: e[1], d: e[2] }); return true; }
+      act('door', { id: r.id, x: e[0], y: e[1], d: e[2] });
+      return true;
+    }
+    if (tg.phase === 'furnish') {
+      const tx = Math.floor(wx / T), ty = Math.floor(wy / T);
+      // tapping something already placed picks it up
+      const hitObj = r.objs.find(ob => RH.objTiles(ob.o, ob.x, ob.y, ob.r).foot.some(([a, b]) => a === tx && b === ty));
+      if (hitObj && !r.list.length) { act('opick', { id: r.id, oid: hitObj.id }); edLi = 0; return true; }
+      if (!r.list.length) { if (hitObj) act('opick', { id: r.id, oid: hitObj.id }); return true; }
+      const o = r.list[edLi] || r.list[0];
+      const [ax, ay] = anchorFor(o, edRot, tx, ty);
+      const c = RH.objCheck(view.h[ME], r, o, ax, ay, edRot);
+      if (!c.ok) { if (hitObj) { act('opick', { id: r.id, oid: hitObj.id }); edLi = 0; return true; } fail(c.why); return true; }
+      act('oplace', { id: r.id, li: edLi, x: ax, y: ay, r: edRot });
+      return true;
+    }
+    return tg.phase === 'new' || tg.phase === 'bp' || tg.phase === 'wait' || tg.phase === 'emptying';
+  }
 
   // ---- corridor objects & the reception desk ----
   let decorSpotSel = null;
@@ -636,7 +881,8 @@
   const warmWord = w => (w < 0.6 ? 'cold' : w > 1.6 ? 'too hot' : w > 1.2 ? 'warm' : 'comfortable');
   $('decorRemove').addEventListener('click', () => { if (decorSpotSel) act('undecor', { c: decorSpotSel[0], r: decorSpotSel[1] }); $('decorSheet').hidden = true; });
   $('decorClose').addEventListener('click', () => { $('decorSheet').hidden = true; });
-  $('decorBtn').addEventListener('click', () => { if (tab !== ME) setTab(ME); decorHint = 6; toast('Tap one of the glowing corridor spots to place something', 'dim'); });
+  $('decorBtn').addEventListener('click', () => { if (tab !== ME) setTab(ME); if (myEdit()) { toast('Finish the room you\'re building first', 'dim'); return; } ed = ed && ed.mode === 'decor' ? null : { mode: 'decor' }; edKey = ''; renderEdit(); });
+  $('buildBtn').addEventListener('click', () => { if (!view || view.ph !== 'play') return; const r = myEdit(); if (r) { toast(`Finish the ${rname(r.k)} first`, 'dim'); return; } openBuild(); });
 
   // ---- staff ----
   let staffTab = 'd', lastPoolKey = '';
@@ -726,7 +972,7 @@
       const td = (x, cls) => { const c = el('td', cls); if (x instanceof Node) c.append(x); else c.textContent = x; tr.append(c); return c; };
       td(spriteCanvas(HA.patientSheet(i % 8, d.vis), 24));
       const nm = el('div'); nm.append(el('b', null, d.name), el('br'), el('small', null, d.cause)); td(nm);
-      const built = Object.values(h.rooms).some(r => r.k === d.room && !r.wreck), open = RH.unlocked(h, d.room);
+      const built = Object.values(h.rooms).some(r => r.k === d.room && r.phase === 'built'), open = RH.unlocked(h, d.room);
       td(el('span', built ? 'ok' : open ? '' : 'bad', `${RH.ROOMS[d.room].short}${built ? ' ✓' : open ? '' : ' (research)'}`));
       td(d.grp === 'pharm' ? Math.round(h.res.eff[i] * 100) + '%' : RH.cureType(d), 'n');
       td(stepper(h.price[i], dd => act('price', { which: i, pct: h.price[i] + dd })), 'n');
@@ -775,7 +1021,7 @@
   function refreshResearch(force) {
     if ($('resSheet').hidden || !view) return;
     const h = view.h[ME]; if (!h.res || !h.res.alloc) return;
-    const R = h.res, rooms = Object.entries(h.rooms).filter(([, r]) => r.k === 'research' && !r.wreck && r.bt <= 0);
+    const R = h.res, rooms = Object.entries(h.rooms).filter(([, r]) => r.k === 'research' && r.phase === 'built');
     const researchers = rooms.reduce((a, [, r]) => a + r.sts.length, 0);
     $('resSub').textContent = !rooms.length ? 'Build a Research Dept. and staff it with a doctor who has the Researcher qualification.' : !researchers ? 'Your research room has no researcher: hire a doctor with the Researcher qualification.' : `${researchers} researcher${researchers > 1 ? 's' : ''} at work` + (RH.hasUpgrade(h, 'computer') ? ' · computers' : '') + (RH.hasUpgrade(h, 'atom') ? ' · atom analyser' : '');
     const key = JSON.stringify(R.alloc) + R.spec + JSON.stringify(R.done) + R.disc;
@@ -889,7 +1135,7 @@
     }
   }
 
-  function refreshSheets() { refreshBuild(); refreshRoom(); refreshStaff(); refreshCase(); refreshResearch(); refreshBank(); refreshStatus(); renderFaxes(); }
+  function refreshSheets() { refreshBuild(); refreshRoom(); refreshStaff(); refreshCase(); refreshResearch(); refreshBank(); refreshStatus(); renderFaxes(); renderEdit(); }
   function showOver() {
     if (!view || view.ph !== 'over') return;
     const a = view.h[ME], b = view.h[FRIEND], w = view.winner;
@@ -951,7 +1197,9 @@
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || !$('profile').hidden) return;
     const k = e.key.toLowerCase();
-    if (k === 'escape') { if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; closeSheets(); return; }
+    if (k === 'escape') { if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); return; }
+    if (k === 'r' && !e.metaKey && !e.ctrlKey && myEdit() && myEdit().phase === 'furnish') { edRot = (edRot + 1) & 3; return; }
+    if (k === 'b' && !e.metaKey && !e.ctrlKey) { $('buildBtn').click(); return; }
     const F = { f1: () => openBank('stmt'), f2: () => { closeSheets(); openCase(); }, f3: openPolicy, f4: openResearch, f5: () => openStatus(), f6: () => { closeSheets(); openStaff(); }, f7: () => openBank('mgr'), f8: () => openStatus() };
     if (F[k]) { e.preventDefault(); if (view && mine()) F[k](); return; }
     if (k === 'a' && e.shiftKey) { advisorOff = !advisorOff; setStatus(); return; }
@@ -1005,6 +1253,9 @@
   cv.addEventListener('pointerdown', e => {
     cv.setPointerCapture && (() => { try { cv.setPointerCapture(e.pointerId); } catch (err) {} })();
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1 && e.button === 2) { const r = myEdit(); if (r && r.phase === 'furnish') { edRot = (edRot + 1) & 3; ptrs.delete(e.pointerId); return; } }
+    if (ptrs.size === 1 && !panelOpen()) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); if (edPointer('down', wx, wy)) { gesture = { kind: 'ed' }; return; } }
+    if (ptrs.size === 2 && gesture && gesture.kind === 'ed') { edDrag = null; }
     if (ptrs.size === 1) gesture = { kind: 'tap', x0: e.clientX, y0: e.clientY, t0: performance.now(), lx: e.clientX, ly: e.clientY };
     else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; }
   });
@@ -1012,6 +1263,8 @@
     if (!ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (!gesture) return;
+    if (gesture.kind === 'ed' && ptrs.size === 1) { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); edPointer('move', wx, wy); return; }
+    if (gesture.kind === 'ed' && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; }
     if (gesture.kind === 'pinch' && ptrs.size === 2) {
       const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const target = clamp(gesture.z0 * d / Math.max(10, gesture.d0), minZ(), maxZ());
@@ -1025,11 +1278,13 @@
   });
   const endPtr = e => {
     const wasTap = gesture && gesture.kind === 'tap' && performance.now() - gesture.t0 < 600;
+    if (gesture && gesture.kind === 'ed') { const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by); edPointer('up', wx, wy); }
     ptrs.delete(e.pointerId);
     if (ptrs.size === 0) { cv.classList.remove('drag'); if (wasTap) { const [bx, by] = toBuf(e.clientX, e.clientY); const [wx, wy] = HI.unproj(bx, by); onTap(wx, wy); } gesture = null; }
     else if (ptrs.size === 1) { const [a] = [...ptrs.values()]; gesture = { kind: 'drag', lx: a.x, ly: a.y }; }
   };
   cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+  cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); else { cam.x += e.deltaX / cam.z; cam.y += e.deltaY / cam.z; clampCam(); } }, { passive: false });
   $('camRotL').addEventListener('click', () => rotate(-1)); $('camRotR').addEventListener('click', () => rotate(1));
   $('camFlat').addEventListener('click', () => setFlat(!HI.getFlat()));
@@ -1051,9 +1306,11 @@
     if (keysDown.has('arrowup') || keysDown.has('w')) cam.y -= v; if (keysDown.has('arrowdown')) cam.y += v;
     clampCam();
   }
+  const roomAt = (h, tx, ty) => { for (const k in h.rooms) { const r = h.rooms[k], rc = r.rect; if (tx >= rc.x && ty >= rc.y && tx < rc.x + rc.w && ty < rc.y + rc.h) return r; } return null; };
   function onTap(bx, by) {
     if (!view || panelOpen()) return;
     const h = view.h[tab];
+    if (tab === ME && view.ph === 'play' && edTap(bx, by)) return;
     const [tx, ty] = HI.px(bx, by);
     // rats first: tap to shoot
     if (tab === ME && view.ph === 'play') for (const rt of h.rats || []) {
@@ -1070,27 +1327,30 @@
     }
     selected = null;
     if (tab === ME && bx >= 30 && bx <= 66 && by >= 86 && by <= 112) { openDesk(); return; }
-    const k = RH.slotAtWorld(bx, by);
-    if (k != null) { if (h.rooms[k]) { closeSheets(); openRoom(k); } else if (tab === ME && view.ph === 'play') { closeSheets(); openBuild(k); } return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
-    if (RH.decorSpot(c, r) && tab === ME) { if (h.decor[RH.decorKey(c, r)]) openDecorInfo(c, r); else if (view.ph === 'play') openDecor(c, r); }
+    const rm = roomAt(h, c, r);
+    if (rm) { openRoom(rm.id); return; }
+    if (tab === ME && h.decor[RH.decorKey(c, r)]) openDecorInfo(c, r);
   }
   let selected = null;
-  // the info bar: what's under the mouse
+  // the info bar: what's under the mouse; also where building previews follow the cursor
+  let edHoverW = null;
   cv.addEventListener('pointermove', e => {
-    if (e.pointerType !== 'mouse' || e.buttons || !view) { if (hoverTxt) { hoverTxt = ''; setStatus(); } return; }
+    if (e.pointerType !== 'mouse' || !view) { if (hoverTxt) { hoverTxt = ''; setStatus(); } return; }
     const [bx, by] = toBuf(e.clientX, e.clientY), [wx, wy] = HI.unproj(bx, by), h = view.h[tab];
+    edHoverW = [wx, wy];
+    if (e.buttons) return;
     let txt = '';
-    const k = RH.slotAtWorld(wx, wy);
-    if (k != null && h.rooms[k]) {
-      const r = h.rooms[k], R = RH.ROOMS[r.k];
-      txt = r.wreck ? `${R.name}: wrecked` : r.bt > 0 ? `${R.name}: being built` : `${R.name} · ${qn(r)} queuing` + (R.mach ? ` · machine strength ${r.str}, used ${r.used}` : '') + (r.sts.length < (R.need || (R.staff ? 1 : 0)) ? ` · needs a ${needWord(r.k)}` : '');
-    } else if (k != null && tab === ME) txt = `Empty lot ${k + 1}: tap to build`;
-    else if (wx >= 30 && wx <= 66 && wy >= 86 && wy <= 112) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
-    else { const c = Math.floor(wx / T), r = Math.floor(wy / T), d = h.decor[RH.decorKey(c, r)]; if (d) txt = RH.DECOR[d].name + (d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' (dead: needs watering)' : ''); }
+    const c = Math.floor(wx / T), r = Math.floor(wy / T), rm = roomAt(h, c, r);
+    if (rm) {
+      const R = RH.ROOMS[rm.k];
+      txt = rm.phase === 'wreck' ? `${R.name}: wrecked` : rm.phase !== 'built' ? `${R.name}: being built` : `${R.name} · ${qn(rm)} queuing` + (R.mach ? ` · machine strength ${rm.str}, used ${rm.used}` : '') + (rm.sts.length < (R.need || (R.staff ? 1 : 0)) ? ` · needs a ${needWord(rm.k)}` : '');
+    } else if (wx >= 30 && wx <= 66 && wy >= 86 && wy <= 112) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
+    else { const d = h.decor[RH.decorKey(c, r)]; if (d) txt = RH.DECOR[d].name + (d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' (dead: needs watering)' : ''); }
+    if (myEdit() || (ed && ed.mode)) txt = '';
     if (txt !== hoverTxt) { hoverTxt = txt; setStatus(); }
   });
-  cv.addEventListener('pointerleave', () => { if (hoverTxt) { hoverTxt = ''; setStatus(); } });
+  cv.addEventListener('pointerleave', () => { edHoverW = null; if (hoverTxt) { hoverTxt = ''; setStatus(); } });
 
   // ============================ rendering ============================
   const P = (x, y, w, h, col) => { bctx.fillStyle = col; bctx.fillRect(x, y, w, h); };
@@ -1121,6 +1381,52 @@
     else if (kind === 'q') { P(x - 1, y - 3, 3, 1, '#ffe36b'); P(x + 1, y - 2, 1, 2, '#ffe36b'); P(x, y, 1, 1, '#ffe36b'); P(x, y + 2, 1, 1, '#ffe36b'); }
     else if (kind === 'angry') { P(x - 1, y - 3, 2, 4, '#ff6b57'); P(x - 1, y + 2, 2, 1, '#ff6b57'); }
   }
+  // ---------- building overlays ----------
+  // the object waiting to be placed, at the tile under the mouse
+  function furnishPreview() {
+    const r = myEdit(); if (!r || r.phase !== 'furnish' || !r.list.length || !edHoverW) return null;
+    const o = r.list[edLi] || r.list[0], tx = Math.floor(edHoverW[0] / T), ty = Math.floor(edHoverW[1] / T);
+    const [x, y] = anchorFor(o, edRot, tx, ty);
+    if (!RH.inMap(tx, ty) || tx < r.rect.x - 2 || ty < r.rect.y - 2 || tx > r.rect.x + r.rect.w + 1 || ty > r.rect.y + r.rect.h + 1) return null;
+    const c = RH.objCheck(view.h[ME], r, o, x, y, edRot);
+    return { o, x, y, r: edRot, k: r.k, ok: c.ok, check: c };
+  }
+  const OK_FILL = 'rgba(80,150,255,.38)', BAD_FILL = 'rgba(255,90,70,.42)';
+  function drawBuildOverlays(h, t, mine) {
+    const pulse = 0.65 + Math.sin(t * 4) * 0.2;
+    for (const key in h.rooms) {
+      const r = h.rooms[key];
+      if (!['bp', 'door', 'win', 'wait'].includes(r.phase)) continue;
+      if (mine && r.phase === 'bp') continue;   // drawn from the editor's copy below
+      for (let y = r.rect.y; y < r.rect.y + r.rect.h; y++) for (let x = r.rect.x; x < r.rect.x + r.rect.w; x++) HI.tileQuad(bctx, x, y, r.phase === 'wait' ? `rgba(80,150,255,${0.25 + 0.15 * pulse})` : 'rgba(80,150,255,.3)', 'rgba(60,110,200,.35)');
+      HI.rectOutline(bctx, r.rect, '#3c7bd6', r.phase === 'bp');
+      if (r.door) for (const [x, y] of RH.doorTiles(r)) HI.edgeMark(bctx, x, y, r.door.d, '#6fd38a', 10);
+      for (const w of r.wins) HI.edgeMark(bctx, w[0], w[1], w[2], '#9fd8ff', 8);
+    }
+    if (!mine || !view || view.ph !== 'play') return;
+    const tg = edTarget();
+    if (tg && (tg.phase === 'new' || tg.phase === 'bp') && tg.rect) {
+      const v = bpValid(tg), small = tg.rect.w < RH.ROOMS[tg.kind].min || tg.rect.h < RH.ROOMS[tg.kind].min;
+      for (const [x, y, good] of v.tiles) HI.tileQuad(bctx, x, y, good && !small && (v.ok || v.why.startsWith('Too small') || true) && good ? (v.ok ? OK_FILL : small ? BAD_FILL : 'rgba(255,170,60,.42)') : BAD_FILL, 'rgba(255,255,255,.35)');
+      HI.rectOutline(bctx, tg.rect, v.ok ? '#3c7bd6' : '#e8533f', false);
+    }
+    if (tg && (tg.phase === 'door' || tg.phase === 'win') && edHoverW) {
+      const e = nearestEdge(tg.rect, edHoverW[0], edHoverW[1]);
+      if (e) {
+        const r = tg.room, nearDoor = r.door && Math.abs(e[0] - r.door.x) + Math.abs(e[1] - r.door.y) <= 1 && e[2] === r.door.d;
+        if (tg.phase === 'win' && !nearDoor) HI.edgeMark(bctx, e[0], e[1], e[2], RH.winCheck(view.h[ME], r, e[0], e[1], e[2]) || r.wins.some(w => w[0] === e[0] && w[1] === e[1] && w[2] === e[2]) ? 'rgba(159,216,255,.95)' : 'rgba(255,90,70,.8)', 16);
+        else { const c = RH.doorCheck(view.h[ME], r, e[0], e[1], e[2]); for (const [x, y, good] of c.tiles) HI.edgeMark(bctx, x, y, e[2], good ? 'rgba(110,211,138,.95)' : 'rgba(255,90,70,.85)', 18); }
+      }
+    }
+    if (tg && tg.phase === 'furnish') {
+      const p = furnishPreview();
+      if (p) { for (const [x, y, good] of p.check.tiles) HI.tileQuad(bctx, x, y, good ? OK_FILL : BAD_FILL); if (p.check.use) HI.tileQuad(bctx, p.check.use[0], p.check.use[1], p.check.use[2] ? 'rgba(126,224,129,.35)' : BAD_FILL, 'rgba(126,224,129,.8)'); }
+    }
+    if (ed && ed.mode === 'decor' && !tg && edHoverW) {
+      const c = Math.floor(edHoverW[0] / T), r = Math.floor(edHoverW[1] / T);
+      if (RH.inMap(c, r)) HI.tileQuad(bctx, c, r, RH.decorCheck(h, c, r, 'radiator') ? OK_FILL : BAD_FILL, 'rgba(255,255,255,.5)');
+    }
+  }
   function render(t, dt) {
     labels.length = 0;
     bctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1129,29 +1435,28 @@
     const mine = tab === ME;
     // floors
     HI.floorAt(bctx, groundC, 0, 0);
-    if (h) for (const key in h.rooms) { const k = +key, r = h.rooms[k]; HI.floorAt(bctx, HI.roomFloor(r.k), RH.slotX0(k) * T, RH.slotY0(k) * T); }
-    const objs = HI.outside().concat(HI.buildingWalls());
-    // walls, furniture, lots
-    for (let k = 0; k < RH.SLOTS; k++) {
-      const X = RH.slotX0(k) * T, Y = RH.slotY0(k) * T, top = RH.slotTop(k), r = h && h.rooms[k];
-      if (!r) {
-        objs.push(...HI.lotWalls(X, Y, top));
-        if (h && mine && view.ph === 'play') objs.push({ d: HI.depth(X + 32, Y + 32), draw: c => { const [sx, sy] = HI.px(X + 32, Y + 32); const a = 0.5 + Math.sin(t * 3) * 0.2; c.globalAlpha = a; P(sx - 1, sy - 9, 2, 10, '#5a5246'); P(sx - 5, sy - 5, 10, 2, '#5a5246'); c.globalAlpha = 1; } });
-        continue;
+    if (h) for (const key in h.rooms) { const r = h.rooms[key]; if (RH.walled(r)) HI.floorAt(bctx, HI.roomFloor(r.k, r.rect.w, r.rect.h), r.rect.x * T, r.rect.y * T); }
+    if (h) drawBuildOverlays(h, t, mine);
+    const objs = HI.outside();
+    if (h) {
+      objs.push(...HI.hospitalWalls(h));
+      for (const key in h.rooms) {
+        const r = h.rooms[key];
+        if (r.phase === 'wreck') { objs.push(...HI.wreckItems(r.rect)); continue; }
+        if (!RH.walled(r)) continue;
+        for (const ob of r.objs) objs.push(HI.objItem(ob.o, ob.x, ob.y, ob.r, r.k, ob.o === 'plant' && ob.w <= 0));
+        // a machine past its strength smokes
+        if (r.phase === 'built' && RH.ROOMS[r.k].mach && r.used > r.str && r.sp && Math.random() < dt * 8) smokes.push({ p: tab, x: r.sp.p[0] + (Math.random() - 0.5) * 16, y: r.sp.p[1] - 10 + (Math.random() - 0.5) * 10, z: 20, life: 1.6, r: 2 + Math.random() * 2 });
       }
-      objs.push(...HI.roomWalls(k, r.k, X, Y, top));
-      if (r.bt > 0) { objs.push(...HI.scaffoldItems(X, Y, 1 - r.bt / 4)); continue; }
-      const items = r.wreck ? HI.wreckItems(X, Y) : HI.roomItems(r.k, top, r.ex, r.water);
-      for (const it of items) objs.push({ d: HI.depth(X + it.x + it.w, Y + it.y + it.d), draw: c => it.draw(c, X, Y) });
-      // a machine past its strength smokes
-      if (!r.wreck && RH.ROOMS[r.k].mach && r.used > r.str && Math.random() < dt * 8) smokes.push({ p: tab, x: X + 20 + Math.random() * 24, y: Y + 14 + Math.random() * 16, z: 20, life: 1.6, r: 2 + Math.random() * 2 });
+      // the object being placed follows the cursor
+      const prev = mine ? furnishPreview() : null;
+      if (prev) objs.push(HI.objItem(prev.o, prev.x, prev.y, prev.r, prev.k, false, prev.ok ? 0.75 : 0.4));
     }
     if (h) {
       objs.push(HI.deskItem(h.desk, t));
       for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], [fw, fd] = HI.DECOR_FOOT[kind] || [8, 8], x = c * T + 8, y = r * T + 8, dry = kind === 'plant' && h.dry && h.dry.includes(key); objs.push({ d: HI.depth(x + fw / 2, y + fd / 2), draw: cx => HI.DECOR_DRAW[kind] && HI.DECOR_DRAW[kind](cx, x, y, dry) }); }
       for (const m of h.mess) objs.push(HI.messItem(m));
       for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
-      if (mine && view.ph === 'play' && decorHint > 0) for (let c = 2; c < RH.W; c++) for (let r = 4; r <= 17; r++) if (RH.decorSpot(c, r) && !h.decor[RH.decorKey(c, r)]) objs.push({ d: HI.depth(c * T + 8, r * T + 8), draw: cx => { const [sx, sy] = HI.px(c * T + 8, r * T + 8); cx.globalAlpha = 0.35 + Math.sin(t * 4) * 0.15; P(sx - 1, sy - 1, 3, 3, '#1f8f87'); cx.globalAlpha = 1; } });
       for (const st of h.staff) objs.push({ d: HI.depth(st.x, st.y), draw: () => {
         const [x, y] = posOf('s', st);
         const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y);
@@ -1190,25 +1495,26 @@
       } });
       // the administrator pacing corridor A with a clipboard (cosmetic, driven by local time)
       {
-        const ph = (t % 48) / 48, x0 = 100, x1 = 330;
+        const ph = (t % 24) / 24, x0 = 42, x1 = 88;
         let mx, mf, mv;
         if (ph < 0.4) { mx = x0 + (ph / 0.4) * (x1 - x0); mf = 3; mv = 1; } else if (ph < 0.5) { mx = x1; mf = 0; mv = 0; } else if (ph < 0.9) { mx = x1 - ((ph - 0.5) / 0.4) * (x1 - x0); mf = 2; mv = 1; } else { mx = x0; mf = 0; mv = 0; }
-        const mgr = { id: 'm' + tab, f: mf, mv }, my = RH.LANE - 3;
+        const mgr = { id: 'm' + tab, f: mf, mv }, my = RH.LOBBY.y1 * T + 10;
         objs.push({ d: HI.depth(mx, my), draw: () => { const [sx, sy] = drawPerson(HA.managerSheet(avOf(tab)), mgr, 'g', t, dt, mx, my); labels.push({ x: sx, y: sy - 30, txt: nameOf(tab), col: '#fff6e0', size: 3.8, plate: true }); } });
       }
     }
     objs.sort((a, b) => a.d - b.d).forEach(o => o.draw(bctx));
     if (h) {
       for (const key in h.rooms) {
-        const k = +key, r = h.rooms[k], X = RH.slotX0(k) * T, Y = RH.slotY0(k) * T, cx = RH.slotCx(k), top = RH.slotTop(k), R = RH.ROOMS[r.k];
-        const [dx, dy] = HI.px(cx, top ? Y + 66 : Y - 2);
-        labels.push({ x: dx - 12, y: dy - 14, txt: R.short, col: '#fff6e0', size: 4.2, plate: true });
-        if (r.wreck) continue;
+        const r = h.rooms[key], R = RH.ROOMS[r.k], rc = r.rect;
+        const [cx, cy] = HI.px((rc.x + rc.w / 2) * T, (rc.y + rc.h / 2) * T);
+        const built = r.phase === 'built';
+        labels.push({ x: cx, y: cy - 30, txt: R.short + (built || r.phase === 'wreck' ? '' : r.phase === 'emptying' ? ' · emptying' : ' · building'), col: '#fff6e0', size: 4.2, plate: true });
+        if (!built) continue;
         const need = R.need || (R.staff ? 1 : 0);
-        if (need && r.sts.length < need && r.bt <= 0) { const [wx, wy] = HI.px(X + 32, Y + 32); labels.push({ x: wx, y: wy - 6, txt: 'no ' + needWord(r.k).split(' ')[0], col: '#ff6b57', size: 4.2 }); }
-        if (r.p != null && r.prog > 0) { const sp = RH.spots(k), [bx, by] = HI.px(sp.in[0], sp.in[1]); P(bx - 8, by - 29, 16, 4, '#1b1720'); P(bx - 7, by - 28, Math.round(14 * clamp(r.prog, 0, 1)), 2, R.cat === 'diag' ? '#6fd3ff' : '#7ee081'); }
-        if (R.mach && r.bt <= 0) { const left = r.str - r.used, [mx, my] = HI.px(cx + 22, top ? Y + 8 : Y + 56); P(mx - 6, my - 20, 12, 3, '#1b1720'); P(mx - 5, my - 19, Math.round(10 * clamp(left / Math.max(1, r.str), 0, 1)), 1, left <= 2 ? '#ff6b57' : left <= 4 ? '#e5a62a' : '#7ee081'); }
-        const q = qn(r); if (q > 0) labels.push({ x: dx + 14, y: dy - 14, txt: q + ' waiting', col: q > 5 ? '#ff6b57' : '#fff6e0', size: 3.6, dim: true });
+        if (need && r.sts.length < need) labels.push({ x: cx, y: cy - 20, txt: 'no ' + needWord(r.k).split(' ')[0], col: '#ff6b57', size: 4.2 });
+        if (r.p != null && r.prog > 0 && r.sp) { const [bx, by] = HI.px(r.sp.p[0], r.sp.p[1]); P(bx - 8, by - 29, 16, 4, '#1b1720'); P(bx - 7, by - 28, Math.round(14 * clamp(r.prog, 0, 1)), 2, R.cat === 'diag' ? '#6fd3ff' : '#7ee081'); }
+        if (R.mach && r.sp) { const left = r.str - r.used, [mx, my] = HI.px(r.sp.p[0], r.sp.p[1]); P(mx - 6, my - 36, 12, 3, '#1b1720'); P(mx - 5, my - 35, Math.round(10 * clamp(left / Math.max(1, r.str), 0, 1)), 1, left <= 2 ? '#ff6b57' : left <= 4 ? '#e5a62a' : '#7ee081'); }
+        const q = qn(r); if (q > 0 && r.door) { const [ox, oy] = RH.doorOut(r)[0], [qx, qy] = HI.px(ox * T + 8, oy * T + 8); labels.push({ x: qx, y: qy - 30, txt: q + ' waiting', col: q > 5 ? '#ff6b57' : '#fff6e0', size: 3.6, dim: true }); }
       }
     }
     for (let i = smokes.length - 1; i >= 0; i--) {
