@@ -5,7 +5,9 @@
   'use strict';
   const A = window.HA, RH = window.RH;
   const T = 16, W = RH.W, H = RH.H, OUT = '#1b1720';
-  const K = 0.75, KX = K, KY = K / 2;             // world px → screen px along the two floor axes
+  // world px → screen px along the two floor axes. Floors are drawn wide relative to walls and people (a person is
+  // about two thirds of a tile across, a wall under two tiles tall), like Theme Hospital, so rooms can be seen into
+  const K = 1.2, KX = K, KY = K / 2;
   const L = Math.max(W, H) * T, CXW = W * T / 2, CYW = H * T / 2;   // rotation centre and bounding square
   const GM = 96;                                     // the hospital grounds: lawns, paths and the road around the map
   const OX0 = Math.ceil(L * KX) + 8, OY0 = 54, OXF0 = 8, OYF0 = 60;
@@ -41,8 +43,10 @@
   const px = (x, y) => { const [a, b] = rw(x, y); return pxr(a, b); };          // world → screen
   const dsum = (a, b) => (flat ? b + a * 0.001 : a + b);          // draw order: y-major when aerial, x+y when isometric
   const depth = (x, y) => { const [a, b] = rw(x, y); return dsum(a, b); };
-  // a footprint's sort key: its corner nearest the viewer, whichever way the view is turned
-  const depthBox = (x, y, w, d) => Math.max(depth(x, y), depth(x + w, y), depth(x, y + d), depth(x + w, y + d)) - 0.01;
+  // Sorting: furniture by its footprint's centre, walls by each 16px piece's midpoint. A wall then always sorts after
+  // whatever stands on its far side and before whatever stands on its near side (both at least 8px from it), so
+  // nothing is ever drawn half into a wall.
+  const depthBox = (x, y, w, d) => depth(x + w / 2, y + d / 2);
   function unproj(sx, sy) { if (flat) return unrw(sx - OXF, sy - OYF); const u = (sx - OX) / KX, v = (sy - OY) / KY; return unrw((u + v) / 2, (v - u) / 2); }
   // sprite facing (0 down, 1 up, 2 left, 3 right) seen from the rotated view
   const ROTF = [[0, 1, 2, 3], [2, 3, 1, 0], [1, 0, 3, 2], [3, 2, 0, 1]];
@@ -272,6 +276,31 @@
     ext: (c, x, y) => { box(c, x - 2, y - 2, 4, 4, 13, '#d0352a', { south: (ctx, w, h) => { R(ctx, 0, 3, w, 3, '#f4f0e6'); } }); const [sx, sy] = px(x, y); R(c, sx - 1, sy - 16, 3, 2, OUT); },
     drinks: (c, x, y) => box(c, x - 5, y - 4, 10, 8, 22, '#c43c2c', { south: (ctx, w, h) => { R(ctx, 1, 2, w - 2, 11, '#1d2a3a'); for (let j = 0; j < 2; j++) for (let i = 0; i < 3; i++) R(ctx, 2 + i * 3, 4 + j * 5, 2, 3, ['#ffd23f', '#39a85a', '#3c7bd6'][(i + j) % 3]); R(ctx, 2, h - 6, w - 4, 3, '#1d2a3a'); R(ctx, w - 3, 14, 2, 1, '#ffd23f'); } }),
   };
+  // a corridor object on tile (c, r): turned so its back is against a neighbouring wall (one behind it, from the
+  // viewer, if there is one) and nudged up to it; sorted by the tile's centre
+  const BACK_TO_WALL = { bench: 3, radiator: 5, drinks: 3, ext: 5, plant: 0 };
+  function decorSide(h, c, r) {
+    const x = c * T + 8, y = r * T + 8, Lr = RH.layout(h);
+    const wallAt = d => { const [dx, dy] = RH.DIRS[d], nx = c + dx, ny = r + dy; return !RH.indoor(nx, ny) || (Lr.room[RH.idx(nx, ny)] || 0) > 0; };
+    const sides = [0, 1, 2, 3].filter(wallAt), behind = sides.filter(d => { const [dx, dy] = RH.DIRS[d]; return depth(x + dx, y + dy) < depth(x, y); });
+    return behind.length ? behind[0] : sides.length ? sides[0] : -1;
+  }
+  // where the nth sitter on a bench sits (world x, y) and which way they face (sprite facing)
+  function benchSeat(h, c, r, n) {
+    const d = decorSide(h, c, r), k = d < 0 ? 0 : d, push = d < 0 ? 0 : BACK_TO_WALL.bench;
+    let ox = n ? 3.5 : -3.5, oy = 0.5; for (let i = 0; i < k; i++) [ox, oy] = [-oy, ox];
+    const [dx, dy] = d < 0 ? [0, 0] : RH.DIRS[d];
+    return { x: c * T + 8 + dx * push + ox, y: r * T + 8 + dy * push + oy, f: [0, 2, 1, 3][k] };
+  }
+  function decorItem(h, c, r, kind, dry) {
+    const x = c * T + 8, y = r * T + 8, d = decorSide(h, c, r);
+    return { d: depth(x, y), draw: cx => {
+      if (!DECOR_DRAW[kind]) return;
+      if (d < 0) { DECOR_DRAW[kind](cx, x, y, dry); return; }
+      const [dx, dy] = RH.DIRS[d], k = BACK_TO_WALL[kind] || 0, ox = x + dx * k, oy = y + dy * k;
+      withRot(ox, oy, d, () => DECOR_DRAW[kind](cx, ox, oy, dry));
+    } };
+  }
   const DECOR_FOOT = { plant: [8, 8], bench: [14, 6], radiator: [14, 3], ext: [4, 4], drinks: [10, 8] };
 
   // ---------- floors ----------
@@ -426,7 +455,7 @@
       const t0 = i / n, t1 = (i + 1) / n;
       const p0 = [sx + (ex - sx) * t0, sy + (ey - sy) * t0], p1 = [sx + (ex - sx) * t1, sy + (ey - sy) * t1];
       const q0 = rw(p0[0], p0[1]), q1 = rw(p1[0], p1[1]);
-      items.push({ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); ST(c, (v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), img.height, 0, 0, len, h); reset(c); } });
+      items.push({ d: (dsum(q0[0], q0[1]) + dsum(q1[0], q1[1])) / 2, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); ST(c, (v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), img.height, 0, 0, len, h); reset(c); } });
     }
     return items;
   }
@@ -538,7 +567,7 @@
     const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
     const q0 = rw(sx, sy), q1 = rw(ex, ey);
     void nx; void ny;
-    return [{ d: Math.max(dsum(q0[0], q0[1]), dsum(q1[0], q1[1])) + 0.5, draw: c => { const [u1, u2] = px(sx, sy), [v1, v2] = px(ex, ey); ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); c.drawImage(img, 0, 0, 16, h); reset(c); } }];
+    return [{ d: (dsum(q0[0], q0[1]) + dsum(q1[0], q1[1])) / 2, draw: c => { const [u1, u2] = px(sx, sy), [v1, v2] = px(ex, ey); ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); c.drawImage(img, 0, 0, 16, h); reset(c); } }];
   }
   // ---------- building overlays (blueprints, door and window marks, placement previews) ----------
   function tileQuad(ctx, tx, ty, fill, stroke) {
@@ -560,7 +589,7 @@
       const e = edgeAt(x, y, d);
       for (const [wx, wy] of [[e[0], e[1]], [e[2], e[3]]]) posts.set(wx + ',' + wy, [wx, wy]);
       if (skip && skip.has(x + ',' + y + ',' + d)) continue;
-      items.push({ d: Math.max(depth(e[0], e[1]), depth(e[2], e[3])) + 0.6, draw: ctx => {
+      items.push({ d: (depth(e[0], e[1]) + depth(e[2], e[3])) / 2 + 0.1, draw: ctx => {
         const [u1, u2] = px(e[0], e[1]), [v1, v2] = px(e[2], e[3]);
         ctx.fillStyle = `rgba(110,165,255,${0.2 * alpha})`;
         ctx.beginPath(); ctx.moveTo(u1, u2); ctx.lineTo(v1, v2); ctx.lineTo(v1, v2 - hh); ctx.lineTo(u1, u2 - hh); ctx.closePath(); ctx.fill();
@@ -570,7 +599,7 @@
         ctx.beginPath(); ctx.moveTo(u1, u2 - hh * 0.5); ctx.lineTo(v1, v2 - hh * 0.5); ctx.stroke();
       } });
     }
-    for (const [wx, wy] of posts.values()) items.push({ d: depth(wx, wy) + 0.65, draw: ctx => {
+    for (const [wx, wy] of posts.values()) items.push({ d: depth(wx, wy) + 0.15, draw: ctx => {
       const [sx, sy] = px(wx, wy);
       ctx.fillStyle = `rgba(40,90,200,${0.85 * alpha})`; ctx.fillRect(sx - 1, sy - hh, 2, hh);
       ctx.fillStyle = `rgba(190,215,255,${0.95 * alpha})`; ctx.fillRect(sx - 0.5, sy - hh, 0.5, hh);
@@ -606,7 +635,7 @@
     const [ax, ay, bx, by] = d === 1 ? [(x + 1) * T, y * T, (x + 1) * T, (y + 1) * T] : d === 3 ? [x * T, y * T, x * T, (y + 1) * T] : d === 2 ? [x * T, (y + 1) * T, (x + 1) * T, (y + 1) * T] : [x * T, y * T, (x + 1) * T, y * T];
     const [a1, a2] = rw(ax, ay), [b1, b2] = rw(bx, by), alongX = Math.abs(a2 - b2) < 0.5, flip = alongX ? a1 > b1 : a2 > b2;
     const [sx, sy, ex, ey] = flip ? [bx, by, ax, ay] : [ax, ay, bx, by];
-    return { d: Math.max(depth(ax, ay), depth(bx, by)) + 0.7, draw: c => {
+    return { d: (depth(ax, ay) + depth(bx, by)) / 2 + 0.2, draw: c => {
       const [u1, u2] = px(sx, sy), [v1, v2] = px(ex, ey), hh = flat ? 3 : h, up = flat ? 0 : lift;
       if (state === 'ok' && !flat) { c.save(); c.shadowColor = 'rgba(110,255,140,.9)'; c.shadowBlur = 4; }
       ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - hh - up); c.drawImage(img, 0, 0, 16, hh); reset(c);
@@ -667,7 +696,7 @@
     const items = [];
     for (let i = 0; i < 3; i++) {
       const y0 = 64 + i * 16, y1 = y0 + 16;
-      items.push({ d: Math.min(depth(32, y0), depth(32, y1)) + 0.5, draw: c => {
+      items.push({ d: (depth(32, y0) + depth(32, y1)) / 2 + 0.2, draw: c => {
         const img = doorsImg(), h = flat ? 4 : WALL_H, [u1, u2] = px(32, y0), [v1, v2] = px(32, y1);
         ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); const k = img.width / 48; c.drawImage(img, i * 16 * k, (flat ? WALL_H - 4 : 0) * k, 16 * k, h * k, 0, 0, 16, h); reset(c);
       } });
@@ -765,5 +794,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { frame, clouds, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { frame, clouds, decorItem, benchSeat, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

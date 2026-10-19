@@ -1494,7 +1494,7 @@
   }
   // Theme Hospital's camera: one fixed close-up scale (no zooming); you move round by pushing the mouse against the
   // screen edge, dragging, the arrow keys or the wheel. The 2D aerial view instead shows the whole hospital at once.
-  const viewZ = () => (HI.getFlat() ? Math.max(fitZ, 0.6) : clamp(cw / 400, 1.6, 3.2));
+  const viewZ = () => (HI.getFlat() ? Math.max(fitZ, 0.6) : clamp(cw / 600, 1.1, 2.2));
   function clampCam() {
     // the view centre may sit anywhere over the map, so panning always works
     cam.z = viewZ();
@@ -1675,7 +1675,7 @@
       for (let dy = -1; dy <= 1 && !out.has(pt.id); dy++) for (let dx = -1; dx <= 1 && !out.has(pt.id); dx++) {
         const key = (c + dx) + ',' + (r + dy); if (h.decor[key] !== 'bench') continue;
         const n = taken.get(key) || 0; if (n >= 2) continue;
-        taken.set(key, n + 1); out.set(pt.id, [(c + dx) * T + 8 + (n ? 3.5 : -3.5), (r + dy) * T + 8.5]);
+        taken.set(key, n + 1); const st = HI.benchSeat(h, c + dx, r + dy, n); out.set(pt.id, [st.x, st.y, st.f]);
       }
     }
     return out;
@@ -1783,7 +1783,7 @@
     }
     if (h) {
       objs.push(...HI.deskItem(h.desk, t));
-      for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], [fw, fd] = HI.DECOR_FOOT[kind] || [8, 8], x = c * T + 8, y = r * T + 8, dry = kind === 'plant' && h.dry && h.dry.includes(key); objs.push({ d: HI.depth(x + fw / 2, y + fd / 2), draw: cx => HI.DECOR_DRAW[kind] && HI.DECOR_DRAW[kind](cx, x, y, dry) }); }
+      for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], dry = kind === 'plant' && h.dry && h.dry.includes(key); objs.push(HI.decorItem(h, c, r, kind, dry)); }
       for (const m of h.mess) objs.push(HI.messItem(m));
       for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
       // someone sitting draws after the seat they're on (which sorts by its nearest corner)
@@ -1803,7 +1803,7 @@
         // serious radiation glows
         if (shown === 'rad') { const [gx, gy] = HI.px(x, y); const g = bctx.createRadialGradient(gx, gy - 12, 0, gx, gy - 12, 14); g.addColorStop(0, 'rgba(180,240,106,.45)'); g.addColorStop(1, 'rgba(180,240,106,0)'); bctx.fillStyle = g; bctx.fillRect(gx - 14, gy - 26, 28, 28); }
         const wob = shown === 'jelly' ? Math.round(Math.sin(t * 9 + pt.id) * 1) : 0;
-        const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), bs ? Object.assign({}, pt, { f: 0 }) : pt, 'p', t, dt, x + wob * 0.5, y, sits ? true : 0);
+        const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), bs ? Object.assign({}, pt, { f: bs[2] }) : pt, 'p', t, dt, x + wob * 0.5, y, sits ? true : 0);
         let ix = sx, iy = sy - 29;
         if (pt.em) { icon('siren', ix, iy, t); iy -= 6; }
         // epidemic: a pulsing red ring at the feet and a coloured tag over the head saying what to do next
