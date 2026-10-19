@@ -766,6 +766,7 @@
       const front = !tall && r ? r.id : 0, at = items.length;
       if (r) items.push(...wallPiece(ax, ay, bx, by, n[0], n[1], r.k + 'd' + gap.join('-'), WALLCOL[RH.ROOMS[r.k].wall], A.ROOM_STYLE[r.k].wall[1], null, tall, LOW_H, gap));
       if (!wide) items.push(swingDoor(ax, ay, bx, by, n, 14));
+      else if (r && r.k === 'ward') { if (i === 0) items.push(slideDoor(ax, ay, ax + (bx - ax) * span.length, ay + (by - ay) * span.length, n)); }
       else {
         const len = span.length * 8 - 1;   // each leaf covers half the opening
         if (i === 0) items.push(swingDoor(ax, ay, ax + (bx - ax) * span.length, ay + (by - ay) * span.length, n, len));
@@ -871,6 +872,36 @@
     if (w > 16) { R(x, w - 3, 11, 1.5, 6, '#c8ccd4'); R(x, w - 3, 11, 0.5, 6, '#ffffff'); R(x, 2, h - 3, w - 4, 1.5, '#c8ccd4'); }   // a push plate and kick plate on swing doors
     else { R(x, w - 3.5, 13, 1.5, 1, '#ffd23f'); R(x, w - 3.5, 13.5, 1.5, q, '#b8901c'); }
     return (leafCache[w] = c);
+  }
+  // The ward's doors: two blue panels, each with a porthole window and a steel edge, that slide apart into the walls
+  const slideCache = {};
+  function slideImg(w) {
+    if (slideCache[w]) return slideCache[w];
+    const h = DOOR_H - 1, [c, x] = A.hcanvas(w, h), q = 0.5;
+    R(x, 0, 0, w, h, '#3c7bd6'); R(x, 0, 0, w, q, '#7fb2ee'); R(x, 0, h - 2, w, 2, '#244f94');
+    R(x, 1.5, 2, w - 3, h - 6, '#4a8ae0'); R(x, 1.5, 2, w - 3, q, '#2e62b0'); R(x, 1.5, h - 4 - q, w - 3, q, '#8ab8f0');
+    const wx = w / 2 - 3; R(x, wx, 4, 6, 6, '#244f94'); R(x, wx + 0.75, 4.75, 4.5, 4.5, '#9fd8ff'); R(x, wx + 0.75, 4.75, 4.5, 1.5, '#d6f0ff');   // the window
+    R(x, 2, 14, w - 4, 1, '#2e62b0'); R(x, 2, 14 + q, w - 4, q, '#8ab8f0');
+    R(x, 0, 0, 1, h, '#c8ccd4'); R(x, w - 1, 0, 1, h, '#c8ccd4'); R(x, 0, 0, q, h, '#ffffff');   // steel edges
+    return (slideCache[w] = c);
+  }
+  // the whole opening from (ax, ay) to (bx, by): each panel slides from the middle out into the wall beside it, so
+  // only the part still in the opening shows
+  function slideDoor(ax, ay, bx, by, n) {
+    const len = Math.hypot(bx - ax, by - ay), ex = (bx - ax) / len, ey = (by - ay) / len, mx = (ax + bx) / 2, my = (ay + by) / 2;
+    const key = 's' + ax + ',' + ay + ',' + bx + ',' + by, half = (len - 2) / 2;
+    return { d: depth(mx, my) + 0.4, draw: c => {
+      const want = near(mx + n[0] * 4, my + n[1] * 4, 6 + len / 2, 6 + len / 2) ? 1 : 0;
+      let o = doorOpen.get(key) || 0; o += (want - o) * Math.min(1, frameDt * (want ? 7 : 3)); doorOpen.set(key, o);
+      const hh = flat ? 3 : DOOR_H - 1, w = half * (1 - o * 0.94), img = slideImg(half), k = img.width / half;
+      if (w < 0.3) return;
+      // each panel slides out towards its own end of the opening; what's left in view is its inner edge
+      for (const [s0, src] of [[1, half - w], [len - 1 - w, 0]]) {
+        const [u1, u2] = px(ax + ex * s0, ay + ey * s0), [v1, v2] = px(ax + ex * (s0 + w), ay + ey * (s0 + w));
+        ST(c, (v1 - u1) / w, (v2 - u2) / w, 0, 1, u1, u2 - hh);
+        c.drawImage(img, src * k, flat ? (DOOR_H - 1 - 3) * k : 0, w * k, hh * k, 0, 0, w, hh); reset(c);
+      }
+    } };
   }
   // a leaf of length L hinged near (ax, ay), lying along the edge towards (bx, by) when shut
   function swingDoor(ax, ay, bx, by, n, L) {
