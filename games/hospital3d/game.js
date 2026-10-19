@@ -518,21 +518,28 @@
     const key = [view.ph, view.month, h.cash, h.rep, h.cured, r.cash, r.rep, tab, nameOf(ME), nameOf(FRIEND), h.open].join('|');
     if (key === hudKey) return; hudKey = key;
     const ym = RH.yearMonth(SOLO ? view.month : Math.min(view.month, RH.MONTHS - 1));
-    $('hudDate').innerHTML = (view.ph === 'ready' ? '<small>Opening</small>soon' : `<small>Year ${ym.year}</small>${RH.MONTH_NAMES[ym.month]}`) + '<i class="mp"><b id="monthBar"></b></i>';
-    $('hudCash').textContent = money(h.cash); $('hudCash').classList.toggle('neg', h.cash < 0);
-    $('hudRep').textContent = h.rep; $('hudRepBar').style.width = h.rep / 10 + '%';
-    $('hudCured').textContent = h.cured + (h.seen ? ` · ${RH.curePct(h)}%` : '');
-    if (SOLO) $('tabMine').replaceChildren(document.createTextNode(lvlInfo().nm), Object.assign(el('span', 'alt'), { textContent: ` · level ${view.solo.lvl}` }));
-    else $('tabMine').replaceChildren(document.createTextNode(`${nameOf(ME)}'s`), Object.assign(el('span', 'alt'), { textContent: ' hospital' }));
-    $('tabRival').replaceChildren(document.createTextNode(`${nameOf(FRIEND)}'s `), Object.assign(el('small'), { textContent: `· ${money(r.cash)} · ${r.rep}` }));
+    // the desk calendar: day and month, Theme Hospital style (the day ticks over in monthBar)
+    hudMon = RH.MONTH_NAMES[ym.month]; hudDay = -1;
+    $('hudDate').innerHTML = `<b id="hudDay">1 ${hudMon}</b><small>${view.ph === 'ready' ? 'Opening soon' : 'Year ' + ym.year}</small>`;
+    $('hudDate').title = view.ph === 'ready' ? 'The hospital opens soon' : `${RH.MONTH_NAMES[ym.month]}, year ${ym.year}`;
+    // the bank balance in counter cells: whole dollars right-aligned in at least seven cells, a minus in front
+    const digs = String(Math.abs(Math.round(h.cash))).padStart(7, ' ').split(''), cash = $('hudCash');
+    if (h.cash < 0) digs[Math.max(0, digs.lastIndexOf(' '))] = digs.includes(' ') ? '-' : (digs.unshift('-'), '-');
+    cash.innerHTML = digs.map(c => `<i>${c === ' ' ? '&nbsp;' : c}</i>`).join(''); cash.classList.toggle('neg', h.cash < 0); cash.title = money(h.cash);
+    $('hudRepBar').style.left = clamp(h.rep / 10, 0, 100) + '%'; $('stRep').title = `Reputation ${h.rep} of 1000`;
+    $('hudCured').textContent = h.cured; $('curesBox').title = `Patients cured${h.seen ? `: ${RH.curePct(h)}% of those treated` : ''}`;
+    $('tabMine').textContent = SOLO ? 'Mine' : `${nameOf(ME)}'s`;
+    $('tabRival').textContent = `${nameOf(FRIEND)}'s`;
+    infoKey = ''; renderInfo();
     $('openBtn').hidden = !(view.ph === 'play' && !h.open && view.t < RH.GRACE && tab === ME);
   }
-  let lastMonthPct = -1;
+  let hudMon = '', hudDay = -1, infoKey = '';
+  // the calendar's day: thirty to a month
   function monthBar(now) {
-    const e = document.getElementById('monthBar'); if (!e || !view) return;
+    if (!view) return;
     const t = view.ph === 'play' ? view.t + (host ? 0 : Math.min(1, (now - curAt) / 1000)) : 0;
-    const pct = Math.round(((t % RH.MONTH) / RH.MONTH) * 100);
-    if (pct !== lastMonthPct) { lastMonthPct = pct; e.style.width = pct + '%'; }
+    const day = Math.min(30, Math.floor(((t % RH.MONTH) / RH.MONTH) * 30) + 1), e = document.getElementById('hudDay');
+    if (e && day !== hudDay) { hudDay = day; e.textContent = `${day} ${hudMon}`; }
     if (!$('openBtn').hidden) $('openBtn').textContent = `Open the doors · ${Math.max(0, Math.ceil(RH.GRACE - view.t))}s`;
   }
   let statusKey = '', barH = 0, advH = -1, hoverTxt = '', advisorOff = false, talkUntil = 0, faceFrame = -1;
@@ -600,7 +607,6 @@
     if (view.ph === 'over') return ['Game over. ' + (host ? 'Press Play again for a rematch.' : 'Ask the host for a rematch.')];
     if (LOCAL && !speed) return ['Paused. Press P or ▶ to carry on; you can still build and hire.', 'info'];
     if (tab !== ME) return [`Peeking at ${nameOf(FRIEND)}'s hospital. Tap a room to see what they have.`];
-    if (hoverTxt) return [hoverTxt, 'info'];
     const h = view.h[ME], rooms = Object.entries(h.rooms).filter(([, r]) => r.phase === 'built'), live = h.staff.filter(s => !s.gone);
     const ed = edAdvice(); if (ed) return ed;
     const ts = tutStep(); if (ts) return [typeof ts.say === 'function' ? ts.say() : ts.say, 'tut'];
@@ -630,8 +636,19 @@
     if (!rooms.some(([, r]) => r.k === 'research')) return ['A Research Dept. (with a Researcher doctor) unlocks new rooms and better drugs.'];
     return ['Build adds rooms · tap a room to manage it · Corridor places objects · tap people for details · F1–F8 for screens'];
   }
+  // the dark info panel in the control bar: what's under the mouse, as in Theme Hospital, or else how the two
+  // hospitals stand
+  function renderInfo() {
+    if (!view) return;
+    const h = view.h[ME], r = view.h[FRIEND];
+    const lines = hoverTxt ? hoverTxt.split(' · ').map((t, i) => [t, i ? 'dim' : ''])
+      : [[tab === ME ? (SOLO ? `${lvlInfo().nm} · level ${view.solo.lvl}` : `${nameOf(ME)}'s hospital`) : `${nameOf(FRIEND)}'s hospital (rival)`, ''],
+        [tab === ME ? `${nameOf(FRIEND)}: ${money(r.cash)} · reputation ${r.rep}` : `You: ${money(h.cash)} · reputation ${h.rep}`, 'dim']];
+    const key = JSON.stringify(lines); if (key === infoKey) return; infoKey = key;
+    $('hudInfo').replaceChildren(...lines.slice(0, 3).map(([t, c]) => el('span', c, t)));
+  }
   function setStatus() {
-    placeStatus();
+    placeStatus(); renderInfo();
     const [s, cls] = advice();
     const key = s + (cls || '') + advisorOff + tut;
     if (key !== statusKey) {
@@ -769,7 +786,7 @@
     const busy = RH.editing(h);
     $('buildSub').textContent = busy ? `Finish the ${rname(busy.k)} you're building first.` : `You have ${money(h.cash)}. The price covers the room and its required furniture.`;
     const cats = $('buildCats');
-    if (!cats.children.length) for (const [c, nm] of RH.CATS) { const b = btn(nm, '', () => { buildCat = c; $('buildList').dataset.key = ''; refreshBuild(); }); b.dataset.c = c; cats.append(b); }
+    if (!cats.children.length) for (const [c, nm] of RH.CATS) { const b = btn(nm, 'cat', () => { buildCat = c; buildSel = null; $('buildList').dataset.key = ''; refreshBuild(); }); b.dataset.c = c; cats.append(b); }
     [...cats.children].forEach(b => b.classList.toggle('on', b.dataset.c === buildCat));
     // Rebuilt only when what it shows changes: replacing a button mid-press swallows the click.
     const list = $('buildList');
@@ -777,11 +794,11 @@
     const key = [buildCat, !!busy].concat(kinds.map(k => (RH.unlocked(h, k) ? 1 : 0) + (h.cash < RH.roomCost(h, k) ? 0 : 2))).join('|');
     if (list.dataset.key !== key) {
       list.dataset.key = key; list.replaceChildren();
+      if (!kinds.includes(buildSel)) buildSel = kinds.find(k => RH.unlocked(h, k)) || kinds[0];
       for (const kind of kinds) {
         const R = RH.ROOMS[kind], open = RH.unlocked(h, kind), cost = RH.roomCost(h, kind);
         const cures = RH.DISEASES.filter(d => d.room === kind).map(d => d.name);
-        const b = el('button', 'item room' + (open ? '' : ' locked')); b.disabled = !open || !!busy;
-        const body = el('div');
+        const b = el('button'); b.disabled = !!busy;   // locked rooms stay pointable, so their preview shows
         let what = '';
         if (kind === 'gp') what = 'First diagnosis for every patient. Consultants diagnose most cases in one visit.';
         else if (R.cat === 'diag') what = `Adds to the diagnosis % (finds ${R.det.split(' ').map(g => ({ pharm: 'drug', psych: 'mental', clinic: 'clinic', op: 'surgical' })[g]).join(', ')} illnesses). Fee ${money(R.fee)}.`;
@@ -794,18 +811,30 @@
         else what = 'Cures ' + (cures.join(', ') || '—') + '.';
         const need = R.staff ? ` Needs ${R.need ? 'two surgeons' : 'a ' + needWord(kind)}.` : '';
         const size = ` At least ${R.min}×${R.min}${R.swing ? ', double doors' : ''}.`;
-        body.append(el('b', null, R.name), el('small', null, open ? what + need + size : `Not researched yet (${RH.RESEARCH.cure.list.includes(kind) ? 'Cure' : 'Diagnosis'} Equipment). ` + what));
-        const price = el('span', 'price' + (h.cash < cost ? ' bad' : ''), money(cost));
-        b.append(body, price);
+        buildInfo[kind] = { name: R.name, cost, txt: open ? what + need + size : `Not researched yet (${RH.RESEARCH.cure.list.includes(kind) ? 'Cure' : 'Diagnosis'} Equipment). ` + what };
+        b.className = 'rrow' + (open ? '' : ' locked') + (h.cash < cost ? ' dear' : '') + (kind === buildSel ? ' sel' : ''); b.dataset.k = kind;
+        b.append(el('span', null, R.name), el('span', null, open ? money(cost) : 'Locked'));
+        // pointing at a room shows it in the preview pane and puts its price on the cost line
+        const show = () => { buildSel = kind; [...list.children].forEach(x => x.classList.toggle('sel', x === b)); buildPreview(); };
+        b.addEventListener('pointerenter', show); b.addEventListener('focus', show);
         // the cost check: refused with a hint about loans if you can't afford it
         b.addEventListener('click', () => {
+          if (!open) { fail(`The ${R.name} hasn't been researched yet.`); return; }
           if (h.cash < cost) { fail(`You need ${money(cost)} for a ${R.name}. The Bank Manager can lend you money.`); return; }
           startBlueprint(kind);
         });
         list.append(b);
       }
+      buildPreview();
     }
     errFor('buildErr');
+  }
+  let buildSel = null;
+  const buildInfo = {};
+  function buildPreview() {
+    const i = buildInfo[buildSel]; if (!i) return;
+    $('buildPrev').replaceChildren(el('b', null, i.name), el('small', null, i.txt));
+    $('buildCost').textContent = `Cost ${money(i.cost)}`;
   }
 
   // ---- a room ----
