@@ -212,6 +212,7 @@
     spec: { name: 'Specialisation', cost: 50 },
   };
   const FIELDS = ['cure', 'diag', 'drug', 'imp', 'spec'];
+  const MP_RESEARCH = 2.5;   // the two-player duel lasts only 24 months, so its research runs faster than the campaign's
   const START_ROOMS = new Set(['gp', 'gendiag', 'ward', 'psych', 'pharm', 'infl', 'staff', 'toilet', 'research', 'training']);
   const QUAL_PTS = { r: 50, p: 65, s: 80 };
   const QUAL_NAME = { r: 'Researcher', p: 'Psychiatrist', s: 'Surgeon' };
@@ -628,9 +629,11 @@
   function start(s) {
     if (s.ph === 'play') return;
     const prof = s.prof, names = s.solo && s.solo.rivals.map(r => r.nm);   // keep the rivals the briefing named
+    const carry = s.solo && s.solo.carry;
     Object.assign(s, newState(s.solo ? s.solo.lvl : 0));
     if (prof) s.prof = prof;
     if (names) s.solo.rivals.forEach((r, i) => { r.nm = names[i]; });
+    if (carry) carryOver(s, carry);
     s.ph = 'play';
     s.ev.push({ k: 'start' });
   }
@@ -1494,6 +1497,7 @@
       rate += rr * (1 + 0.15 * countObj(r, 'computer') + 0.25 * countObj(r, 'atom'));
     }
     if (!rate) return;
+    if (!s.solo) rate *= MP_RESEARCH;
     for (const f of FIELDS) {
       if (!Rs.alloc[f]) continue;
       Rs.pts[f] += rate * dt * Rs.alloc[f] / 100;
@@ -1960,6 +1964,37 @@
     h.ban = Object.keys(LVL_FROM).filter(k => ROOMS[k] && lvl < LVL_FROM[k]);
     yearStart(s);
   }
+  // single player: what a promoted player takes to the next level. Built rooms (with their furniture and machine wear),
+  // staff, decor, research, policy, prices and the bank balance; patients, rubbish, faxes and the year's counts stay behind.
+  function carrySnapshot(s) {
+    const h = JSON.parse(JSON.stringify(s.h[0], (k, v) => (k === '_L' ? undefined : v)));
+    const keep = ['rooms', 'staff', 'decor', 'water', 'desk', 'res', 'pol', 'price', 'dprice', 'known', 'cb', 'specStr', 'built', 'cash', 'rep'];
+    const out = { nextId: s.nextId }; for (const k of keep) if (h[k] !== undefined) out[k] = h[k];
+    return out;
+  }
+  function carryOver(s, c) {
+    const h = s.h[0];
+    s.solo.carry = c;
+    c = JSON.parse(JSON.stringify(c));   // the stored copy stays untouched so the level can be restarted with it
+    s.nextId = Math.max(s.nextId, c.nextId || 0);
+    s.pool = newPool(s, true);           // fresh ids above everything carried in
+    h.rooms = {};
+    for (const k in c.rooms) {
+      const r = c.rooms[k]; if (r.phase !== 'built') continue;
+      Object.assign(r, { sts: [], p: null, prog: 0, n: 0, q: [], qt: [], dis: -1, users: [] });
+      h.rooms[r.id] = r;
+    }
+    h.staff = [];
+    for (const st of c.staff || []) {
+      if (st.gone) continue;
+      Object.assign(st, { slot: null, desk: false, x: EXIT[0], y: EXIT[1], path: [], mv: 0, idle: -1, job: null, work: 0, mode: 'idle', room: null, train: false, fax: 0, quit: 0, tired: 0 });
+      h.staff.push(st);
+    }
+    for (const k of ['decor', 'water', 'desk', 'res', 'pol', 'price', 'dprice', 'known', 'cb', 'specStr', 'built', 'rep']) if (c[k] !== undefined) h[k] = c[k];
+    if (c.cash != null) h.cash = Math.max(c.cash, 0);
+    for (const r of roomList(h)) computeSpots(h, r);
+    recount(h); changed(h); assign(h); h.yMinRep = h.rep;
+  }
   // rivals are never drawn or simulated tile by tile: they're statistical competitors (spec: Rival hospitals)
   function newRival(nm, lvl, cash) {
     return { nm, rep: START_REP, cash, cured: 0, died: 0, home: 0, visits: 0, seen: 0, value: LAND_VALUE, staff: 2, pend: 0, open: false,
@@ -2087,7 +2122,7 @@
   }
 
   const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, DESK_TILES, DIRS,
-    LEVELS, LVL_FROM, LAND_VALUE, stayOn,
+    LEVELS, LVL_FROM, LAND_VALUE, stayOn, carrySnapshot, carryOver, MP_RESEARCH,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,
     walled, isBuilt, editing, roomCenter, doorPoint, queuePos, idlePos, yearMonth, missingReq, objAvailable, objCost, roomCost, shellCost, replaceCost, wreckCost, teachSpeed,

@@ -10,7 +10,8 @@ window.PT_GAMES = [
   },
   {
     id: 'hospital',
-    name: 'Rival Hospital',
+    hidden: true,   // replaced by Rival Hospital 3D; the page still works for old links
+    name: 'Rival Hospital (classic)',
     blurb: 'Theme Hospital-style management duel. Build clinics, hire doctors, cure Balloon Head and Loose Tongue. The town\'s patients go wherever the reputation is higher.',
     icon: '🏥',
     type: 'Rivals · Real-time',

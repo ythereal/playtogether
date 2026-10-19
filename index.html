@@ -45,6 +45,7 @@
     document.body.appendChild(reg);
     function renderGames() {
     for (const g of window.PT_GAMES || []) {
+      if (g.hidden) continue;
       const a = document.createElement('a');
       a.className = 'tile';
       a.href = 'games/' + g.id + '/?t=' + Date.now();   // never open a cached copy of a game page from before a deploy

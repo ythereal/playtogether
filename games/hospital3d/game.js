@@ -22,7 +22,7 @@
   // ?solo=1 skips PeerJS: a local stand-in for the room, a campaign menu, and the save kept in localStorage.
   const params = new URLSearchParams(location.search);
   const SOLO = params.get('solo') === '1';
-  const SOLO_SAVE = 'rh3d_solo', CAMP_KEY = 'rh3d_campaign';
+  const SOLO_SAVE = 'rh3d_solo', CAMP_KEY = 'rh3d_campaign', CARRY_KEY = 'rh3d_carry';   // carry: the hospital a promotion takes along
   const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const campBest = () => clamp(((lsGet(CAMP_KEY) || {}).best) | 0 || 1, 1, RH.LEVELS.length);
@@ -33,11 +33,15 @@
       card.append(el('div', 'pt-eyebrow', 'Single player'), el('h2', 'pt-title', 'Rival Hospital 3D'), body);
       ov.append(card); document.body.append(ov);
       const go = pick => { ov.remove(); done(pick); };
-      body.append(el('p', 'pt-muted', 'Run one hospital per level against three computer rivals. Meet every target at a quarter-end check, with no loan, to be promoted.'));
-      if (sv && sv.v === RH.VERSION && sv.solo && sv.ph !== 'over') {
+      body.append(el('p', 'pt-muted', 'Run one hospital per level against three computer rivals. Meet every target at a quarter-end check, with no loan, to be promoted. Your rooms, staff, research and bank balance come with you to the next level.'));
+      const cv = lsGet(CARRY_KEY), live = sv && sv.v === RH.VERSION && sv.solo && sv.ph !== 'over';
+      if (live && !(cv && cv.lvl > sv.solo.lvl)) {
         const L = RH.LEVELS[sv.solo.lvl - 1], ym = RH.yearMonth(sv.month);
         body.append(btn(`Continue: level ${sv.solo.lvl}, ${L.nm} · ${RH.MONTH_NAMES[ym.month]} year ${ym.year}`, 'pt-btn pt-btn-big', () => go({ lvl: sv.solo.lvl, cont: true })));
-        body.append(el('div', 'pt-or', 'or start a level'));
+        body.append(el('div', 'pt-or', 'or start a level from scratch'));
+      } else if (cv && cv.c && RH.LEVELS[cv.lvl - 1]) {
+        body.append(btn(`Continue: level ${cv.lvl}, ${RH.LEVELS[cv.lvl - 1].nm}, with your hospital from ${cv.from}`, 'pt-btn pt-btn-big', () => go({ lvl: cv.lvl, cont: false, carry: cv.c })));
+        body.append(el('div', 'pt-or', 'or start a level from scratch'));
       }
       const list = el('div', 'lvl-list');
       RH.LEVELS.forEach((L, i) => {
@@ -83,6 +87,7 @@
   if (host) {
     const sv = room.saved;
     state = sv && sv.v === RH.VERSION && !!sv.solo === SOLO ? sv : RH.newState(SOLO ? soloPick.lvl : 0);
+    if (state !== sv && SOLO && soloPick.carry) { RH.carryOver(state, soloPick.carry); localStorage.removeItem(CARRY_KEY); room.save(state); }
     state.ev = []; if (!state.prof) state.prof = [{ nm: '', av: 0 }, { nm: '', av: 1 }];
     view = state;
   }
@@ -368,7 +373,7 @@
       case 'vipSurprise': if (mine) toast('You refused too many VIPs: this one turned up unannounced!', 'bad'); break;
       case 'vipOut': if (mine) toast(`${cap(e.who)} thought your hospital was ${e.grade}` + (e.cash ? ` · +${money(e.cash)}` : '') + ` · reputation ${e.rep > 0 ? '+' : ''}${e.rep}`, e.rep > 0 ? 'good' : 'bad'); break;
       case 'epi': if (mine) toast(`Epidemic of ${dname(e.dis)}! ${e.n} patients are infected`, 'bad'); break;
-      case 'epiCover': if (mine) toast('Cover-up: tap infected patients to have a nurse vaccinate them, and cure them before the inspector arrives', 'dim'); break;
+      case 'epiCover': if (mine) toast('Cover-up: tap each patient with a red “☣ Tap to vaccinate” tag so a nurse vaccinates them (stops the spread), then cure them before the inspector arrives', 'dim'); break;
       case 'epiDeclare': if (mine) toast('Epidemic declared: everyone vaccinated · fined $3,000 and reputation −20', 'bad'); break;
       case 'inspector': if (mine) toast('The health inspector is here!', 'bad'); break;
       case 'epiEnd': if (mine) toast(e.left ? `The inspector found ${e.left} infected patient${e.left > 1 ? 's' : ''}: fined ${money(1000 * e.left)}` : 'The inspector found nothing: +$2,000 and reputation +15', e.left ? 'bad' : 'good'); break;
@@ -436,7 +441,10 @@
     if (!h.desk) return ['Tap the dashed outline by the entrance to buy a reception desk ($150). Without one, no patients come.', 'warn'];
     if (!live.some(s => s.k === 'r')) return ['Hire a receptionist under Staff. Without one, no patients come.', 'warn'];
     if (!rooms.some(([, r]) => r.k === 'gp')) return ['Build a GP\'s Office: every patient starts there. Press Build.', 'warn'];
-    if (h.epi && h.epi.phase === 'cover') return [`Cover-up! Tap patients with the bug icon to vaccinate them, then cure them. Inspector arrives in ${Math.max(0, Math.round(h.epi.t - view.t))}s`, 'warn'];
+    if (h.epi && h.epi.phase === 'cover') {
+      const inf = (h.pats || []).filter(p => p.inf && p.st !== 'leave'), todo = inf.filter(p => !p.vax && !p.mk).length;
+      return [`Cover-up! ${todo ? `Tap the ${todo} patient${todo > 1 ? 's' : ''} tagged “☣ Tap to vaccinate” (red). ` : ''}${inf.length} infected still in the hospital: cure them or the inspector fines you $1,000 each. Inspector arrives in ${Math.max(0, Math.round(h.epi.t - view.t))}s`, 'warn'];
+    }
     if (h.em) return [`Emergency: ${h.em.saved}/${h.em.n} with ${dname(h.em.dis)} cured · ${Math.max(0, Math.round(h.em.end - view.t))}s left`, 'warn'];
     const smoking = rooms.find(([, r]) => RH.ROOMS[r.k].mach && r.used > r.str);
     if (smoking) return [`The ${rname(smoking[1].k)} machine is smoking! Get a handyman to repair it or replace it before it explodes.`, 'warn'];
@@ -547,7 +555,7 @@
         opt('Accept', 'accept', true); opt('Decline', 'decline');
         break;
       case 'epi':
-        body.append(el('h3', null, 'EPIDEMIC'), P(`${f.n} patients have contagious ${dname(f.dis)}.`), P('Declare it: everyone is vaccinated, but you are fined $3,000 and lose reputation. Cover it up: tap infected patients (bug icon) so a nurse vaccinates them, and cure them before the health inspector arrives in 75 seconds. Each infected patient he finds costs $1,000; none at all earns $2,000 and reputation.'));
+        body.append(el('h3', null, 'EPIDEMIC'), P(`${f.n} patients have contagious ${dname(f.dis)}.`), P('Declare it: everyone is vaccinated, but you are fined $3,000 and lose reputation. Cover it up: tap each infected patient (red “☣” tag over their head) so a nurse vaccinates them and the disease stops spreading, and cure them before the health inspector arrives in 75 seconds. Each infected patient he finds costs $1,000; none at all earns $2,000 and reputation.'));
         opt('Cover it up', 'cover', true); opt('Declare it', 'declare');
         break;
     }
@@ -1261,6 +1269,7 @@
   function soloOver() {
     const h = view.h[ME], won = view.winner === 0, n = view.solo.lvl, L = lvlInfo(), next = RH.LEVELS[n];
     if (won) lsSet(CAMP_KEY, { best: Math.max(campBest(), Math.min(n + 1, RH.LEVELS.length)) });
+    if (won && next) lsSet(CARRY_KEY, { lvl: n + 1, from: L.nm, c: RH.carrySnapshot(state) });
     $('ovTitle').textContent = won ? (next ? 'Promoted!' : 'The campaign is yours!') : 'Scandal!';
     $('ovVerdict').textContent = won ? (next ? `The board offers you ${next.nm} (level ${n + 1})` : `${L.nm} was the last hospital. You've won the campaign.`) : `You've been removed from ${L.nm}`;
     $('ovWhy').textContent = won ? `Every target was met at a ${view.solo.declined ? 'half-year' : 'quarter'}-end check with no loan outstanding.` + (next && next.intro ? ` New at ${next.nm}: ${next.intro.toLowerCase()}.` : '')
@@ -1274,10 +1283,13 @@
     closeSheets(); $('legend').hidden = true; $('over').hidden = false;
   }
   // a fresh level, paused on its briefing
-  function soloLevel(n) {
+  // carry: a hospital from RH.carrySnapshot to start with instead of an empty building
+  function soloLevel(n, carry) {
     const prof = state.prof;
     for (const k of Object.keys(state)) delete state[k];
     Object.assign(state, RH.newState(n)); state.prof = prof; state.ev = [];
+    if (carry) RH.carryOver(state, carry);
+    try { localStorage.removeItem(CARRY_KEY); } catch (e) {}
     floaters.length = ghosts.length = sparks.length = 0;
     lastPhase = 'ready'; hudKey = ''; statusKey = ''; selected = null; ed = null;
     closeSheets(); $('over').hidden = true; briefing(); $('legend').hidden = false;
@@ -1341,8 +1353,8 @@
   if (host) applyProfile(); else renderProfBtn();
   if (!profile) openProfile();
   $('ovClose').addEventListener('click', () => { $('over').hidden = true; });
-  $('ovStay').addEventListener('click', () => { if (!RH.stayOn(state)) { drainEvents(); onPhase(); $('over').hidden = true; room.save(state); } });
-  $('ovAgain').addEventListener('click', () => { if (SOLO) { const n = view.solo.lvl; soloLevel(view.winner === 0 ? Math.min(n + 1, RH.LEVELS.length) : n); return; } if (host) { RH.start(state); drainEvents(); onPhase(); room.save(state); } else { requestStart(); $('ovAgain').textContent = 'Asked the host…'; setTimeout(() => ($('ovAgain').textContent = 'Play again'), 2000); } });
+  $('ovStay').addEventListener('click', () => { if (!RH.stayOn(state)) { try { localStorage.removeItem(CARRY_KEY); } catch (e) {} drainEvents(); onPhase(); $('over').hidden = true; room.save(state); } });
+  $('ovAgain').addEventListener('click', () => { if (SOLO) { const n = view.solo.lvl, up = view.winner === 0 && n < RH.LEVELS.length; soloLevel(up ? n + 1 : n, up ? RH.carrySnapshot(state) : view.solo.carry); return; } if (host) { RH.start(state); drainEvents(); onPhase(); room.save(state); } else { requestStart(); $('ovAgain').textContent = 'Asked the host…'; setTimeout(() => ($('ovAgain').textContent = 'Play again'), 2000); } });
   function setTab(p) { tab = p; $('tabMine').classList.toggle('on', p === ME); $('tabRival').classList.toggle('on', p !== ME); selected = null; closeSheets(); hudKey = ''; statusKey = ''; setStatus(); if (!host && room.connected) room.send({ t: 'tab', p }); }
   if (SOLO) {
     $('tabRival').hidden = true; $('speedBox').hidden = false; $('startBtn').textContent = 'Start level';
@@ -1535,8 +1547,6 @@
   const labels = [];  // text drawn after the blit (positions in buffer px)
   function icon(kind, x, y, t) {
     if (kind === 'skull') { P(x - 2, y - 3, 5, 4, '#f4f0e6'); P(x - 1, y + 1, 3, 1, '#f4f0e6'); P(x - 1, y - 2, 1, 1, '#1b1720'); P(x + 1, y - 2, 1, 1, '#1b1720'); }
-    else if (kind === 'bug') { P(x - 2, y - 2, 4, 3, '#4fbf4a'); P(x - 3, y - 1, 1, 1, '#2f6b3a'); P(x + 2, y - 1, 1, 1, '#2f6b3a'); P(x - 1, y - 3, 2, 1, '#2f6b3a'); }
-    else if (kind === 'vax') { P(x - 3, y - 1, 5, 2, '#9fd8ff'); P(x + 2, y, 2, 1, '#f4f0e6'); P(x - 4, y - 1, 1, 2, '#3c7bd6'); }
     else if (kind === 'siren') { const on = Math.floor(t * 6) % 2; P(x - 2, y - 2, 4, 3, on ? '#3c7bd6' : '#9fd8ff'); P(x - 3, y + 1, 6, 1, '#6b7280'); if (on) { bctx.globalAlpha = 0.35; P(x - 5, y - 4, 10, 7, '#6fd3ff'); bctx.globalAlpha = 1; } }
     else if (kind === 'q') { P(x - 1, y - 3, 3, 1, '#ffe36b'); P(x + 1, y - 2, 1, 2, '#ffe36b'); P(x, y, 1, 1, '#ffe36b'); P(x, y + 2, 1, 1, '#ffe36b'); }
     else if (kind === 'angry') { P(x - 1, y - 3, 2, 4, '#ff6b57'); P(x - 1, y + 2, 2, 1, '#ff6b57'); }
@@ -1634,13 +1644,17 @@
         const [sx, sy] = drawPerson(HA.patientSheet(pt.look, shown), pt, 'p', t, dt, x + wob * 0.5, y);
         let ix = sx, iy = sy - 29;
         if (pt.em) { icon('siren', ix, iy, t); iy -= 6; }
-        if (pt.inf && !pt.vax) { icon('bug', ix + (pt.em ? 6 : 0), iy + (pt.em ? 6 : 0), t); }
-        else if (pt.vax && pt.inf) icon('vax', ix, iy, t);
+        // epidemic: a pulsing red ring at the feet and a coloured tag over the head saying what to do next
+        if (pt.inf) {
+          const ep = h.epi && h.epi.phase, cover = ep === 'cover' && tab === ME;
+          if (!pt.vax) { const pulse = 0.5 + 0.5 * Math.sin(t * 6 + pt.id); bctx.globalAlpha = 0.25 + 0.35 * pulse; bctx.fillStyle = pt.mk ? '#6fd3ff' : '#ff4d5e'; bctx.beginPath(); bctx.ellipse(sx, sy, 9 + pulse * 2, 4.5 + pulse, 0, 0, Math.PI * 2); bctx.fill(); bctx.globalAlpha = 1; }
+          const tag = pt.vax ? ['💉 Vaccinated: now cure', '#2f6fd0'] : pt.mk ? ['Nurse on the way…', '#2f6fd0'] : cover ? ['☣ Tap to vaccinate', '#d0303f'] : ['☣ Infected', '#d0303f'];
+          labels.push({ x: sx, y: iy - (pt.em ? 4 : 0), txt: tag[0], bg: tag[1], size: 3.8, plate: true });
+        }
         if (pt.hp < 0.25 && pt.why !== 'cured' && Math.floor(t * 3) % 2) icon('skull', sx - 7, sy - 26, t);
         if (pt.st === 'wait' && Math.floor(t * 2) % 2) icon('q', sx + 7, sy - 26, t);
         if (pt.st === 'queue' && pt.pat < 20 && Math.floor(t * 4) % 2) icon('angry', sx + 7, sy - 26, t);
         if (dis.id === 'sleep' && shown && Math.floor(t * 2) % 2) labels.push({ x: sx + 7, y: sy - 28, txt: 'z', col: '#9fd8ff', size: 5 });
-        if (pt.mk && !pt.vax) { bctx.strokeStyle = '#6fd3ff'; bctx.lineWidth = 1; bctx.beginPath(); bctx.ellipse(sx, sy, 8, 4, 0, 0, Math.PI * 2); bctx.stroke(); }
         if (pt.why === 'cured' && Math.floor(t * 3) % 2) { P(sx + 7, sy - 27, 1, 3, '#ffe36b'); P(sx + 6, sy - 26, 3, 1, '#ffe36b'); }
         if (selected && selected.id === pt.id && performance.now() < selected.until) {
           const what = pt.dx ? dis.name : `diagnosis ${Math.round(pt.dg * 100)}%`;
@@ -1719,8 +1733,8 @@
       ctx.font = font(l.size || 5, l.dim ? 600 : 700);
       if (l.plate) {
         const w = ctx.measureText(l.txt).width + 6 * S;
-        ctx.fillStyle = '#2b2e3a'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 3.2 * S, w, 6.4 * S, 1.5 * S); ctx.fill();
-        ctx.fillStyle = '#5a5f6e'; ctx.fillRect(x - w / 2 + S, y - 3.2 * S + S, w - 2 * S, 0.8 * S);
+        ctx.fillStyle = l.bg || '#2b2e3a'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 3.2 * S, w, 6.4 * S, 1.5 * S); ctx.fill();
+        ctx.fillStyle = l.bg ? 'rgba(255,255,255,.3)' : '#5a5f6e'; ctx.fillRect(x - w / 2 + S, y - 3.2 * S + S, w - 2 * S, 0.8 * S);
         ctx.fillStyle = '#fff6e0'; ctx.fillText(l.txt, x, y + S * 0.3);
         continue;
       }
