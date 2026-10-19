@@ -53,8 +53,16 @@
   const facing = f => ROTF[rot][f] == null ? 0 : ROTF[rot][f];
   // the scene buffer is SS times the logical size: every transform here is in logical pixels, scaled up by SS
   const SS = A.SS;
-  const ST = (ctx, a, b, c, d, e, f) => ctx.setTransform(a * SS, b * SS, c * SS, d * SS, e * SS, f * SS);
-  const reset = ctx => ctx.setTransform(SS, 0, 0, SS, 0, 0);
+  // the scene canvas only covers the part of the buffer in view: game.js says where its top-left sits (logical px)
+  let orgC = null, orgX = 0, orgY = 0;
+  const setOrigin = (ctx, x, y) => { orgC = ctx; orgX = x; orgY = y; };
+  const ST = (ctx, a, b, c, d, e, f) => { const o = ctx === orgC; ctx.setTransform(a * SS, b * SS, c * SS, d * SS, (e - (o ? orgX : 0)) * SS, (f - (o ? orgY : 0)) * SS); };
+  const reset = ctx => { const o = ctx === orgC; ctx.setTransform(SS, 0, 0, SS, o ? -orgX * SS : 0, o ? -orgY * SS : 0); };
+  // screen-space bounds of a world footprint standing up to `up` px tall, for skipping items out of view
+  function sbox(x, y, w, d, up) {
+    const a = px(x, y), b = px(x + w, y), c = px(x + w, y + d), e = px(x, y + d);
+    return [Math.min(a[0], b[0], c[0], e[0]) - 4, Math.min(a[1], b[1], c[1], e[1]) - up, Math.max(a[0], b[0], c[0], e[0]) + 4, Math.max(a[1], b[1], c[1], e[1]) + 4];
+  }
   const lw = img => img.lw || img.width, lh = img => img.lh || img.height;
   const R = (ctx, x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
   const shade = A.shade;
@@ -347,7 +355,7 @@
     const B = RH.OBJ[o], [rwd, rdp] = RH.objDims(o, rot);
     const X = x * T, Y = y * T, cx = X + rwd * 8, cy = Y + rdp * 8;
     const parts = [].concat(OBJ_DRAW[o](roomKind, dry));
-    const item = { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1), draw: c => {
+    const item = { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1), b: sbox(X, Y, rwd * T, rdp * T, 72), draw: c => {
       if (alpha != null) c.globalAlpha = alpha;
       withRot(cx, cy, rot, () => { const X0 = cx - B.fw * 8, Y0 = cy - B.fd * 8; for (const pt of parts) pt.draw(c, X0, Y0); });
       if (alpha != null) c.globalAlpha = 1;
@@ -356,7 +364,7 @@
     // a desk's office chair is its own item on the tile the doctor (or researcher, nurse) sits at, facing the desk,
     // sorted just in front of the sitter when its back is towards the camera and just behind them otherwise
     const t = RH.objTiles(o, x, y, rot), ux = t.use[0] * T + 8, uy = t.use[1] * T + 8, backNear = t.fdir === 2 || t.fdir === 3;
-    const chair = { d: depth(ux, uy) + (backNear ? 0.3 : -0.3), draw: c => {
+    const chair = { d: depth(ux, uy) + (backNear ? 0.3 : -0.3), b: sbox(ux - 10, uy - 10, 20, 20, 40), draw: c => {
       if (alpha != null) c.globalAlpha = alpha;
       withRot(ux, uy, t.bdir, () => officeChair(c, ux - 4, uy - 7));
       if (alpha != null) c.globalAlpha = 1;
@@ -374,7 +382,7 @@
   };
   function lyingItem(o, x, y, rot, img) {
     const B = RH.OBJ[o], [rwd, rdp] = RH.objDims(o, rot), X = x * T, Y = y * T, cx = X + rwd * 8, cy = Y + rdp * 8, G2 = LIE[o];
-    return { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1) + 0.2, draw: c => withRot(cx, cy, rot, () => {
+    return { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1) + 0.2, b: sbox(X, Y, rwd * T, rdp * T, 48), draw: c => withRot(cx, cy, rot, () => {
       const X0 = cx - B.fw * 8, Y0 = cy - B.fd * 8, hx = X0 + G2.hx, hy = Y0 + G2.hy, lx = X0 + G2.fx - hx, ly = Y0 + G2.fy - hy, len = Math.hypot(lx, ly);
       const wx = -ly / len * G2.w, wy = lx / len * G2.w, ox = hx - wx / 2, oy = hy - wy / 2;
       const [o1, o2] = px(ox, oy), [u1, u2] = px(ox + wx, oy + wy), [v1, v2] = px(ox + lx * 1.05, oy + ly * 1.05);
@@ -391,10 +399,10 @@
   // a room wrecked by an exploding machine: scorch marks and rubble
   function wreckItems(rc) {
     const items = [], X = rc.x * T, Y = rc.y * T, w = rc.w * T, h = rc.h * T;
-    items.push({ d: depth(X, Y) + 1, draw: c => decal(c, X + w / 2, Y + h / 2, ctx => { ctx.fillStyle = 'rgba(20,16,14,.55)'; ctx.beginPath(); ctx.ellipse(0, 0, w * 0.4, h * 0.35, 0.4, 0, Math.PI * 2); ctx.fill(); }) });
+    items.push({ d: depth(X, Y) + 1, b: sbox(X, Y, w, h, 4), draw: c => decal(c, X + w / 2, Y + h / 2, ctx => { ctx.fillStyle = 'rgba(20,16,14,.55)'; ctx.beginPath(); ctx.ellipse(0, 0, w * 0.4, h * 0.35, 0.4, 0, Math.PI * 2); ctx.fill(); }) });
     for (let i = 0; i < 9; i++) {
       const bx = X + 6 + Math.floor(A.hash(X + i, Y) * (w - 18)), by = Y + 6 + Math.floor(A.hash(Y + i, X) * (h - 18)), s = 4 + Math.floor(A.hash(i, X + Y) * 8);
-      items.push({ d: depthBox(bx, by, s, s), draw: c => box(c, bx, by, s, s, 3 + (i % 3) * 3, ['#5a5246', '#3a3530', '#6b6058'][i % 3]) });
+      items.push({ d: depthBox(bx, by, s, s), b: sbox(bx, by, s, s, 16), draw: c => box(c, bx, by, s, s, 3 + (i % 3) * 3, ['#5a5246', '#3a3530', '#6b6058'][i % 3]) });
     }
     return items;
   }
@@ -430,7 +438,7 @@
   }
   function decorItem(h, c, r, kind, dry) {
     const x = c * T + 8, y = r * T + 8, d = decorSide(h, c, r);
-    return { d: depth(x, y), draw: cx => {
+    return { d: depth(x, y), b: sbox(x - 12, y - 12, 24, 24, 48), draw: cx => {
       if (!DECOR_DRAW[kind]) return;
       if (d < 0) { DECOR_DRAW[kind](cx, x, y, dry); return; }
       const [dx, dy] = RH.DIRS[d], k = BACK_TO_WALL[kind] || 0, ox = x + dx * k, oy = y + dy * k;
@@ -473,19 +481,19 @@
     for (let Y = -GM + 40; Y < H * T + GM; Y += 90) { g(-GM + 37, Y, 4, 3, '#3e4045'); for (let k = 0; k < 4; k++) g(-GM + 37.5 + k, Y + q, q, 2, '#2a2c30'); }
     // a pavement round the building and a path from the road to the front doors
     pave(24, -8, W * T - 24 + 8, H * T + 16);
-    pave(-GM + 46, 140, GM + 24 - 46 + 32, 56);
+    pave(-GM + 46, RH.LOT.path - 26, GM + 24 - 46 + 16, 52);
     // the car park: tarmac with white bay lines (cars nose-in towards the road) and a footpath beside it
     { const L = RH.LOT, X0 = -GM + 46, Y0 = L.y0 - 14, Y1 = L.y0 + L.n * 16 + 2;
       g(X0, Y0, L.walk - 6 - X0, Y1 - Y0, '#5f6166');
       for (let i = 0; i < 2600; i++) g(X0 + Math.floor(hs(i, 71) * (L.walk - 6 - X0) * 2) / 2, Y0 + Math.floor(hs(i, 73) * (Y1 - Y0) * 2) / 2, q, q, i % 2 ? '#55575c' : '#6a6c71');
       for (let i = 0; i <= L.n; i++) g(X0 + 2, L.y0 - 8 + i * 16, L.walk - 18 - X0, 0.8, '#ecebe4');
       g(X0, Y0, L.walk - 6 - X0, 1, '#dcd8cc'); g(L.walk - 7, Y0, 1, Y1 - Y0, '#dcd8cc');
-      pave(L.walk - 6, 196, 30 - L.walk + 6, Y1 - 196); }
+      pave(L.walk - 6, L.path, 30 - L.walk + 6, Y1 - L.path); }
     // the forecourt where the building's front corner is cut away: big pale slabs with a darker border
     { const X = 24, Y = RH.NOTCH.y0 * T - 8, w = RH.NOTCH.x1 * T - 24 + 8, hh = H * T - RH.NOTCH.y0 * T + 16;
       g(X, Y, w, hh, '#cbc8c0'); for (let j = 0; j < hh; j += 16) for (let i = 0; i < w; i += 16) { const v = hs(i + X, j + Y); g(X + i, Y + j, 16, 16, v < 0.5 ? '#cfccc4' : '#c6c3bb'); g(X + i, Y + j, 16, q, '#dedbd3'); g(X + i, Y + j, q, 16, '#d8d5cd'); g(X + i, Y + j + 15.5, 16, q, '#aeaba2'); g(X + i + 15.5, Y + j, q, 16, '#b3b0a7'); } }
     // flower beds either side of the path
-    for (const [X, Y] of [[-40, 114]]) {
+    for (const [X, Y] of [[-40, RH.LOT.path - 48]]) {
       g(X, Y, 44, 18, '#6b4a2c'); g(X, Y, 44, 1, '#8a6440'); g(X, Y + 17, 44, 1, '#4a3220');
       for (let i = 0; i < 260; i++) g(X + Math.floor(hs(i, X + Y + 1) * 88) / 2, Y + 1 + Math.floor(hs(Y, i + 7) * 32) / 2, q, q, i % 2 ? '#5a3c22' : '#7c5634');
       for (let i = 0; i < 60; i++) {
@@ -506,8 +514,9 @@
       for (let i = 0; i < 6; i++) g(X + Math.floor(hs(i + X, Y) * 30) / 2, Y + Math.floor(hs(Y + i, X) * 30) / 2, q, q, shade(base, i % 2 ? -0.08 : 0.08));
     }
     // a bristly doormat inside the front doors
-    g(33, 146, 12, 44, '#5a5650'); g(33, 146, 12, q, '#77726a'); g(33, 189.5, 12, q, '#3e3b36');
-    for (let j = 147; j < 189; j += 1) for (let i = 34; i < 44; i += 1) if (hs(i, j) < 0.5) g(i + (j % 2) * q, j, q, q, '#6e6a62');
+    { const D = RH.DOOR, X0 = D.x0 * T + 2, X1 = (D.x1 + 1) * T - 2, Y0 = D.y * T - 12, Y1 = D.y * T - 1;
+      g(X0, Y0, X1 - X0, Y1 - Y0, '#5a5650'); g(X0, Y0, X1 - X0, q, '#77726a'); g(X0, Y1 - q, X1 - X0, q, '#3e3b36');
+      for (let j = Y0 + 1; j < Y1 - 1; j += 1) for (let i = X0 + 1; i < X1 - 1; i += 1) if (hs(i, j) < 0.5) g(i + (j % 2) * q, j, q, q, '#6e6a62'); }
     return (groundC = c);
   }
   const floorCache = {};
@@ -602,7 +611,7 @@
       const t0 = i / n, t1 = (i + 1) / n;
       const p0 = [sx + (ex - sx) * t0, sy + (ey - sy) * t0], p1 = [sx + (ex - sx) * t1, sy + (ey - sy) * t1];
       const q0 = rw(p0[0], p0[1]), q1 = rw(p1[0], p1[1]);
-      items.push({ d: (dsum(q0[0], q0[1]) + dsum(q1[0], q1[1])) / 2, draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); ST(c, (v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), img.height, 0, 0, len, h); reset(c); } });
+      items.push({ d: (dsum(q0[0], q0[1]) + dsum(q1[0], q1[1])) / 2, b: sbox(Math.min(p0[0], p1[0]), Math.min(p0[1], p1[1]), Math.abs(p1[0] - p0[0]), Math.abs(p1[1] - p0[1]), h + 4), draw: c => { const [u1, u2] = px(p0[0], p0[1]), [v1, v2] = px(p1[0], p1[1]), len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); ST(c, (v1 - u1) / len, (v2 - u2) / len, 0, 1, u1, u2 - h); c.drawImage(img, img.width * t0, 0, img.width * (t1 - t0), img.height, 0, 0, len, h); reset(c); } });
     }
     return items;
   }
@@ -655,7 +664,7 @@
     const key = h.lv + ':' + rot + ':' + flat;
     const hit = edgeCache.get(h); if (hit && hit.key === key) return hit.items;
     const Lr = RH.layout(h), items = [];
-    const roomOf = (x, y) => (RH.indoor(x, y) ? Lr.room[RH.idx(x, y)] : x >= 0 && x < 2 && y >= 9 && y <= 11 ? 0 : -1);
+    const roomOf = (x, y) => (RH.indoor(x, y) ? Lr.room[RH.idx(x, y)] : y === RH.DOOR.y && x >= RH.DOOR.x0 && x <= RH.DOOR.x1 ? 0 : -1);
     const farN = (nx, ny) => { const o = rw(0, 0), n = rw(nx, ny), n1 = n[0] - o[0], n2 = n[1] - o[1]; return Math.abs(n2) > Math.abs(n1) ? n2 > 0 : n1 > 0; };
     const posterEdges = new Set();
     for (const k in h.rooms) {
@@ -856,7 +865,7 @@
   // the front doors: a green frame with fixed side panes, and two glass leaves that slide apart when anyone comes near
   let doorsC = null, slideOpen = 0, slideDrawn = -1;
   function doorsImg() {
-    const want = near(32, 168, 30, 30) ? 1 : 0;
+    const want = near((RH.DOOR.mid + 0.5) * T, RH.DOOR.y * T, 30, 30) ? 1 : 0;
     slideOpen += (want - slideOpen) * Math.min(1, frameDt * (want ? 7 : 3));
     if (doorsC && Math.abs(slideOpen - slideDrawn) < 0.01) return doorsC;
     if (!doorsC) doorsC = A.hcanvas(48, WALL_H)[0];
@@ -875,10 +884,11 @@
   }
   function doorItems() {
     const items = [];
+    const Y = RH.DOOR.y * T;   // the doors stand in the south wall, so they run along x
     for (let i = 0; i < 3; i++) {
-      const y0 = 144 + i * 16, y1 = y0 + 16;
-      items.push({ d: (depth(32, y0) + depth(32, y1)) / 2 + 0.2, draw: c => {
-        const img = doorsImg(), h = flat ? 4 : WALL_H, [u1, u2] = px(32, y0), [v1, v2] = px(32, y1);
+      const x0 = RH.DOOR.x0 * T + i * 16, x1 = x0 + 16;
+      items.push({ d: (depth(x0, Y) + depth(x1, Y)) / 2 + 0.2, draw: c => {
+        const img = doorsImg(), h = flat ? 4 : WALL_H, [u1, u2] = px(x0, Y), [v1, v2] = px(x1, Y);
         ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); const k = img.width / 48; c.drawImage(img, i * 16 * k, (flat ? WALL_H - 4 : 0) * k, 16 * k, h * k, 0, 0, 16, h); reset(c);
       } });
     }
@@ -889,8 +899,8 @@
   function outside() {
     if (outsideCache && outsideCache.key === rot + ':' + flat) return outsideCache.items.slice();
     const items = doorItems();
-    const bx = (x, y, w, d, h, col, faces) => ({ d: depthBox(x, y, w, d), draw: c => box(c, x, y, w, d, h, col, faces) });
-    const sprite = (name, x, y, sh, sway) => ({ d: depth(x, y), draw: c => {
+    const bx = (x, y, w, d, h, col, faces) => ({ d: depthBox(x, y, w, d), b: sbox(x, y, w, d, h + 6), draw: c => box(c, x, y, w, d, h, col, faces) });
+    const sprite = (name, x, y, sh, sway) => ({ d: depth(x, y), b: sbox(x - 28, y - 28, 56, 56, 120), draw: c => {
       if (sh) shadow(c, x, y, sh);
       if (!sway || flat) { bill(c, A.furniture(name), x, y); return; }
       // trees lean gently in the breeze, rooted at their base
@@ -900,16 +910,16 @@
     // the ambulance parked on the road
     items.push(bx(-86, 30, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { const on = Math.floor(now * 3) % 2; R(ctx, 3, 4, 7, 3, on ? '#7fb2ff' : '#2a5aa6'); R(ctx, 3, 20, 7, 3, on ? '#a8202a' : '#ff6a5a'); } }));
     // trees round the grounds (none on the road, the path or the pavement)
-    const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 230], [-24, 330], [-34, 410], [-20, 10]];
+    const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 120], [-34, 440], [-20, 10]];
     for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
     // street lamps along the road and the path
-    for (const [x, y] of [[-46, 136], [-46, -20], [-46, 60], [-2, 108], [-2, 206], [-2, 290], [-2, 356], [40, 250], [136, 250], [40, 404], [136, 404]]) items.push(sprite('streetlamp', x, y, 3));
+    for (const [x, y] of [[-46, 200], [-46, -20], [-46, 60], [-2, 196], [-2, 290], [-2, 356], [40, 260], [136, 260], [40, 404], [136, 404]]) items.push(sprite('streetlamp', x, y, 3));
     // the forecourt: trees in round planters
     for (const [x, y] of [[88, 290], [88, 370]]) { items.push({ d: depth(x, y) - 1, draw: c => { cyl(c, x, y, 7, 4, '#9a978e'); cyl(c, x, y, 6, 0.5, '#5a3c22', 4); } }); items.push(sprite('bigtree', x, y + 1, 0)); }
     // clipped hedges beside the flower beds
-    for (const [x, y] of [[-42, 110]]) items.push(bx(x, y, 48, 4, 7, '#2f7a2a', { top: ctx => { for (let i = 0; i < 48; i += 3) R(ctx, i, 1, 2, 2, '#4aab3c'); }, south: (ctx, w, h) => { for (let i = 1; i < w; i += 4) R(ctx, i, 2, 2, 2, '#3f9c33'); } }));
-    for (const [x, y] of [[-10, 20], [-30, 380], [-10, 400]]) items.push(sprite('bush', x, y));
-    items.push(sprite('sign', -14, 134));
+    for (const [x, y] of [[-42, RH.LOT.path - 52]]) items.push(bx(x, y, 48, 4, 7, '#2f7a2a', { top: ctx => { for (let i = 0; i < 48; i += 3) R(ctx, i, 1, 2, 2, '#4aab3c'); }, south: (ctx, w, h) => { for (let i = 1; i < w; i += 4) R(ctx, i, 2, 2, 2, '#3f9c33'); } }));
+    for (const [x, y] of [[-10, 20], [-30, 470], [-10, 450]]) items.push(sprite('bush', x, y));
+    items.push(sprite('sign', -14, RH.LOT.path - 34));
     outsideCache = { key: rot + ':' + flat, items };
     return items.slice();
   }
@@ -932,11 +942,11 @@
   // The reception desk greets patients coming in: a blue counter across the lobby, its raised ledge and name board
   // facing the front doors (west), and the receptionist's side (east) with the monitor turned to them, a keyboard,
   // papers, a plant and their office chair. Returns two items: the chair goes behind the receptionist.
-  // The reception desk at the far (north) end of the entrance hall: the counter runs along the hall with its raised
-  // ledge and name board towards the patients (east); the receptionist sits on the wall side (west), her back to
-  // the front wall and the camera, the monitor turned to her. Returns two items: her chair is behind her.
+  // The reception desk in the hall's front corner, beside the doors: the counter runs along the west wall with its
+  // raised ledge and name board towards the patients (east); the receptionist sits on the wall side (west), her back
+  // to the front wall and the camera, the monitor turned to her. Returns two items: her chair is behind her.
   function deskItem(bought, t) {
-    const X = 46, Y = 48;   // the counter's footprint: 14 x 28
+    const X = RH.DESK_TILES[0][0] * T - 2, Y = RH.DESK_TILES[0][1] * T;   // the counter's footprint: 14 x 28
     if (!bought) return [{ d: depth(X + 7, Y + 14) - 40, draw: c => decal(c, X, Y, ctx => { ctx.globalAlpha = 0.5 + Math.sin(t * 3) * 0.2; ctx.setLineDash([3, 2]); ctx.strokeStyle = '#3a5a8a'; ctx.lineWidth = 1.5; ctx.strokeRect(0.5, 0.5, 13, 27); ctx.setLineDash([]); ctx.globalAlpha = 1; }) }];
     const BLUE = '#4a72b0', TOP = '#e6e2d6';
     const desk = { d: depthBox(X, Y, 14, 28), draw: c => {
@@ -1003,5 +1013,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { frame, clouds, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { frame, clouds, setOrigin, sbox, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

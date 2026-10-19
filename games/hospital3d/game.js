@@ -1534,7 +1534,27 @@
   const HI = window.HI;
   const cv = $('view'), ctx = cv.getContext('2d');
   const BW = HI.BW, BH = HI.BH;
-  const SS = HA.SS, [buf, bctx] = HA.canvas(BW * SS, BH * SS);   // the scene is drawn at SS times its logical size
+  const SS = HA.SS, [buf, bctx] = HA.canvas(SS, SS);   // the scene is drawn at SS times its logical size, and only the part in view
+  let VW = 0, VH = 0;   // its size in buffer px: the window at the current zoom, plus a little slack
+  function sceneSize() {
+    const w = Math.ceil(cw / cam.z) + 4, h = Math.ceil(ch / cam.z) + 4;
+    if (w === VW && h === VH) return;
+    VW = w; VH = h; buf.width = w * SS; buf.height = h * SS; bctx.imageSmoothingEnabled = false;
+  }
+  // the lawns, paths and room floors never move, so they're drawn once into a map-sized layer and copied from
+  let floorC = null, floorX = null, floorKey = '';
+  function floorLayer(h) {
+    let key = HI.getRot() + ':' + HI.getFlat();
+    if (h) for (const k in h.rooms) { const r = h.rooms[k], rc = r.rect; if (RH.walled(r)) key += '|' + r.k + rc.x + ',' + rc.y + ',' + rc.w + ',' + rc.h; }
+    if (key === floorKey) return floorC;
+    if (!floorC) [floorC, floorX] = HA.canvas(BW * SS, BH * SS);
+    floorKey = key;
+    floorX.setTransform(SS, 0, 0, SS, 0, 0); floorX.clearRect(0, 0, BW, BH);
+    HI.floorAt(floorX, groundC, -HI.GM, -HI.GM);
+    if (h) for (const k in h.rooms) { const r = h.rooms[k]; if (RH.walled(r)) HI.floorAt(floorX, HI.roomFloor(r.k, r.rect.w, r.rect.h), r.rect.x * T, r.rect.y * T); }
+    return floorC;
+  }
+  const pbox = (x, y) => HI.sbox(x - 12, y - 12, 24, 24, 64);   // a person's bounds on screen, generously
   const groundC = HI.ground(), ghostSpr = HA.ghost(), mopSpr = HA.furniture('mop');
   let cw = 1, ch = 1, DPR = 1;
   const cam = { x: BW / 2, y: BH / 2 - 10, z: 2 };          // centre of the view in buffer px, zoom
@@ -1559,7 +1579,7 @@
   function fitView() {
     const ex = HI.extent(); fitZ = Math.min(cw / ex.w, (ch - 110) / ex.h) * 0.96;
     cam.z = viewZ();
-    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(60, 150); cam.x = bx; cam.y = by; }
+    if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(80, 168); cam.x = bx; cam.y = by; }
     clampCam();
   }
   // pushing the mouse against an edge of the window scrolls the map, faster the closer it gets
@@ -1668,7 +1688,7 @@
       return;
     }
     selected = null;
-    if (tab === ME && bx >= 44 && bx <= 64 && by >= 44 && by <= 80) { openDesk(); return; }
+    if (tab === ME && bx >= RH.DESK_TILES[0][0] * T - 4 && bx <= RH.DESK_TILES[0][0] * T + 16 && by >= RH.DESK_TILES[0][1] * T - 4 && by <= RH.DESK_TILES[0][1] * T + 32) { openDesk(); return; }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
     const rm = roomAt(h, c, r);
     if (rm) { openRoom(rm.id); return; }
@@ -1687,7 +1707,7 @@
     if (rm) {
       const R = RH.ROOMS[rm.k];
       txt = rm.phase === 'wreck' ? `${R.name}: wrecked` : rm.phase !== 'built' ? `${R.name}: being built` : `${R.name} · ${qn(rm)} queuing` + (R.mach ? ` · machine strength ${rm.str}, used ${rm.used}` : '') + (rm.sts.length < (R.need || (R.staff ? 1 : 0)) ? ` · needs a ${needWord(rm.k)}` : '');
-    } else if (wx >= 44 && wx <= 64 && wy >= 44 && wy <= 80) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
+    } else if (wx >= RH.DESK_TILES[0][0] * T - 4 && wx <= RH.DESK_TILES[0][0] * T + 16 && wy >= RH.DESK_TILES[0][1] * T - 4 && wy <= RH.DESK_TILES[0][1] * T + 32) txt = h.desk ? 'Reception desk' : 'Reception desk: tap to buy ($150)';
     else { const d = h.decor[RH.decorKey(c, r)]; if (d) txt = RH.DECOR[d].name + (d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' (dead: needs watering)' : ''); }
     if (myEdit() || (ed && ed.mode)) txt = '';
     if (txt !== hoverTxt) { hoverTxt = txt; setStatus(); }
@@ -1832,17 +1852,23 @@
   }
   function render(t, dt) {
     labels.length = 0;
-    bctx.setTransform(SS, 0, 0, SS, 0, 0);
-    bctx.clearRect(0, 0, BW, BH);
+    // the camera (with an earthquake or explosion shake) picks which part of the buffer is drawn this frame
+    sceneSize();
+    let shx = 0, shy = 0;
+    if (shake > 0) { shake -= dt; const a = Math.min(1, shake) * 4; shx = (Math.random() - 0.5) * a; shy = (Math.random() - 0.5) * a; }
+    const sx0 = cam.x - cw / cam.z / 2 + shx, sy0 = cam.y - ch / cam.z / 2 + shy;
+    const ox = Math.floor(sx0 * SS) / SS - 1, oy = Math.floor(sy0 * SS) / SS - 1, ox1 = ox + VW, oy1 = oy + VH;
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.clearRect(0, 0, VW * SS, VH * SS);
     const h = view ? view.h[tab] : null;
+    bctx.drawImage(floorLayer(h), ox * SS, oy * SS, VW * SS, VH * SS, 0, 0, VW * SS, VH * SS);
+    bctx.setTransform(SS, 0, 0, SS, -ox * SS, -oy * SS); HI.setOrigin(bctx, ox, oy);
     const mine = tab === ME;
     // floors
     // everyone's position this frame: doors open for whoever is in the doorway
     const people = [];
     if (h) { for (const e of h.pats || []) people.push(posOf('p', e)); for (const e of h.staff) if (!e.gone) people.push(posOf('s', e)); for (const e of h.vis || []) people.push(posOf('v', e)); }
     HI.frame(t, dt, people);
-    HI.floorAt(bctx, groundC, -HI.GM, -HI.GM);
-    if (h) for (const key in h.rooms) { const r = h.rooms[key]; if (RH.walled(r)) HI.floorAt(bctx, HI.roomFloor(r.k, r.rect.w, r.rect.h), r.rect.x * T, r.rect.y * T); }
     HI.clouds(bctx);
     ghosts3d.length = 0;
     if (h) drawBuildOverlays(h, t, mine);
@@ -1864,11 +1890,11 @@
     if (h) {
       objs.push(...HI.deskItem(h.desk, t));
       for (const key in h.decor) { const [c, r] = key.split(',').map(Number), kind = h.decor[key], dry = kind === 'plant' && h.dry && h.dry.includes(key); objs.push(HI.decorItem(h, c, r, kind, dry)); }
-      for (const m of h.mess) objs.push(HI.messItem(m));
-      for (const rt of h.rats || []) { const [x, y] = posOf('r', rt); objs.push(HI.ratItem({ x, y, f: rt.f }, t)); }
+      for (const m of h.mess) { const it = HI.messItem(m); it.b = pbox(m.x, m.y); objs.push(it); }
+      for (const rt of h.rats || []) { const [x, y] = posOf('r', rt), it = HI.ratItem({ x, y, f: rt.f }, t); it.b = pbox(x, y); objs.push(it); }
       // someone sitting draws after the seat they're on (which sorts by its nearest corner)
       for (const car of h.cars || []) objs.push(HI.carItem(car));   // cars bringing and fetching people
-      for (const st of h.staff) { if (st.incar) continue; const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, seat = atDesk ? { x: st.x, y: st.y, f: 3, d: HI.depth(st.x, st.y) } : seatOf(h, st, true); objs.push({ d: seat ? seat.d : HI.depth(st.x, st.y), draw: () => {
+      for (const st of h.staff) { if (st.incar) continue; const atDesk = st.desk && !st.mv && Math.hypot(st.x - RH.DESK_STAFF[0], st.y - RH.DESK_STAFF[1]) < 3, seat = atDesk ? { x: st.x, y: st.y, f: 3, d: HI.depth(st.x, st.y) } : seatOf(h, st, true); objs.push({ d: seat ? seat.d : HI.depth(st.x, st.y), b: pbox(st.x, st.y), draw: () => {
         const [x, y] = seat ? [seat.x, seat.y] : posOf('s', st);   // behind the counter, at a desk, on a sofa, in a lecture
         const [sx, sy] = drawPerson(HA.staffSheet(st.look, staffKind(st)), st, 's', t, dt, x, y, seat ? seat.f : null);
         if (st.k === 'h' && (st.cl || st.work > 0)) { const j = st.job; if (j === 'm' || (j && j[0] === 'm')) bctx.drawImage(mopSpr, sx + 5 + (Math.floor(t * 6) % 2 ? 2 : 0), sy - 20, mopSpr.lw, mopSpr.lh); else if (Math.floor(t * 8) % 2) { P(sx + 6, sy - 14, 3, 2, '#9aa3b8'); P(sx + 8, sy - 16, 1, 3, '#9aa3b8'); } }
@@ -1882,7 +1908,7 @@
         // being treated on a bed, couch, examination couch or operating table: lying on it
         const lie = lyingOn(h, pt);
         if (lie) { const sh = HA.patientSheet(pt.look, pt.why === 'cured' ? '' : RH.DISEASES[pt.dis].vis); objs.push(HI.lyingItem(lie.o, lie.x, lie.y, lie.r, sh.down[0])); continue; }
-        const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), draw: () => {
+        const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), b: pbox(pt.x, pt.y), draw: () => {
         const dis = RH.DISEASES[pt.dis], shown = pt.why === 'cured' ? '' : dis.vis;
         const [x, y] = seat ? [seat.x, seat.y] : posOf('p', pt);
         // serious radiation glows
@@ -1910,23 +1936,26 @@
           labels.push({ x: sx, y: sy - 34, txt: `${pt.nm} · ${what} · health ${Math.round(pt.hp * 100)}%${doing}${pt.em ? ' · EMERGENCY' : ''}${pt.inf && !pt.vax ? ' · infected' : ''}`, col: '#fff6e0', bubble: true, size: 4.6 });
         }
       } }); }
-      for (const v of (h.vis || []).filter(v => !v.incar)) objs.push({ d: HI.depth(v.x, v.y), draw: () => {
+      for (const v of (h.vis || []).filter(v => !v.incar)) objs.push({ d: HI.depth(v.x, v.y), b: pbox(v.x, v.y), draw: () => {
         const [x, y] = posOf('v', v);
         const [sx, sy] = drawPerson(v.k === 'vip' ? HA.vipSheet() : HA.inspSheet(), v, 'v', t, dt, x, y);
         labels.push({ x: sx, y: sy - 32, txt: v.k === 'vip' ? 'VIP' : 'Inspector', col: '#fff6e0', size: 3.8, plate: true });
       } });
       // the administrator pacing corridor A with a clipboard (cosmetic, driven by local time)
       {
-        const ph = (t % 24) / 24, x0 = 42, x1 = 88;
+        const ph = (t % 24) / 24, x0 = 92, x1 = 120;
         let mx, mf, mv;
         if (ph < 0.4) { mx = x0 + (ph / 0.4) * (x1 - x0); mf = 3; mv = 1; } else if (ph < 0.5) { mx = x1; mf = 0; mv = 0; } else if (ph < 0.9) { mx = x1 - ((ph - 0.5) / 0.4) * (x1 - x0); mf = 2; mv = 1; } else { mx = x0; mf = 0; mv = 0; }
-        const mgr = { id: 'm' + tab, f: mf, mv }, my = RH.LOBBY.y1 * T + 10;
+        const mgr = { id: 'm' + tab, f: mf, mv }, my = RH.LOBBY.y0 * T + 24;
         objs.push({ d: HI.depth(mx, my), draw: () => { const [sx, sy] = drawPerson(HA.managerSheet(avOf(tab)), mgr, 'g', t, dt, mx, my); labels.push({ x: sx, y: sy - 30, txt: nameOf(tab), col: '#fff6e0', size: 3.8, plate: true }); } });
       }
     }
     // while furnishing (or placing a door or windows), the room's two camera-side walls turn see-through
     const tgF = mine && view && view.ph === 'play' ? edTarget() : null, fade = tgF && tgF.room && ['door', 'win', 'furnish'].includes(tgF.phase) ? tgF.room.id : 0;
-    objs.sort((a, b) => a.d - b.d).forEach(o => { if (fade && o.front === fade) { bctx.globalAlpha = 0.28; o.draw(bctx); bctx.globalAlpha = 1; } else o.draw(bctx); });
+    // only what's in view is sorted and drawn
+    const inView = [];
+    for (const o of objs) { const b = o.b; if (!b || (b[2] >= ox && b[0] <= ox1 && b[3] >= oy && b[1] <= oy1)) inView.push(o); }
+    inView.sort((a, b) => a.d - b.d).forEach(o => { if (fade && o.front === fade) { bctx.globalAlpha = 0.28; o.draw(bctx); bctx.globalAlpha = 1; } else o.draw(bctx); });
     if (h) {
       for (const key in h.rooms) {
         const r = h.rooms[key], R = RH.ROOMS[r.k], rc = r.rect;
@@ -1964,11 +1993,8 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = '#3f9c33'; ctx.fillRect(0, 0, cw, ch);   // the lawn carries on past the edge of the grounds
     ctx.imageSmoothingEnabled = cam.z < 1;
-    let shx = 0, shy = 0;
-    if (shake > 0) { shake -= dt; const a = Math.min(1, shake) * 4; shx = (Math.random() - 0.5) * a; shy = (Math.random() - 0.5) * a; }
-    const sx0 = cam.x - cw / cam.z / 2 + shx, sy0 = cam.y - ch / cam.z / 2 + shy;
     ctx.setTransform(DPR * cam.z, 0, 0, DPR * cam.z, -sx0 * DPR * cam.z, -sy0 * DPR * cam.z);
-    ctx.drawImage(buf, 0, 0, BW, BH);
+    ctx.drawImage(buf, ox, oy, VW, VH);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     if (flash) { flash.life -= dt; ctx.fillStyle = `rgba(255,236,180,${clamp(flash.life * 1.5, 0, 0.6)})`; ctx.fillRect(0, 0, cw, ch); if (flash.life <= 0) flash = null; }
     if (h && h.warm < 0.6 && mine && view.ph === 'play') { ctx.fillStyle = 'rgba(120,170,230,.07)'; ctx.fillRect(0, 0, cw, ch); }

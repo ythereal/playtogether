@@ -10,19 +10,20 @@
 // walls block movement except through doors. The lobby by the entrance (reception desk, waiting area) stays open.
 (function (root) {
   'use strict';
-  const VERSION = 5;   // 5: a narrow entrance hall with the desk at its far end; people come and go by car
+  const VERSION = 6;   // 6: Theme Hospital's entrance hall: doors in the south wall by the corner, desk in that corner
   const T = 16, W = 32, H = 26;
   const MONTH = 60;                 // real seconds per in-game month
   const DAY = MONTH / 30;           // the spec's daily happiness effects tick once per in-game day
   const MONTHS = 24;                // two years; targets are checked at every quarter-end
   const GRACE = 120;                // build timer: patients start arriving after this, or when you open the doors
-  // the reception desk stands across the lobby facing the front doors: patients check in on the door side (RECEP),
-  // the receptionist sits behind it (DESK_STAFF), so seen from the entrance they're never in front of the doors
-  // The entrance hall runs along the front (west) wall: the sliding doors at its south end (rows 9-11), the reception
-  // desk at its north end with the receptionist's back to that wall, facing the patients who walk up the hall.
-  const EXIT = [-14, 230], RECEP = [74, 64], DESK_STAFF = [40, 64];
-  // the car park south of the entrance path: bays one under the other, cars nose-in towards the road
-  const LOT = { x: -30, y0: 222, n: 8, walk: -8, path: 168 };
+  // Theme Hospital's entrance hall: the sliding doors are in the south wall just along from the building's front
+  // corner (columns 3-5 of row 12's edge), and the reception desk stands in that corner against the west wall, a
+  // couple of tiles in from the doors. The receptionist sits between the desk and the wall (DESK_STAFF) facing into
+  // the hall; patients walk in and turn to check in on the hall side (RECEP).
+  const EXIT = [-14, 290], RECEP = [74, 160], DESK_STAFF = [40, 160];
+  // the car park south of the entrance path: bays one under the other, cars nose-in towards the road. Walkers go up
+  // the walkway beside it to the path (y = path), along it into the forecourt and up to the doors.
+  const LOT = { x: -30, y0: 278, n: 8, walk: -8, path: 232 };
   const bayPos = i => [LOT.x, LOT.y0 + i * 16];
   const CAR_IN = 2.4, CAR_STOP = 0.9, CAR_OUT = 2.4;
   const PSPEED = 36, SSPEED = 44;
@@ -54,11 +55,12 @@
   const lvlOK = (s, f) => !s.solo || s.solo.lvl >= LVL_FROM[f];
   const RIVAL_NAMES = ['ORAC', 'Colossus', 'HAL', 'Multivac', 'Holly', 'Deep Thought', 'Zen', 'Skynet', 'Marvin', 'Cerebro', 'Mother', 'Jayne'];
   // the lobby by the entrance: never built on (reception desk, idle staff, waiting patients)
-  const LOBBY = { x0: 2, y0: 2, x1: 4, y1: 11 };
+  const LOBBY = { x0: 2, y0: 6, x1: 7, y1: 11 };
   // Theme Hospital's entrance: the building's front corner (columns 2-8, rows 12 down) is a paved forecourt, and the
-  // front doors (rows 9-11 of the west wall) open from it into the entrance hall beside that corner
+  // front doors (columns 3-5 of its north side) open from it into the entrance hall
   const NOTCH = { x1: 9, y0: 12 };
-  const DESK_TILES = [[3, 3], [3, 4]];
+  const DOOR = { x0: 3, x1: 5, mid: 4, y: 12 };   // the three door panels; everyone uses the middle (sliding) pair
+  const DESK_TILES = [[3, 9], [3, 10]];
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // N E S W
 
   // ---------- objects ----------
@@ -243,7 +245,7 @@
   const idx = (x, y) => y * W + x;
   const inMap = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
   const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0);
-  const outPath = (x, y) => x >= 0 && x < 2 && y === 10;   // everyone comes and goes through the middle (sliding) pair of the three door panels
+  const outPath = (x, y) => x === DOOR.mid && y === DOOR.y;   // everyone comes and goes through the middle (sliding) pair of the three door panels
   const inLobby = (x, y) => x >= LOBBY.x0 && x <= LOBBY.x1 && y >= LOBBY.y0 && y <= LOBBY.y1;
   const tileOf = v => Math.floor(v / T);
   const center = (tx, ty) => [tx * T + 8, ty * T + 8];
@@ -252,7 +254,7 @@
   const AVOID = new Set(['door', 'win', 'wait']);
   const walled = r => WALLED.has(r.phase);
   const isBuilt = r => r.phase === 'built';
-  const exitTile = () => [0, 10];   // the path tile outside the middle of the front doors
+  const exitTile = () => [DOOR.mid, DOOR.y];   // the forecourt tile outside the middle of the front doors
   // the door's tiles inside the room (three for a swing door)
   function doorTiles(r) {
     if (!r.door) return [];
@@ -299,7 +301,7 @@
   // sites are avoided unless you start inside one. Unreachable goal: the path to the nearest reachable tile.
   function findPath(h, sx, sy, gx, gy) {
     const L = layout(h), N = W * H;
-    if (!walkable(sx, sy)) { sx = clamp(sx, 0, W - 1); sy = clamp(sy, 4, 6); if (sx < 2) sx = 0; }
+    if (!walkable(sx, sy)) [sx, sy] = exitTile();
     const s = idx(sx, sy), g = inMap(gx, gy) ? idx(gx, gy) : -1;
     const prev = new Int32Array(N).fill(-1), q = new Int32Array(N);
     const startAvoid = L.avoid[s];
@@ -340,8 +342,9 @@
   function route(h, e, gx, gy) {
     let sx = tileOf(e.x), sy = tileOf(e.y);
     const p = [];
-    // outside the building: along the car park's walkway to the entrance path, then in through the middle door
-    if (e.x < 0) { p.push([LOT.walk, e.y], [LOT.walk, LOT.path], [8, LOT.path]); [sx, sy] = exitTile(); }
+    // outside the building: along the car park's walkway to the entrance path, across the forecourt, in through the doors
+    const doorX = DOOR.mid * T + 8;
+    if (!walkable(sx, sy)) { if (e.x < 24) p.push([LOT.walk, e.y], [LOT.walk, LOT.path]); p.push([doorX, LOT.path]); [sx, sy] = exitTile(); }
     const out = gx < 0;
     const [tx, ty] = out ? exitTile() : [tileOf(gx), tileOf(gy)];
     const res = findPath(h, sx, sy, tx, ty);
@@ -352,7 +355,7 @@
       if (i > 0 && nx && i < tiles.length - 1) { const [px2, py2] = tiles[i - 1]; if ((px2 === x && nx[0] === x) || (py2 === y && nx[1] === y)) continue; }
       p.push(center(x, y));
     }
-    if (out) p.push([LOT.walk, LOT.path], [LOT.walk, gy], [gx, gy]);
+    if (out) p.push([doorX, LOT.path], [LOT.walk, LOT.path], [LOT.walk, gy], [gx, gy]);
     else if (res.reached) p.push([gx, gy]);
     if (!p.length) p.push([gx, gy]);
     e.path = p;
@@ -740,7 +743,7 @@
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
   const LAND_VALUE = (W - 2) * H * 25 + 20000;
-  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(x <= 3 && y >= 9 && y <= 11) && !(x === 2 && y >= 3 && y <= 4)) LOBBY_TILES.push([x, y]);
+  for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(y === DOOR.y - 1 && x >= DOOR.x0 && x <= DOOR.x1) && !(x === 2 && y >= 9 && y <= 10) && !(x === 4 && y >= 9 && y <= 10)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
   function assign(h) {
@@ -2213,7 +2216,7 @@
     for (const r of roomList(h)) if (r.auto && r.phase === 'furnish') { autoFurnish(h, r); const e = finishBuild(s, p, r.id); if (e) deleteRoom(s, p, r.id); else r.auto = false; }
   }
 
-  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
+  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, DOOR, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
     LEVELS, LVL_FROM, LAND_VALUE, stayOn, carrySnapshot, carryOver, MP_RESEARCH,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,
