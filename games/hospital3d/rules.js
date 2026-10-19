@@ -1994,6 +1994,11 @@
     if (c.cash != null) h.cash = Math.max(c.cash, 0);
     for (const r of roomList(h)) computeSpots(h, r);
     recount(h); changed(h); assign(h); h.yMinRep = h.rep;
+    // a head start raises the bar: the level's cash on top of what you brought, $20,000 more value, reputation +100
+    const tg = h.tg;
+    if (tg.cash != null) tg.cash += Math.round(Math.max(0, h.cash) / 1000) * 1000;
+    if (tg.value != null) tg.value = Math.max(tg.value, Math.ceil((value(h) + 20000) / 5000) * 5000);
+    if (tg.rep != null) tg.rep = Math.max(tg.rep, Math.min(950, Math.ceil((h.rep + 100) / 50) * 50));
   }
   // rivals are never drawn or simulated tile by tile: they're statistical competitors (spec: Rival hospitals)
   function newRival(nm, lvl, cash) {

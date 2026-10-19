@@ -373,7 +373,7 @@
       case 'vipSurprise': if (mine) toast('You refused too many VIPs: this one turned up unannounced!', 'bad'); break;
       case 'vipOut': if (mine) toast(`${cap(e.who)} thought your hospital was ${e.grade}` + (e.cash ? ` · +${money(e.cash)}` : '') + ` · reputation ${e.rep > 0 ? '+' : ''}${e.rep}`, e.rep > 0 ? 'good' : 'bad'); break;
       case 'epi': if (mine) toast(`Epidemic of ${dname(e.dis)}! ${e.n} patients are infected`, 'bad'); break;
-      case 'epiCover': if (mine) toast('Cover-up: tap each patient with a red “☣ Tap to vaccinate” tag so a nurse vaccinates them (stops the spread), then cure them before the inspector arrives', 'dim'); break;
+      case 'epiCover': if (mine) toast('Cover-up: tap each patient with a red 🦠 over their head so a nurse vaccinates them (it turns into a blue 💉 and stops the spread), then cure them before the inspector arrives', 'dim'); break;
       case 'epiDeclare': if (mine) toast('Epidemic declared: everyone vaccinated · fined $3,000 and reputation −20', 'bad'); break;
       case 'inspector': if (mine) toast('The health inspector is here!', 'bad'); break;
       case 'epiEnd': if (mine) toast(e.left ? `The inspector found ${e.left} infected patient${e.left > 1 ? 's' : ''}: fined ${money(1000 * e.left)}` : 'The inspector found nothing: +$2,000 and reputation +15', e.left ? 'bad' : 'good'); break;
@@ -443,7 +443,7 @@
     if (!rooms.some(([, r]) => r.k === 'gp')) return ['Build a GP\'s Office: every patient starts there. Press Build.', 'warn'];
     if (h.epi && h.epi.phase === 'cover') {
       const inf = (h.pats || []).filter(p => p.inf && p.st !== 'leave'), todo = inf.filter(p => !p.vax && !p.mk).length;
-      return [`Cover-up! ${todo ? `Tap the ${todo} patient${todo > 1 ? 's' : ''} tagged “☣ Tap to vaccinate” (red). ` : ''}${inf.length} infected still in the hospital: cure them or the inspector fines you $1,000 each. Inspector arrives in ${Math.max(0, Math.round(h.epi.t - view.t))}s`, 'warn'];
+      return [`Cover-up! ${todo ? `Tap the ${todo} patient${todo > 1 ? 's' : ''} with a red 🦠 to vaccinate them (blue 💉 = done). ` : ''}${inf.length} infected still in the hospital: cure them or the inspector fines you $1,000 each. Inspector arrives in ${Math.max(0, Math.round(h.epi.t - view.t))}s`, 'warn'];
     }
     if (h.em) return [`Emergency: ${h.em.saved}/${h.em.n} with ${dname(h.em.dis)} cured · ${Math.max(0, Math.round(h.em.end - view.t))}s left`, 'warn'];
     const smoking = rooms.find(([, r]) => RH.ROOMS[r.k].mach && r.used > r.str);
@@ -555,7 +555,7 @@
         opt('Accept', 'accept', true); opt('Decline', 'decline');
         break;
       case 'epi':
-        body.append(el('h3', null, 'EPIDEMIC'), P(`${f.n} patients have contagious ${dname(f.dis)}.`), P('Declare it: everyone is vaccinated, but you are fined $3,000 and lose reputation. Cover it up: tap each infected patient (red “☣” tag over their head) so a nurse vaccinates them and the disease stops spreading, and cure them before the health inspector arrives in 75 seconds. Each infected patient he finds costs $1,000; none at all earns $2,000 and reputation.'));
+        body.append(el('h3', null, 'EPIDEMIC'), P(`${f.n} patients have contagious ${dname(f.dis)}.`), P('Declare it: everyone is vaccinated, but you are fined $3,000 and lose reputation. Cover it up: tap each infected patient (red 🦠 over their head; it turns into a blue 💉 once done) so a nurse vaccinates them and the disease stops spreading, and cure them before the health inspector arrives in 75 seconds. Each infected patient he finds costs $1,000; none at all earns $2,000 and reputation.'));
         opt('Cover it up', 'cover', true); opt('Declare it', 'declare');
         break;
     }
@@ -1307,7 +1307,8 @@
     }
     const L = lvlInfo(), n = view.solo.lvl, rv = view.solo.rivals.map(r => r.nm);
     $('legendTitle').textContent = `Level ${n}: ${L.nm}`;
-    $('legendSub').textContent = `You start with ${money(L.start)}. ${rv[0]}, ${rv[1]} and ${rv[2]} run the town's other hospitals and hire from the same pool of staff; patients go where the reputation is best.` + (L.intro ? ` New here: ${L.intro.toLowerCase()}.` : '');
+    $('legendSub').textContent = `You start with ${money(L.start)}. ${rv[0]}, ${rv[1]} and ${rv[2]} run the town's other hospitals and hire from the same pool of staff; patients go where the reputation is best.` + (L.intro ? ` New here: ${L.intro.toLowerCase()}.` : '')
+      + (view.solo.carry ? ' You brought your last hospital with you, so the targets are higher: the level\'s cash target on top of the balance you brought, $20,000 more hospital value, and 100 more reputation.' : '');
     const later = Object.entries(RH.LVL_FROM).filter(([, v]) => n < v).map(([k, v]) => `${{ research: 'research', emerg: 'emergencies', op: 'surgery', training: 'training', quake: 'earthquakes', epi: 'epidemics', dna: 'the DNA Fixer' }[k]} (level ${v})`);
     $('legendWin').textContent = `To be promoted, meet every target at a quarter-end check (end of March, June, September or December) with no loan outstanding: ${parts.join(', ')}. At each year end the awards are handed out, then you're removed if your balance is below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. A month lasts ${RH.MONTH} seconds at Normal speed: P pauses and keys 1–5 set the speed.` + (later.length ? ` Not on this level yet: ${later.join(', ')}.` : '');
     $('legendNote').textContent = view.ph === 'ready' ? 'Close this, then press “Start level”.' : '';
@@ -1648,8 +1649,9 @@
         if (pt.inf) {
           const ep = h.epi && h.epi.phase, cover = ep === 'cover' && tab === ME;
           if (!pt.vax) { const pulse = 0.5 + 0.5 * Math.sin(t * 6 + pt.id); bctx.globalAlpha = 0.25 + 0.35 * pulse; bctx.fillStyle = pt.mk ? '#6fd3ff' : '#ff4d5e'; bctx.beginPath(); bctx.ellipse(sx, sy, 9 + pulse * 2, 4.5 + pulse, 0, 0, Math.PI * 2); bctx.fill(); bctx.globalAlpha = 1; }
-          const tag = pt.vax ? ['💉 Vaccinated: now cure', '#2f6fd0'] : pt.mk ? ['Nurse on the way…', '#2f6fd0'] : cover ? ['☣ Tap to vaccinate', '#d0303f'] : ['☣ Infected', '#d0303f'];
-          labels.push({ x: sx, y: iy - (pt.em ? 4 : 0), txt: tag[0], bg: tag[1], size: 3.8, plate: true });
+          // red 🦠 = infected (bobs while it's yours to tap), blue 💉 = vaccinated or a nurse on the way (faded until done)
+          const bob = cover && !pt.mk && !pt.vax ? Math.abs(Math.sin(t * 5 + pt.id)) * 2.5 : 0;
+          labels.push({ x: sx, y: iy - 2 - bob - (pt.em ? 4 : 0), txt: pt.vax || pt.mk ? '💉' : '🦠', bg: pt.vax || pt.mk ? '#2f6fd0' : '#d0303f', badge: true, dim: pt.mk && !pt.vax });
         }
         if (pt.hp < 0.25 && pt.why !== 'cured' && Math.floor(t * 3) % 2) icon('skull', sx - 7, sy - 26, t);
         if (pt.st === 'wait' && Math.floor(t * 2) % 2) icon('q', sx + 7, sy - 26, t);
@@ -1731,10 +1733,19 @@
       const [x, y] = toScr(l.x, l.y);
       if (x < -80 || y < -40 || x > cw + 80 || y > ch + 40) continue;
       ctx.font = font(l.size || 5, l.dim ? 600 : 700);
+      if (l.badge) {
+        const r = 4.6 * S;
+        ctx.globalAlpha = l.dim ? 0.6 : 1;
+        ctx.fillStyle = l.bg; ctx.beginPath(); ctx.arc(x, y, r + 1.1 * S, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(x, y, r - 0.2 * S, 0, Math.PI * 2); ctx.fill();
+        ctx.font = `900 ${Math.round(r * 1.75)}px ui-sans-serif, system-ui, sans-serif`; ctx.fillStyle = '#fff'; ctx.fillText(l.txt, x, y + S * 0.5);
+        ctx.globalAlpha = 1;
+        continue;
+      }
       if (l.plate) {
         const w = ctx.measureText(l.txt).width + 6 * S;
-        ctx.fillStyle = l.bg || '#2b2e3a'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 3.2 * S, w, 6.4 * S, 1.5 * S); ctx.fill();
-        ctx.fillStyle = l.bg ? 'rgba(255,255,255,.3)' : '#5a5f6e'; ctx.fillRect(x - w / 2 + S, y - 3.2 * S + S, w - 2 * S, 0.8 * S);
+        ctx.fillStyle = '#2b2e3a'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 3.2 * S, w, 6.4 * S, 1.5 * S); ctx.fill();
+        ctx.fillStyle = '#5a5f6e'; ctx.fillRect(x - w / 2 + S, y - 3.2 * S + S, w - 2 * S, 0.8 * S);
         ctx.fillStyle = '#fff6e0'; ctx.fillText(l.txt, x, y + S * 0.3);
         continue;
       }
