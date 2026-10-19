@@ -2288,19 +2288,20 @@
     if (HI.getFlat()) { cam.x = ex.x + ex.w / 2; cam.y = ex.y + ex.h / 2 - 10; } else { const [bx, by] = HI.px(80, 168); cam.x = bx; cam.y = by; }
     clampCam();
   }
-  // pushing the mouse against an edge of the window scrolls the map, faster the closer it gets
-  const EDGE = 100, EDGE_BOTTOM = 10;   // how close to an edge (px) the mouse must be to scroll
-  let mouse = null;
+  // Edge scrolling, as in Theme Hospital: the map scrolls while the mouse is within 8 px of a window edge (1 px in full
+  // screen), at 3.5 px per 18 ms tick, speeding up to 7 over about 0.9 s of continuous scrolling
+  const EDGE = 8, EDGE_FULL = 1, TICK_S = 0.018, EDGE_V0 = 3.5, EDGE_V1 = 7, EDGE_RAMP = 0.9;
+  let mouse = null, edgeT = 0;
   addEventListener('mousemove', e => { mouse = { x: e.clientX, y: e.clientY }; });
   document.addEventListener('mouseleave', () => { mouse = null; });
   addEventListener('blur', () => { mouse = null; });
   function edgePan(dt) {
-    if (!mouse || HI.getFlat() || modalOpen() || !$('profile').hidden || (gesture && gesture.kind !== 'tap')) return;
-    const f = (d, e) => (d < e ? 0.25 + 0.75 * (1 - d / e) ** 1.5 : 0);   // gentle at the zone's inner edge, full speed at the screen edge
-    // the bottom edge has only a thin zone, so reaching for the control bar doesn't scroll the map
-    const dx = f(cw - 1 - mouse.x, EDGE) - f(mouse.x, EDGE), dy = f(ch - 1 - mouse.y, EDGE_BOTTOM) - f(mouse.y, EDGE);
-    if (!dx && !dy) return;
-    const v = 520 * dt / cam.z;
+    if (!mouse || HI.getFlat() || modalOpen() || !$('profile').hidden || (gesture && gesture.kind !== 'tap')) { edgeT = 0; return; }
+    const e = document.fullscreenElement ? EDGE_FULL : EDGE;
+    const dx = (mouse.x >= cw - e ? 1 : 0) - (mouse.x < e ? 1 : 0), dy = (mouse.y >= ch - e ? 1 : 0) - (mouse.y < e ? 1 : 0);
+    if (!dx && !dy) { edgeT = 0; return; }
+    edgeT += dt;
+    const v = (EDGE_V0 + (EDGE_V1 - EDGE_V0) * Math.min(1, edgeT / EDGE_RAMP)) / TICK_S * dt / cam.z;   // screen px → buffer px
     cam.x += dx * v; cam.y += dy * v; clampCam();
   }
   function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (F4)' : 'Town map: the whole hospital from above (F4)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
