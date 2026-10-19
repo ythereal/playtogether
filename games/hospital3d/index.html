@@ -48,9 +48,8 @@
     .mbtn kbd { position: absolute; right: 2px; bottom: 0; font: 600 .5rem var(--font); color: #84b6ea; }
     .mbtn.sm { width: 34px; height: 34px; font-size: .9rem; }
     .mbtn.flash::after { content: ''; position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 0 2px #0d2a52; }
-    /* the info bar: three lines about whatever is under the mouse, with an optional progress bar; while the mouse is
-       over the panel it turns into the management buttons (on touch screens the buttons always show) */
-    .th-info { flex: 1 0 300px; min-width: 0; display: flex; align-items: center; padding: 3px 6px; background: #0a1736; border: 2px solid; border-color: #23282d #a3abb3 #a3abb3 #23282d; border-radius: 2px; box-shadow: inset 0 0 0 1px #1d2f5c; }
+    /* the info bar: three lines about whatever is under the mouse, with an optional progress bar */
+    .th-info { flex: 1 1 0; min-width: 0; display: flex; align-items: center; padding: 3px 6px; background: #0a1736; border: 2px solid; border-color: #23282d #a3abb3 #a3abb3 #23282d; border-radius: 2px; box-shadow: inset 0 0 0 1px #1d2f5c; }
     #hudInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; font: 600 .78rem/1.28 var(--font); color: #eef3ff; }
     #hudInfo span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #hudInfo .dim { color: #8ea6d6; font-weight: 500; }
@@ -58,9 +57,9 @@
     .pbar { position: relative; align-self: flex-end; width: 100px; height: 10px; margin-top: 2px; border: 1px solid #fff; background: #0a1736; }
     .pbar i { position: absolute; left: 0; top: 0; bottom: 0; background: #ff8a1c; }
     .pbar b { position: absolute; top: -1px; bottom: -1px; width: 1px; background: #fff; }
-    .th-info .mgmt { display: none; padding: 0; border: 0; background: none; }
-    @media (hover: hover) and (pointer: fine) { .bar:hover #hudInfo { display: none; } .bar:hover .th-info .mgmt { display: flex; } }
-    @media not ((hover: hover) and (pointer: fine)) { #hudInfo { display: none; } .th-info .mgmt { display: flex; } .th-info { flex: 0 0 auto; } }
+    /* the management buttons always show beside the info bar (in the original they replaced it under the mouse);
+       touch screens have nothing to hover over, so they drop the info bar */
+    @media not ((hover: hover) and (pointer: fine)) { .th-info { display: none; } }
     .th-tabs { display: grid; gap: 3px; }
     .tab { appearance: none; border: 1px solid #3a5a9a; background: #13295a; color: #8ea6d6; border-radius: 2px; padding: .1rem .55rem; font: 700 .72rem var(--font); cursor: pointer; white-space: nowrap; }
     .tab.on { background: #e8f0ff; color: #0a1736; border-color: #e8f0ff; }
@@ -392,15 +391,15 @@
     @media (max-width: 640px) { #shopPrev { display: grid; } }
     @media (max-width: 640px) { .sgrid { grid-template-columns: 1fr; } .scol { grid-template-columns: 1.3fr 1fr; } .scol .bprev { grid-row: span 2; min-height: 80px; } .sline { padding: 2px 8px; font-size: .84rem; align-items: center; } }
     @media (max-width: 640px) { .bgrid { grid-template-columns: 1fr; } #buildCats { grid-template-columns: 1fr 1fr; } #buildCats button { padding: .35rem .5rem; font-size: .82rem; } .bprev { display: none; } }
-    /* narrower screens: the panel splits into two rows (money, date, build buttons and our extras over the info bar);
-       on phones the ten buttons share the bottom row */
-    @media (max-width: 1240px) { .mbtn kbd { display: none; } .mbtn { width: 40px; height: 40px; } .mbtn svg { width: 25px; height: 25px; } }
-    @media (max-width: 1100px) { .brk { display: block; flex-basis: 100%; height: 0; } .th-money, .cal, .th-btns, .th-extra { order: 1; } .th-extra { margin-left: auto; } .brk { order: 2; } .th-info { order: 3; } .bar { row-gap: 5px; } }
+    /* narrower screens: the panel splits into two rows, money, date, build buttons and our extras over the info bar
+       and the management buttons; on phones the ten buttons share the bottom row */
+    @media (max-width: 1400px) { .mbtn kbd { display: none; } .mbtn { width: 40px; height: 40px; } .mbtn svg { width: 25px; height: 25px; } }
+    @media (max-width: 1240px) { .brk { display: block; flex-basis: 100%; height: 0; } .th-money, .cal, .th-btns, .th-extra { order: 1; } .th-extra { margin-left: auto; } .brk { order: 2; } .th-info, .th-btns.mgmt { order: 3; } .bar { row-gap: 5px; } }
     @media (max-width: 640px) {
       .bar { left: 4px; right: 4px; gap: 4px; padding: 4px; }
       .th-dollar { width: 30px; height: 34px; font-size: 1.5rem; } .digits i { font-size: .9rem; } .cal { min-width: 54px; padding: 8px 5px 2px; } .cal b { font-size: 1.05rem; }
       .tab.who canvas { width: 24px; height: 24px; } .th-extra { padding: 2px 3px; }
-      .th-btns { order: 3; padding: 2px; gap: 2px; } .th-info { order: 3; padding: 2px; flex: 1 1 auto; justify-content: flex-end; }
+      .th-btns { order: 3; padding: 2px; gap: 2px; } .th-info { order: 3; padding: 2px; }
       .mbtn { width: 30px; height: 30px; } .mbtn svg { width: 19px; height: 19px; } .mbtn.sm { width: 28px; height: 28px; }
       .cures { top: 6px; right: 6px; font-size: .9rem; padding: 2px 8px 1px; }
       .watch { left: 10px; bottom: calc(var(--barh, 70px) + var(--advh, 0px) + 22px + env(safe-area-inset-bottom)); }
@@ -514,8 +513,9 @@
       <canvas id="advFace" width="80" height="88" title="Your advisor (Shift+A hides them)"></canvas>
     </div>
     <!-- Theme Hospital's bottom panel, left to right as in the original: the bank button, the balance over the
-         reputation gauge, the date, the four build buttons, then the info bar (what's under the mouse), which turns
-         into the management buttons while the mouse is over the panel. Our additions sit at the right end. -->
+         reputation gauge, the date, the four build buttons, the info bar (what's under the mouse) and the management
+         buttons, which always show here (the original swapped them in for the info bar under the mouse). Our additions
+         sit at the right end. -->
     <div class="bar">
       <div class="th-money">
         <button class="th-dollar" id="bankBtn" title="Bank manager (F1) · right-click: bank statement (F2)" aria-label="Bank manager">$</button>
@@ -532,17 +532,15 @@
         <button class="mbtn" id="staffBtn" title="Hire staff (B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7.5" r="3.6"/><path d="M3 21c0-4.4 3.1-7.4 7-7.4 1.6 0 3 .5 4.1 1.3"/><path d="M18.5 14v7"/><path d="M15 17.5h7"/></svg><kbd>B</kbd></button>
       </span>
       <span class="brk"></span>
-      <div class="th-info">
-        <div id="hudInfo" aria-live="polite"></div>
-        <span class="th-btns mgmt">
-          <button class="mbtn" id="mgrBtn" title="Staff management (F3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2.5 20c0-3.6 2.4-6 5.5-6s5.5 2.4 5.5 6"/><path d="M13.6 14.4c.8-.3 1.8-.4 2.9-.4 3.1 0 5 2.4 5 6"/></svg><kbd>F3</kbd></button>
-          <button class="mbtn" id="mapBtn" title="Town map: the whole hospital from above (F4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5"/><path d="M15 6.5V20"/></svg><kbd>F4</kbd></button>
-          <button class="mbtn" id="caseBtn" title="Drug casebook (F5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5 2.5 2.5 0 0 0 7.5 23H19"/><path d="M12 6.5v6"/><path d="M9 9.5h6"/></svg><kbd>F5</kbd></button>
-          <button class="mbtn" id="resBtn" title="Research (F6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.6A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.4-2.4L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><kbd>F6</kbd></button>
-          <button class="mbtn" id="statBtn" title="Status (F7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17"/><path d="M8.5 16v-4"/><path d="M12.5 16V8"/><path d="M16.5 16v-6"/></svg><kbd>F7</kbd></button>
-          <button class="mbtn" id="polBtn" title="Policy (F9)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V2.5h6V4"/><path d="M8.5 9.5h7"/><path d="M8.5 13h7"/><path d="M8.5 16.5h4.5"/></svg><kbd>F9</kbd></button>
-        </span>
-      </div>
+      <div class="th-info"><div id="hudInfo" aria-live="polite"></div></div>
+      <span class="th-btns mgmt">
+        <button class="mbtn" id="mgrBtn" title="Staff management (F3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2.5 20c0-3.6 2.4-6 5.5-6s5.5 2.4 5.5 6"/><path d="M13.6 14.4c.8-.3 1.8-.4 2.9-.4 3.1 0 5 2.4 5 6"/></svg><kbd>F3</kbd></button>
+        <button class="mbtn" id="mapBtn" title="Town map: the whole hospital from above (F4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5"/><path d="M15 6.5V20"/></svg><kbd>F4</kbd></button>
+        <button class="mbtn" id="caseBtn" title="Drug casebook (F5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5 2.5 2.5 0 0 0 7.5 23H19"/><path d="M12 6.5v6"/><path d="M9 9.5h6"/></svg><kbd>F5</kbd></button>
+        <button class="mbtn" id="resBtn" title="Research (F6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.6A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.4-2.4L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><kbd>F6</kbd></button>
+        <button class="mbtn" id="statBtn" title="Status (F7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17"/><path d="M8.5 16v-4"/><path d="M12.5 16V8"/><path d="M16.5 16v-6"/></svg><kbd>F7</kbd></button>
+        <button class="mbtn" id="polBtn" title="Policy (F9)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V2.5h6V4"/><path d="M8.5 9.5h7"/><path d="M8.5 13h7"/><path d="M8.5 16.5h4.5"/></svg><kbd>F9</kbd></button>
+      </span>
       <span class="th-extra">
         <button class="tab who" id="profBtn" title="Change your name or character"><canvas id="profMini" width="18" height="18"></canvas><span id="profName2">You</span></button>
         <span class="th-tabs"><button class="tab on" id="tabMine" title="Your hospital (Tab switches)">Mine</button><button class="tab" id="tabRival" title="Look round the rival's hospital (Tab switches)">Rival</button></span>
