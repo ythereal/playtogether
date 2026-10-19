@@ -723,15 +723,26 @@
     const h = view.h[ME], list = view.ph === 'play' ? h.fax || [] : [];
     const key = list.map(f => f.id).join(',') + '|' + Math.floor(view.t);
     if (key === faxKey) return; faxKey = key;
-    const wrap = $('faxes'); wrap.replaceChildren();
-    for (const f of list) {
+    // Each fax keeps its icon for as long as it's waiting: it slides in once when it arrives, and after that only its
+    // time-left bar and tooltip change (rebuilding the icons every second replayed the slide-in, so they flickered)
+    const wrap = $('faxes'), old = new Map([...wrap.children].map(bt => [+bt.dataset.id, bt]));
+    list.forEach((f, i) => {
       const [a, b] = faxTitle(f), left = Math.max(0, f.t - view.t), len = FAX_LEN[f.k] || 30;
-      const bt = el('button', 'faxbtn' + (left < 8 ? ' urgent' : ''));
-      bt.title = `${a}${b ? ': ' + b : ''} (${Math.ceil(left)}s left; M opens the first fax)`; bt.append(el('span', 'ico', FAX_ICON[f.k] || '✉'));
-      const tm = el('span', 'tm'), ti = el('i'); ti.style.width = clamp(left / len, 0, 1) * 100 + '%'; tm.append(ti); bt.append(tm);
-      bt.addEventListener('click', () => showFax(f.id));
-      wrap.append(bt);
-    }
+      let bt = old.get(f.id);
+      if (!bt) {
+        bt = el('button', 'faxbtn arrive'); bt.dataset.id = f.id;
+        bt.append(el('span', 'ico', FAX_ICON[f.k] || '✉'));
+        const tm = el('span', 'tm'); tm.append(el('i')); bt.append(tm);
+        bt.addEventListener('click', () => showFax(f.id));
+        bt.addEventListener('animationend', e => { if (e.animationName === 'faxin') bt.classList.remove('arrive'); });
+      }
+      old.delete(f.id);
+      bt.classList.toggle('urgent', left < 8);
+      bt.title = `${a}${b ? ': ' + b : ''} (${Math.ceil(left)}s left; M opens the first fax)`;
+      bt.querySelector('.tm i').style.width = clamp(left / len, 0, 1) * 100 + '%';
+      if (wrap.children[i] !== bt) wrap.insertBefore(bt, wrap.children[i] || null);
+    });
+    for (const bt of old.values()) bt.remove();
     if (openFax != null && !list.some(f => f.id === openFax)) { $('faxSheet').hidden = true; openFax = null; }
   }
   function showFax(id) {

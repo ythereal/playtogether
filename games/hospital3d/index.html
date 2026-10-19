@@ -138,10 +138,11 @@
     /* ---------- fax tray ---------- */
     /* fax icons come to rest along the panel's top edge, left to right, 30 px apart; a thin bar shows the time left */
     .faxes { position: fixed; left: 9px; bottom: calc(var(--barh, 70px) + 8px + env(safe-area-inset-bottom)); display: flex; gap: 0; }
-    .faxbtn { appearance: none; cursor: pointer; position: relative; width: 30px; height: 28px; padding: 0; display: grid; place-items: center; font-size: 1rem; line-height: 1; animation: faxin .4s ease-out; }
+    .faxbtn { appearance: none; cursor: pointer; position: relative; width: 30px; height: 28px; padding: 0; display: grid; place-items: center; font-size: 1rem; line-height: 1; }
+    .faxbtn.arrive { animation: faxin .4s ease-out; }
     .faxbtn .tm { position: absolute; left: 2px; right: 2px; bottom: 2px; height: 2px; background: #d9d1bd; }
     .faxbtn .tm i { display: block; height: 100%; background: #c4302a; }
-    .faxbtn.urgent { animation: faxin .4s ease-out, faxurg 1s ease-in-out infinite; }
+    .faxbtn.urgent { animation: faxurg 1s ease-in-out infinite; } .faxbtn.arrive.urgent { animation: faxin .4s ease-out, faxurg 1s ease-in-out infinite; }
     @keyframes faxin { from { transform: translateY(26px); opacity: 0; } }
     @keyframes faxurg { 50% { box-shadow: 0 0 0 2px #ffd23f; } }
 
