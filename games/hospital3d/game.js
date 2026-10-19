@@ -1734,6 +1734,14 @@
     if (staff && (e.mode === 'rest' || e.mode === 'train')) return { x: e.x, y: e.y, f: e.f, d: key };
     return null;
   }
+  // the treatment object a patient is lying on (they stand at its use tile, still, while 'in' the room), or null
+  const LIE_ON = { ward: 'bed', psych: 'couch', gendiag: 'trolley', op: 'optable' };
+  function lyingOn(h, pt) {
+    if (pt.st !== 'in' || pt.mv) return null;
+    const tx = Math.floor(pt.x / T), ty = Math.floor(pt.y / T), r = roomAt(h, tx, ty), kind = r && LIE_ON[r.k];
+    if (!kind) return null;
+    return r.objs.find(ob => ob.o === kind && (() => { const t = RH.objTiles(ob.o, ob.x, ob.y, ob.r), u = t.use || t.foot[0]; return u[0] === tx && u[1] === ty; })()) || null;
+  }
   // still patients near a bench take a seat on it (two to a bench)
   function benchSeats(h) {
     const out = new Map(), taken = new Map();
@@ -1869,7 +1877,12 @@
         if (st.hap < 0.3 && !st.gone && Math.floor(t * 2) % 2) icon('angry', sx - 7, sy - 27, t);
       } }); }
       const onBench = benchSeats(h);
-      for (const pt of h.pats || []) { if (pt.incar) continue; const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), draw: () => {
+      for (const pt of h.pats || []) {
+        if (pt.incar) continue;
+        // being treated on a bed, couch, examination couch or operating table: lying on it
+        const lie = lyingOn(h, pt);
+        if (lie) { const sh = HA.patientSheet(pt.look, pt.why === 'cured' ? '' : RH.DISEASES[pt.dis].vis); objs.push(HI.lyingItem(lie.o, lie.x, lie.y, lie.r, sh.down[0])); continue; }
+        const seat = onBench.get(pt.id) || seatOf(h, pt, false); objs.push({ d: seat ? seat.d : HI.depth(pt.x, pt.y), draw: () => {
         const dis = RH.DISEASES[pt.dis], shown = pt.why === 'cured' ? '' : dis.vis;
         const [x, y] = seat ? [seat.x, seat.y] : posOf('p', pt);
         // serious radiation glows

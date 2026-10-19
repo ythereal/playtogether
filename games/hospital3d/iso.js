@@ -363,6 +363,31 @@
     } };
     return [item, chair];
   }
+  // A patient lying on a bed, couch, examination couch or operating table: their front-facing sprite laid flat on
+  // the surface, head at the pillow (or raised) end, in the object's own frame so it turns with it. h: surface
+  // height; head (hx, hy) to feet (fx, fy) in the object's canonical footprint; w: how wide they lie.
+  const LIE = {
+    bed:     { h: 8.4, hx: 8.5, hy: 6, fx: 8.5, fy: 28, w: 11, cover: '#7fb7e6' },
+    couch:   { h: 7.8, hx: 5, hy: 8.5, fx: 30, fy: 8.5, w: 9.5 },
+    trolley: { h: 9.8, hx: 4.5, hy: 8, fx: 29, fy: 8, w: 9.5 },
+    optable: { h: 10.4, hx: 4, hy: 8, fx: 29, fy: 8, w: 10, cover: '#5fae8a' },
+  };
+  function lyingItem(o, x, y, rot, img) {
+    const B = RH.OBJ[o], [rwd, rdp] = RH.objDims(o, rot), X = x * T, Y = y * T, cx = X + rwd * 8, cy = Y + rdp * 8, G2 = LIE[o];
+    return { d: depthBox(X, Y, rwd * T - 1, rdp * T - 1) + 0.2, draw: c => withRot(cx, cy, rot, () => {
+      const X0 = cx - B.fw * 8, Y0 = cy - B.fd * 8, hx = X0 + G2.hx, hy = Y0 + G2.hy, lx = X0 + G2.fx - hx, ly = Y0 + G2.fy - hy, len = Math.hypot(lx, ly);
+      const wx = -ly / len * G2.w, wy = lx / len * G2.w, ox = hx - wx / 2, oy = hy - wy / 2;
+      const [o1, o2] = px(ox, oy), [u1, u2] = px(ox + wx, oy + wy), [v1, v2] = px(ox + lx * 1.05, oy + ly * 1.05);
+      const prop = flat ? 0 : 5;   // the head end propped up on the pillow, so the face reads from the camera
+      ST(c, (u1 - o1) / 16, (u2 - o2) / 16, (v1 - o1) / 24, (v2 - o2 + prop) / 24, o1, o2 - G2.h - prop); c.drawImage(img, 0, 0, 16, 24); reset(c);
+      if (G2.cover) {   // a blanket (or surgical drape) pulled up over the legs and body
+        const a = 0.42, bx0 = hx + lx * a - wx * 0.55, by0 = hy + ly * a - wy * 0.55, ex = lx * (1 - a) + lx * 0.04, ey = ly * (1 - a) + ly * 0.04;
+        const xs = [bx0, bx0 + ex, bx0 + wx * 1.1, bx0 + wx * 1.1 + ex], ys = [by0, by0 + ey, by0 + wy * 1.1, by0 + wy * 1.1 + ey];
+        const minX = Math.min(...xs), minY = Math.min(...ys);
+        rbox(c, minX, minY, Math.max(...xs) - minX, Math.max(...ys) - minY, 1.2, G2.cover, 2, G2.h, ctx => { ctx.fillStyle = 'rgba(255,255,255,.85)'; if (lx) ctx.fillRect(0, 0, 1.4, 99); else ctx.fillRect(0, 0, 99, 1.4); ctx.fillStyle = 'rgba(0,0,0,.08)'; for (let j = 3; j < 30; j += 3) lx ? ctx.fillRect(j, 0, 0.5, 99) : ctx.fillRect(0, j, 99, 0.5); });
+      }
+    }) };
+  }
   // a room wrecked by an exploding machine: scorch marks and rubble
   function wreckItems(rc) {
     const items = [], X = rc.x * T, Y = rc.y * T, w = rc.w * T, h = rc.h * T;
@@ -978,5 +1003,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { frame, clouds, decorItem, benchSeat, carItem, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { frame, clouds, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();
