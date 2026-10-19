@@ -7,7 +7,7 @@
   const { T } = HA;
   const DIRS = ['down', 'up', 'left', 'right'];
   const TICK = 1 / 60, SNAP_HZ = 10;
-  const PROTO = 3;   // snapshot format: bump whenever host and guest stop understanding each other
+  const PROTO = 4;   // snapshot format: bump whenever host and guest stop understanding each other
   let mismatch = '';   // who has the out-of-date copy: 'me' or 'friend'
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -203,18 +203,95 @@
     if (ps.n) { ps.pat = r2(ps.pat / ps.n); ps.th = r2(ps.th / ps.n); ps.hp = r2(ps.hp / ps.n); }
     return ps;
   }
-  const snapshot = () => ({ t: 's', pv: PROTO, ph: state.ph, tm: r1(state.t), m: state.month, w: state.winner, why: state.why, pr: state.prof, pool: state.pool, qk: state.quake ? 1 : 0,
-    h: [packH(state.h[0], false, guestTab === 0), packH(state.h[1], true, true)], ev: pendingEv.splice(0) });
+  // Snapshots: a full one ('s') when the guest connects, then ('d') only what changed since the last one. Everyone's
+  // position and pose goes every time; the rest of each person, each room and each other field of a hospital only
+  // when its JSON differs from what the guest already has.
+  const LIVE = new Set(['rooms', 'staff', 'pats', 'vis', 'rats', 'cars']);   // sent by the parts below, not as whole fields
+  const PEOPLE = ['staff', 'pats'];
+  const sansPose = ({ x, y, f, mv, ...rest }) => rest;
+  const head = t => ({ t, pv: PROTO, ph: state.ph, tm: r1(state.t), m: state.month, w: state.winner, why: state.why, pr: state.prof, qk: state.quake ? 1 : 0 });
+  const packAll = () => [packH(state.h[0], false, guestTab === 0), packH(state.h[1], true, true)];
+  let sent = null, sentPool = '';   // host: what the guest holds, as JSON per field / room / person
+  function baseOf(o, src) {
+    const b = { src, top: {}, rooms: {}, staff: new Map(), pats: new Map() };
+    for (const k in o) if (!LIVE.has(k)) b.top[k] = JSON.stringify(o[k]);
+    for (const k in o.rooms) b.rooms[k] = JSON.stringify(o.rooms[k]);
+    for (const k of PEOPLE) for (const e of o[k] || []) b[k].set(e.id, JSON.stringify(sansPose(e)));
+    return b;
+  }
+  function diffH(o, b) {
+    const d = { c: {}, x: [], rm: {}, rx: [] };
+    for (const k in o) if (!LIVE.has(k)) { const j = JSON.stringify(o[k]); if (j !== b.top[k]) { b.top[k] = j; d.c[k] = o[k]; } }
+    for (const k in b.top) if (!(k in o)) { delete b.top[k]; d.x.push(k); }
+    for (const k in o.rooms) { const j = JSON.stringify(o.rooms[k]); if (j !== b.rooms[k]) { b.rooms[k] = j; d.rm[k] = o.rooms[k]; } }
+    for (const k in b.rooms) if (!(k in o.rooms)) { delete b.rooms[k]; d.rx.push(k); }
+    if (!o.pats) { d.ne = 1; b.pats.clear(); }   // the guest isn't looking at this hospital: no patients or visitors
+    for (const k of PEOPLE) {
+      if (!o[k]) continue;
+      const m = b[k], ids = [], pose = [], n = {}, seen = new Set();
+      for (const e of o[k]) {
+        const i = sansPose(e), j = JSON.stringify(i);
+        ids.push(e.id); pose.push(e.x, e.y, e.f, e.mv); seen.add(e.id);
+        if (m.get(e.id) !== j) { m.set(e.id, j); n[e.id] = i; }
+      }
+      for (const id of m.keys()) if (!seen.has(id)) m.delete(id);
+      d[k] = { i: ids, p: pose, n };
+    }
+    if (o.pats) { d.vis = o.vis; d.rats = o.rats; }
+    d.cars = o.cars;
+    return d;
+  }
+  function snapshot() {
+    const h = packAll();
+    sent = h.map((o, p) => baseOf(o, state.h[p])); sentPool = JSON.stringify(state.pool);
+    return Object.assign(head('s'), { pool: state.pool, h, ev: pendingEv.splice(0) });
+  }
+  function delta() {
+    if (!sent || sent.some((b, p) => b.src !== state.h[p])) return snapshot();   // a whole new game: start again
+    const h = packAll(), m = Object.assign(head('d'), { h: h.map((o, p) => diffH(o, sent[p])), ev: pendingEv.splice(0) });
+    const pj = JSON.stringify(state.pool); if (pj !== sentPool) { sentPool = pj; m.pool = state.pool; }
+    return m;
+  }
+  // guest: both hospitals as rebuilt from the snapshots, with each person by id
+  let gHs = null;
+  const byId = arr => new Map((arr || []).map(e => [e.id, e]));
+  function mergeH(p, d) {
+    const g = gHs[p], h = g.h;
+    Object.assign(h, d.c); for (const k of d.x) delete h[k];
+    for (const k in d.rm) h.rooms[k] = d.rm[k];
+    for (const k of d.rx) delete h.rooms[k];
+    if (d.ne) { h.pats = []; h.vis = []; h.rats = []; g.pats.clear(); }
+    for (const k of PEOPLE) {
+      const u = d[k]; if (!u) continue;
+      const m = g[k], arr = [];
+      for (let j = 0; j < u.i.length; j++) {
+        const id = u.i[j], n = u.n[id];
+        if (n) m.set(id, n);
+        const e = n || m.get(id); if (!e) continue;
+        e.x = u.p[j * 4]; e.y = u.p[j * 4 + 1]; e.f = u.p[j * 4 + 2]; e.mv = u.p[j * 4 + 3];
+        arr.push(e);
+      }
+      if (m.size > arr.length) { const live = new Set(u.i); for (const id of m.keys()) if (!live.has(id)) m.delete(id); }
+      h[k] = arr;
+    }
+    if (d.vis) { h.vis = d.vis; h.rats = d.rats; }
+    h.cars = d.cars;
+    if (!h.fax) h.fax = [];
+    return h;
+  }
   // guest interpolation: previous snapshot positions by entity id
   let prevPos = new Map(), curPos = new Map(), prevAt = 0, curAt = 0;
   function applySnap(m) {
     if (m.pv !== PROTO) { versionMismatch(!(m.pv > PROTO)); return; }
     if (mismatch) { mismatch = ''; statusKey = ''; }
+    let hs;
+    if (m.t === 's') {
+      hs = m.h;
+      for (const h of hs) { if (!h.pats) { h.pats = []; h.vis = []; h.rats = []; } if (!h.fax) { h.fax = []; } }
+      gHs = hs.map(h => ({ h, staff: byId(h.staff), pats: byId(h.pats) }));
+    } else { if (!gHs) return; hs = m.h.map((d, p) => mergeH(p, d)); }
     prevPos = curPos; prevAt = curAt; curPos = new Map(); curAt = performance.now();
-    const old = view;
-    view = { ph: m.ph, t: m.tm, month: m.m, winner: m.w, why: m.why, prof: m.pr, pool: m.pool || [], quake: m.qk, h: m.h };
-    for (let p = 0; p < 2; p++) { const h = view.h[p]; if (!h.pats) { h.pats = []; h.vis = []; h.rats = []; } if (!h.fax) { h.fax = []; } }
-    void old;
+    view = { ph: m.ph, t: m.tm, month: m.m, winner: m.w, why: m.why, prof: m.pr, pool: m.pool !== undefined ? m.pool || [] : view ? view.pool : [], quake: m.qk, h: hs };
     for (const h of view.h) { for (const e of h.staff) curPos.set('s' + e.id, [e.x, e.y]); for (const e of h.pats) curPos.set('p' + e.id, [e.x, e.y]); for (const e of h.vis) curPos.set('v' + e.id, [e.x, e.y]); for (const e of h.rats) curPos.set('r' + e.id, [e.x, e.y]); }
     for (const e of m.ev || []) onEvent(e);
     onPhase(); refreshSheets();
@@ -297,7 +374,7 @@
       const err = doAct(1, m);
       if (err && err !== 'Unknown') room.send({ t: 'err', m: err });
       drainEvents(); refreshSheets();
-    } else if (m.t === 's') { try { applySnap(m); } catch (err) { console.error(err); } }
+    } else if (m.t === 's' || m.t === 'd') { try { applySnap(m); } catch (err) { console.error(err); } }
     else if (m.t === 'err') fail(String(m.m));
   });
   function hostStart() { if (!room.connected || !state) return; if (state.ph === 'play') return; RH.start(state); drainEvents(); onPhase(); room.save(state); }
@@ -324,7 +401,7 @@
     const dt = Math.min((now - lastTick) / 1000, 0.1); lastTick = now;
     const paused = (!room.connected || (LOCAL && !speed)) && state.ph === 'play';
     if (!paused) { acc += dt * (LOCAL ? SPEEDS[speed][1] : 1); while (acc >= TICK) { if (BOT) RB.tick(state, 1, TICK, brain); RH.step(state, TICK); acc -= TICK; } drainEvents(); onPhase(); } else acc = 0;
-    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected && !LOCAL) room.send(snapshot()); refreshSheets(); }
+    if (now - lastSnap >= 1000 / SNAP_HZ) { lastSnap = now; if (room.connected && !LOCAL) room.send(delta()); refreshSheets(); }
     if (now - lastSave > 3000) { lastSave = now; room.save(state); }
   }, 1000 / 120);
 
@@ -2066,5 +2143,5 @@
   requestAnimationFrame(frame);
 
   // test hook (read-only)
-  window.__rh = { get view() { return view; }, role: room.role, _state: host ? () => state : undefined, act, setTab, cam, fitView, buf };
+  window.__rh = { get view() { return view; }, role: room.role, _state: host ? () => state : undefined, _pack: host ? packAll : undefined, act, setTab, cam, fitView, buf };
 })();

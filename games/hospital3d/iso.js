@@ -61,7 +61,7 @@
   // screen-space bounds of a world footprint standing up to `up` px tall, for skipping items out of view
   function sbox(x, y, w, d, up) {
     const a = px(x, y), b = px(x + w, y), c = px(x + w, y + d), e = px(x, y + d);
-    return [Math.min(a[0], b[0], c[0], e[0]) - 4, Math.min(a[1], b[1], c[1], e[1]) - up, Math.max(a[0], b[0], c[0], e[0]) + 4, Math.max(a[1], b[1], c[1], e[1]) + 4];
+    return [Math.min(a[0], b[0], c[0], e[0]) - 12, Math.min(a[1], b[1], c[1], e[1]) - up - 12, Math.max(a[0], b[0], c[0], e[0]) + 12, Math.max(a[1], b[1], c[1], e[1]) + 12];
   }
   const lw = img => img.lw || img.width, lh = img => img.lh || img.height;
   const R = (ctx, x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
