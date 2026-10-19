@@ -901,11 +901,11 @@
     items.push(bx(-86, 30, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { const on = Math.floor(now * 3) % 2; R(ctx, 3, 4, 7, 3, on ? '#7fb2ff' : '#2a5aa6'); R(ctx, 3, 20, 7, 3, on ? '#a8202a' : '#ff6a5a'); } }));
     // trees round the grounds (none on the road, the path or the pavement)
     const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 230], [-24, 330], [-34, 410], [-20, 10]];
-    for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11, true));
+    for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
     // street lamps along the road and the path
     for (const [x, y] of [[-46, 136], [-46, -20], [-46, 60], [-2, 108], [-2, 206], [-2, 290], [-2, 356], [40, 250], [136, 250], [40, 404], [136, 404]]) items.push(sprite('streetlamp', x, y, 3));
     // the forecourt: trees in round planters
-    for (const [x, y] of [[88, 290], [88, 370]]) { items.push({ d: depth(x, y) - 1, draw: c => { cyl(c, x, y, 7, 4, '#9a978e'); cyl(c, x, y, 6, 0.5, '#5a3c22', 4); } }); items.push(sprite('bigtree', x, y + 1, 0, true)); }
+    for (const [x, y] of [[88, 290], [88, 370]]) { items.push({ d: depth(x, y) - 1, draw: c => { cyl(c, x, y, 7, 4, '#9a978e'); cyl(c, x, y, 6, 0.5, '#5a3c22', 4); } }); items.push(sprite('bigtree', x, y + 1, 0)); }
     // clipped hedges beside the flower beds
     for (const [x, y] of [[-42, 110]]) items.push(bx(x, y, 48, 4, 7, '#2f7a2a', { top: ctx => { for (let i = 0; i < 48; i += 3) R(ctx, i, 1, 2, 2, '#4aab3c'); }, south: (ctx, w, h) => { for (let i = 1; i < w; i += 4) R(ctx, i, 2, 2, 2, '#3f9c33'); } }));
     for (const [x, y] of [[-10, 20], [-30, 380], [-10, 400]]) items.push(sprite('bush', x, y));
