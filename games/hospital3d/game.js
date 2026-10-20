@@ -2435,8 +2435,6 @@
       const [x, y] = posOf('r', rt), [sx, sy] = HI.px(x, y);
       if (Math.abs(tx - sx) <= 9 && Math.abs(ty - (sy - 4)) <= 8) { act('shoot', { id: rt.id }); burst(tab, x, y, '#ffd23f', 5, 4); return; }
     }
-    // people: hit test against the projected sprite box; a patient or member of staff opens their window
-    const best = personAt(h.pats, 'p', tx, ty);
     // Epidemic cover-up: a tap anywhere near an infected patient who still needs a jab (their body or the 🦠 badge
     // over their head, about 30 screen px whatever the zoom) vaccinates the nearest one; they're small and on the move
     if (tab === ME && view.ph === 'play' && h.epi && h.epi.phase === 'cover') {
@@ -2448,6 +2446,8 @@
       }
       if (pick) { act('vax', { id: pick.id }); return; }
     }
+    // people: hit test against the projected sprite box; a patient or member of staff opens their window
+    const best = personAt(h.pats, 'p', tx, ty);
     if (best) {
       if (tab === ME && h.epi && h.epi.phase === 'cover' && best.inf && !best.mk) { act('vax', { id: best.id }); return; }
       openIW('p', best.id); return;
