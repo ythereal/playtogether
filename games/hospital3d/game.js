@@ -2315,8 +2315,9 @@
     const v = (EDGE_V0 + (EDGE_V1 - EDGE_V0) * Math.min(1, edgeT / EDGE_RAMP)) / TICK_S * dt / cam.z;   // screen px → buffer px
     cam.x += dx * v; cam.y += dy * v; clampCam();
   }
-  function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (F4)' : 'Town map: the whole hospital from above (F4)'; try { localStorage.setItem('rh3d_flat', f ? '1' : '0'); } catch (e) {} fitView(); }
-  try { if (localStorage.getItem('rh3d_flat') === '1') setFlat(true); } catch (e) {}
+  // the town map (the view from above) is a quick look, not a setting: every visit starts in the isometric view
+  function setFlat(f) { HI.setFlat(f); $('camFlat').textContent = f ? '3D' : '2D'; $('camFlat').title = f ? 'Back to the isometric view (F4)' : 'Town map: the whole hospital from above (F4)'; fitView(); }
+  try { localStorage.removeItem('rh3d_flat'); } catch (e) {}   // forget the choice older versions remembered
   addEventListener('resize', resize); resize(); fitView(); setTimeout(() => { resize(); fitView(); }, 300);
   const toBuf = (px, py) => [cam.x + (px - cw / 2) / cam.z, cam.y + (py - ch / 2) / cam.z];
   const toScr = (bx, by) => [(bx - cam.x) * cam.z + cw / 2, (by - cam.y) * cam.z + ch / 2];
