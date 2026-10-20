@@ -2104,10 +2104,35 @@
     $('ovTitle').textContent = view.why === 'targets' ? 'Targets met!' : view.why && view.why.startsWith('lost') ? 'Scandal!' : `Year ${RH.MONTHS / 12} is over`;
     $('ovVerdict').textContent = w === ME ? `${nameOf(ME)}'s hospital wins!` : w === FRIEND ? `${nameOf(FRIEND)}'s hospital wins` : 'Dead heat!';
     const loser = w === ME ? FRIEND : ME;
-    $('ovWhy').textContent = view.why === 'targets' ? 'Every target was met at a quarter-end check.' : view.why === 'lost:cash' ? `${nameOf(loser)}'s balance fell below ${money(RH.LOSE.cash)}: the Health Ministry stepped in.` : view.why === 'lost:rep' ? `${nameOf(loser)}'s reputation sank below ${RH.LOSE.rep}: the Health Ministry stepped in.` : `${RH.MONTHS} months are up: the hospital closest to its targets wins.`;
-    const rows = [['Rating', RH.score(a), RH.score(b)], ['Balance', money(a.cash), money(b.cash)], ['Reputation', a.rep, b.rep], ['Cured', `${a.cured} (${RH.curePct(a)}%)`, `${b.cured} (${RH.curePct(b)}%)`], ['Deaths', a.died, b.died], ['Walked out', a.angry, b.angry], ['Sent home', a.home, b.home], ['Value', money(RH.value(a)), money(RH.value(b))]];
+    // The targets decide it: each hospital's figure against each one (met, or how far along), and the targets on which
+    // the two differ are the ones that decided the match
+    const TG = { rep: ['Reputation', v => String(v)], cash: ['Bank balance', money], pct: ['Cure rate', v => v + '%'], cured: ['Patients cured', v => String(v)], value: ['Hospital value', money] };
+    const tg = a.tg || RH.TARGETS, pa = RH.progress(a), pb = RH.progress(b);
+    const now = h => ({ rep: h.rep, cash: h.cash, pct: RH.curePct(h), cured: h.cured, value: RH.value(h) }), na = now(a), nb = now(b);
+    const keys = Object.keys(TG).filter(k => pa[k] != null);
+    const cap = v => Math.max(0, Math.min(1, v));
+    const decided = keys.filter(k => Math.abs(cap(pa[k]) - cap(pb[k])) > 0.0005).sort((x, y) => Math.abs(cap(pb[y]) - cap(pa[y])) - Math.abs(cap(pb[x]) - cap(pa[x])));
+    const won = w === ME ? [na, pa, nameOf(ME)] : [nb, pb, nameOf(FRIEND)], lostH = w === ME ? [nb, pb, nameOf(FRIEND)] : [na, pa, nameOf(ME)];
+    const deciding = view.why === 'time' || !view.why ? (w < 0 || !decided.length ? 'Both hospitals came out level on their targets.'
+      : decided.length === 1 ? (k => `Decided on ${TG[k][0].toLowerCase()}: ${won[2]} ${TG[k][1](won[0][k])} against ${lostH[2]}'s ${TG[k][1](lostH[0][k])} (target ${TG[k][1](tg[k])}). Every other target was met or missed alike, and going past a target earns nothing extra.`)(decided[0])
+      : (() => {   // several targets differ: who was further along on which
+        const list = ks => ks.map(k => TG[k][0].toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' and $1');
+        const ahead = decided.filter(k => cap(won[1][k]) > cap(lostH[1][k])), behind = decided.filter(k => !ahead.includes(k));
+        return `${won[2]} got further on ${list(ahead)}` + (behind.length ? `, ${lostH[2]} on ${list(behind)}` : '') + ' (the highlighted rows). Going past a target earns nothing extra.';
+      })()) : '';
+    $('ovWhy').textContent = view.why === 'targets' ? 'Every target was met at a quarter-end check.' : view.why === 'lost:cash' ? `${nameOf(loser)}'s balance fell below ${money(RH.LOSE.cash)}: the Health Ministry stepped in.` : view.why === 'lost:rep' ? `${nameOf(loser)}'s reputation sank below ${RH.LOSE.rep}: the Health Ministry stepped in.`
+      : `${RH.MONTHS} months are up and neither hospital met every target, so the one closest to its targets wins. ${deciding}`;
     const c = $('ovCmp'); c.replaceChildren(el('span', 'a hd', nameOf(ME)), el('span', 'k', ''), el('span', 'b hd', nameOf(FRIEND)));
-    for (const [k, x, y] of rows) c.append(el('span', 'a', String(x)), el('span', 'k', k), el('span', 'b', String(y)));
+    const cell = (side, k, v, p) => { const met = p >= 1, s = el('span', side + (met ? ' met' : ' short'), met ? `${TG[k][1](v)} ✓` : `${TG[k][1](v)} · ${Math.floor(cap(p) * 100)}%`); s.title = met ? 'Target met' : `${Math.floor(cap(p) * 100)}% of the target`; return s; };
+    c.append(el('span', 'sec', 'Targets'));
+    for (const k of keys) {
+      const dec = decided.includes(k) && view.why !== 'targets', kk = el('span', 'k', TG[k][0]); kk.append(el('small', null, `target ${TG[k][1](tg[k])}`));
+      const row = [cell('a', k, na[k], pa[k]), kk, cell('b', k, nb[k], pb[k])]; if (dec) row.forEach(e => e.classList.add('dec')); c.append(...row);
+    }
+    c.append(el('span', 'a', String(RH.score(a))), el('span', 'k', 'Rating / 1000'), el('span', 'b', String(RH.score(b))));
+    c.append(el('span', 'note', 'The rating is the average of how far each hospital got towards each target, counting at most 100% per target.'));
+    c.append(el('span', 'sec', 'Not scored'));
+    for (const [k, x, y] of [['Deaths', a.died, b.died], ['Walked out', a.angry, b.angry], ['Sent home', a.home, b.home]]) c.append(el('span', 'a', String(x)), el('span', 'k', k), el('span', 'b', String(y)));
     closeSheets(); $('legend').hidden = true; $('over').hidden = false;
   }
   function soloOver() {

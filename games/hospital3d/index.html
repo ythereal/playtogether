@@ -228,6 +228,13 @@
     .cmp .k { text-align: center; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
     .cmp .a { text-align: right; font-weight: 700; } .cmp .b { text-align: left; font-weight: 700; }
     .cmp .hd { font-weight: 700; color: var(--accent); } .cmp .hd.b { color: var(--accent-2); }
+    /* the result screen: a section heading across the grid, a target's goal under its name, met / short marks, and
+       the rows that decided the match picked out */
+    .cmp .sec { grid-column: 1 / -1; margin-top: 6px; padding-bottom: 2px; border-bottom: 1px solid #3f9fb0; color: #ffd98a; font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .cmp .k small { display: block; text-transform: none; letter-spacing: 0; font-size: .72rem; color: #cfeef2; }
+    .cmp .met { color: var(--good); } .cmp .short { color: var(--accent); }
+    .cmp .dec { background: rgba(255, 217, 138, .16); box-shadow: 0 0 0 4px rgba(255, 217, 138, .16); }
+    .cmp .note { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; text-align: center; }
     .err { color: var(--accent); font-size: .9rem; min-height: 1.2em; margin: 8px 0 0; }
     .fax { background: #fffdf4; color: #2b2a26; border-radius: 14px; padding: 16px; border: 1px solid #e3dcc6; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .9rem; line-height: 1.45; background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(0,0,0,.04) 23px 24px); }
     .fax h3 { margin: 0 0 6px; font-family: var(--font); font-size: 1.15rem; }
