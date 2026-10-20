@@ -2012,6 +2012,8 @@
   }
 
   // ---- status ----
+  // the awards on show are the last year-end's
+  const awardYear = () => (view.month >= 12 ? `Year ${Math.floor(view.month / 12)}` : 'Year-end');
   function openStatus(awards) { closeSheets(); $('statSheet').hidden = false; $('statBody').dataset.key = ''; statAwards = !!awards; refreshStatus(); }
   let statAwards = false;
   function refreshStatus() {
@@ -2061,7 +2063,7 @@
     if (h.awards.length || r.awards.length || statAwards) {
       body.append(el('h4', null, 'Awards and citations'));
       const aw = el('div', 'cmp'); aw.append(el('span', 'a hd', nameOf(ME)), el('span', 'k', ''), el('span', 'b hd', nameOf(FRIEND)));
-      aw.append(el('span', 'a', h.awards.join(' · ') || '—'), el('span', 'k', 'Year-end'), el('span', 'b', r.awards.join(' · ') || '—'));
+      aw.append(el('span', 'a', h.awards.join(' · ') || '—'), el('span', 'k', awardYear()), el('span', 'b', r.awards.join(' · ') || '—'));
       body.append(aw);
     }
   }
@@ -2090,7 +2092,7 @@
     }
     wrap.append(t); body.append(wrap);
     if (h.awards.length || statAwards) {
-      body.append(el('h4', null, 'Awards and citations'));
+      body.append(el('h4', null, `Awards and citations · ${awardYear()}`));
       const ul = el('ul', 'tips'); for (const a of h.awards) ul.append(el('li', null, a)); if (!h.awards.length) ul.append(el('li', null, 'None yet.'));
       body.append(ul);
     }

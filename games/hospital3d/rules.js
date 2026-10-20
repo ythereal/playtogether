@@ -1819,6 +1819,7 @@
   function finish(s, w, why) { s.winner = w; s.why = why; s.ph = 'over'; s.ev.push({ k: 'over', winner: w, why }); }
   function appraisal(s) {
     const [a, b] = s.h;
+    for (const h of s.h) h.awards = [];   // each year's list replaces the last
     const award = (name, h, cash, rep) => { h.awards.push(name); if (cash) book(h, 'Awards', cash); addRep(h, rep); };
     const better = (fa, fb, name, cash, rep) => { if (fa > fb) award(name, a, cash, rep); else if (fb > fa) award(name, b, cash, rep); };
     better(curePct(a), curePct(b), 'Best cure rate', 3000, 15);
@@ -2277,6 +2278,7 @@
   // year-end awards and trophies, measured against the spec's fixed thresholds rather than the rivals
   function soloAppraisal(s) {
     const h = s.h[0], y = h.y0, S = s.solo;
+    h.awards = [];   // each year's list replaces the last
     const cured = h.cured - y.cured, died = h.died - y.died, seen = h.seen - y.seen, gone = (h.home - y.home) + (h.angry - y.angry);
     const mine = h.visits - y.visits, theirs = S.rivals.reduce((a, r, i) => a + r.visits - (y.rv[i] || 0), 0);
     const share = mine + theirs ? mine / (mine + theirs) : 0;
