@@ -5,10 +5,13 @@
   'use strict';
   const A = window.HA, RH = window.RH;
   const T = 16, W = RH.W, H = RH.H, OUT = '#1b1720';
+  // the map's top-left corner in world px: (0, 0) on the two-player map; the single-player town reaches west and north
+  const MXP = RH.MX0 * T, MYP = RH.MY0 * T, TOWN = RH.TOWN;
+  const CW = 32, CH = 26;   // the two-player map (the building you start with in the town)
   // world px → screen px along the two floor axes. Floors are drawn wide relative to walls and people (a person is
   // about two thirds of a tile across, a wall under two tiles tall), like Theme Hospital, so rooms can be seen into
   const K = 1.2, KX = K, KY = K / 2;
-  const L = Math.max(W, H) * T, CXW = W * T / 2, CYW = H * T / 2;   // rotation centre and bounding square
+  const L = Math.max(W, H) * T, CXW = MXP + W * T / 2, CYW = MYP + H * T / 2;   // rotation centre and bounding square
   const GM = 96;                                     // the hospital grounds: lawns, paths and the road around the map
   const OX0 = Math.ceil(L * KX) + 8, OY0 = 54, OXF0 = 8, OYF0 = 60;
   const OX = OX0 + 2 * GM * KX, OY = OY0 + 2 * GM * KY;
@@ -39,7 +42,7 @@
     const dx = x - CXW, dy = y - CYW;
     switch (rot) { case 1: return [CXW + dy, CYW - dx]; case 2: return [CXW - dx, CYW - dy]; case 3: return [CXW - dy, CYW + dx]; default: return [x, y]; }
   }
-  const pxr = (x, y) => (flat ? [OXF + x, OYF + y] : [OX + (x - y) * KX, OY + (x + y) * KY]);   // rotated world → screen
+  const pxr = (x, y) => { x -= MXP; y -= MYP; return flat ? [OXF + x, OYF + y] : [OX + (x - y) * KX, OY + (x + y) * KY]; };   // rotated world → screen
   const px = (x, y) => { const [a, b] = rw(x, y); return pxr(a, b); };          // world → screen
   const dsum = (a, b) => (flat ? b + a * 0.001 : a + b);          // draw order: y-major when aerial, x+y when isometric
   const depth = (x, y) => { const [a, b] = rw(x, y); return dsum(a, b); };
@@ -47,7 +50,7 @@
   // whatever stands on its far side and before whatever stands on its near side (both at least 8px from it), so
   // nothing is ever drawn half into a wall.
   const depthBox = (x, y, w, d) => depth(x + w / 2, y + d / 2);
-  function unproj(sx, sy) { if (flat) return unrw(sx - OXF, sy - OYF); const u = (sx - OX) / KX, v = (sy - OY) / KY; return unrw((u + v) / 2, (v - u) / 2); }
+  function unproj(sx, sy) { if (flat) return unrw(sx - OXF + MXP, sy - OYF + MYP); const u = (sx - OX) / KX, v = (sy - OY) / KY; return unrw((u + v) / 2 + MXP, (v - u) / 2 + MYP); }
   // sprite facing (0 down, 1 up, 2 left, 3 right) seen from the rotated view
   const ROTF = [[0, 1, 2, 3], [2, 3, 1, 0], [1, 0, 3, 2], [3, 2, 0, 1]];
   const facing = f => ROTF[rot][f] == null ? 0 : ROTF[rot][f];
@@ -465,7 +468,7 @@
   // viewer, if there is one) and nudged up to it; sorted by the tile's centre
   const BACK_TO_WALL = { bench: 3, radiator: 5, drinks: 3, ext: 5, plant: 0 };
   // A turned object (h.drot, or `forced` for a preview) keeps its turn; otherwise it backs onto a wall
-  const wallBeside = (h, c, r, d) => { const Lr = RH.layout(h), [dx, dy] = RH.DIRS[d], nx = c + dx, ny = r + dy; return !RH.indoor(nx, ny) || (Lr.room[RH.idx(nx, ny)] || 0) > 0; };
+  const wallBeside = (h, c, r, d) => { const Lr = RH.layout(h), [dx, dy] = RH.DIRS[d], nx = c + dx, ny = r + dy; return !(TOWN ? RH.inside(h, nx, ny) : RH.indoor(nx, ny)) || (Lr.room[RH.idx(nx, ny)] || 0) > 0; };
   function decorSide(h, c, r, forced) {
     if (forced != null) return forced;
     const set = h.drot && h.drot[c + ',' + r]; if (set != null) return set;
@@ -498,38 +501,22 @@
   // ---------- floors ----------
   const C = A.C;
   let groundC = null;
-  // the grounds (lawn, road, paths) and the open hospital floor in one image whose top-left is world (-GM, -GM)
-  function ground() {
-    if (groundC) return groundC;
-    const GW = W * T + 2 * GM, GH = H * T + 2 * GM;
-    const [c, x] = A.hcanvas(GW, GH);
-    const g = (X, Y, w, h, col) => R(x, X + GM, Y + GM, w, h, col);
-    const hs = (a, b) => A.hash(a, b);
-    const q = 0.5;   // one real pixel at the remastered resolution
-    // mown lawn: broad stripes in two greens, then thousands of blades and the odd daisy
-    for (let X = -GM; X < W * T + GM; X += 24) g(X, -GM, 24, GH, ((X + GM) / 24) % 2 ? '#4aab3c' : '#3f9c33');
-    for (let i = 0; i < 16000; i++) { const X = hs(i, 7) * GW - GM, Y = hs(i, 11) * GH - GM; g(Math.floor(X * 2) / 2, Math.floor(Y * 2) / 2, q, i % 4 ? 1 : 1.5, ['#358a2b', '#5cbd4c', '#2f7d27', '#66c656'][i % 4]); }
-    for (let i = 0; i < 160; i++) { const X = Math.floor(hs(i, 91) * GW) - GM, Y = Math.floor(hs(i, 93) * GH) - GM; g(X, Y, q, q, '#ffffff'); g(X + q, Y, q, q, '#ffe36b'); }
-    // paving slabs, each a slightly different stone with a bevelled edge
-    const pave = (X, Y, w, h) => {
-      g(X, Y, w, h, '#c4c1b8');
-      for (let j = 0; j < h; j += 8) for (let i = -((j / 8) % 2) * 6; i < w; i += 12) {
-        const x0 = Math.max(0, i), x1 = Math.min(w, i + 12), sw = x1 - x0, sh = Math.min(8, h - j); if (sw <= 0) continue;
-        const v = hs(X + i, Y + j); g(X + x0, Y + j, sw, sh, v < 0.33 ? '#c9c6bd' : v < 0.66 ? '#c0bdb4' : '#c6c3b9');
-        g(X + x0, Y + j, sw, q, '#d8d5cc'); g(X + x0, Y + j, q, sh, '#d2cfc6'); g(X + x0, Y + j + sh - q, sw, q, '#a7a49b'); g(X + x1 - q, Y + j, q, sh, '#aeaba2');
-      }
-      for (let i = 0; i < w * h / 10; i++) g(X + Math.floor(hs(i, X * 3 + Y) * w * 2) / 2, Y + Math.floor(hs(Y + i, X + 5) * h * 2) / 2, q, q, i % 2 ? '#b5b2a9' : '#d6d3ca');
-    };
-    // the road along the west side: speckled asphalt, white edge lines, a dashed centre line, a bevelled kerb
-    g(-GM, -GM, 42, GH, '#66686d');
-    for (let i = 0; i < 9000; i++) g(-GM + Math.floor(hs(i, 51) * 84) / 2, Math.floor(hs(i, 53) * GH * 2) / 2 - GM, q, q, ['#5a5c61', '#74767b', '#5f6166'][i % 3]);
-    g(-GM + 2, -GM, 1, GH, '#e8e6de'); g(-GM + 39, -GM, 1, GH, '#e8e6de');
-    for (let Y = -GM; Y < H * T + GM; Y += 18) { g(-GM + 20, Y, 2, 10, '#efe3a2'); g(-GM + 20, Y, q, 10, '#fff4c0'); }
-    g(-GM + 42, -GM, 3, GH, '#dcd8cc'); g(-GM + 42, -GM, 3, q, '#ece9e0'); g(-GM + 42, -GM, q, GH, '#f0ede4'); g(-GM + 44.5, -GM, q, GH, '#9a978e');
-    for (let Y = -GM + 40; Y < H * T + GM; Y += 90) { g(-GM + 37, Y, 4, 3, '#3e4045'); for (let k = 0; k < 4; k++) g(-GM + 37.5 + k, Y + q, q, 2, '#2a2c30'); }
-    // a pavement round the building and a path from the road to the front doors
-    pave(24, RH.WING.y0 * T - 8, RH.WING.x1 * T - 24 + 8, H * T - RH.WING.y0 * T + 16);   // the shallow front wing
-    pave(RH.WING.x1 * T - 8, -8, W * T - RH.WING.x1 * T + 16, H * T + 16);
+  const q = 0.5;   // one real pixel at the remastered resolution
+  const hs = (a, b) => A.hash(a, b);
+  // paving slabs, each a slightly different stone with a bevelled edge. g(X, Y, w, h, col) fills world px.
+  const makePave = g => (X, Y, w, h) => {
+    g(X, Y, w, h, '#c4c1b8');
+    for (let j = 0; j < h; j += 8) for (let i = -((j / 8) % 2) * 6; i < w; i += 12) {
+      const x0 = Math.max(0, i), x1 = Math.min(w, i + 12), sw = x1 - x0, sh = Math.min(8, h - j); if (sw <= 0) continue;
+      const v = hs(X + i, Y + j); g(X + x0, Y + j, sw, sh, v < 0.33 ? '#c9c6bd' : v < 0.66 ? '#c0bdb4' : '#c6c3b9');
+      g(X + x0, Y + j, sw, q, '#d8d5cc'); g(X + x0, Y + j, q, sh, '#d2cfc6'); g(X + x0, Y + j + sh - q, sw, q, '#a7a49b'); g(X + x1 - q, Y + j, q, sh, '#aeaba2');
+    }
+    for (let i = 0; i < w * h / 10; i++) g(X + Math.floor(hs(i, X * 3 + Y) * w * 2) / 2, Y + Math.floor(hs(Y + i, X + 5) * h * 2) / 2, q, q, i % 2 ? '#b5b2a9' : '#d6d3ca');
+  };
+  // round the two-player building: the pavement, the path from the road, the car park, the forecourt, the flower beds
+  function classicGrounds(g, pave) {
+    pave(24, RH.WING.y0 * T - 8, RH.WING.x1 * T - 24 + 8, CH * T - RH.WING.y0 * T + 16);   // the shallow front wing
+    pave(RH.WING.x1 * T - 8, -8, CW * T - RH.WING.x1 * T + 16, CH * T + 16);
     pave(-GM + 46, RH.LOT.path - 26, GM + 24 - 46 + 16, 52);
     // the car park: tarmac with white bay lines (cars nose-in towards the road) and a footpath beside it
     { const L = RH.LOT, X0 = -GM + 46, Y0 = L.y0 - 14, Y1 = L.y0 + L.n * 16 + 2;
@@ -539,7 +526,7 @@
       g(X0, Y0, L.walk - 6 - X0, 1, '#dcd8cc'); g(L.walk - 7, Y0, 1, Y1 - Y0, '#dcd8cc');
       pave(L.walk - 6, L.path, 30 - L.walk + 6, Y1 - L.path); }
     // the forecourt where the building's front corner is cut away: big pale slabs with a darker border
-    { const X = 24, Y = RH.NOTCH.y0 * T - 8, w = RH.NOTCH.x1 * T - 24 + 8, hh = H * T - RH.NOTCH.y0 * T + 16;
+    { const X = 24, Y = RH.NOTCH.y0 * T - 8, w = RH.NOTCH.x1 * T - 24 + 8, hh = CH * T - RH.NOTCH.y0 * T + 16;
       g(X, Y, w, hh, '#cbc8c0'); for (let j = 0; j < hh; j += 16) for (let i = 0; i < w; i += 16) { const v = hs(i + X, j + Y); g(X + i, Y + j, 16, 16, v < 0.5 ? '#cfccc4' : '#c6c3bb'); g(X + i, Y + j, 16, q, '#dedbd3'); g(X + i, Y + j, q, 16, '#d8d5cd'); g(X + i, Y + j + 15.5, 16, q, '#aeaba2'); g(X + i + 15.5, Y + j, q, 16, '#b3b0a7'); } }
     // flower beds either side of the path
     for (const [X, Y] of [[-40, RH.LOT.path - 48]]) {
@@ -550,23 +537,118 @@
         g(fx, fy + 1, q, 1, '#2f7d27'); g(fx - q, fy, q, q, col); g(fx + q, fy, q, q, col); g(fx, fy - q, q, q, col); g(fx, fy + q, q, q, col); g(fx, fy, q, q, '#ffe36b');
       }
     }
-    // the open hospital floor: Theme Hospital's grey tiles, bevelled, with a raised pale square on each
-    for (let r = 0; r < H; r++) for (let col = 2; col < W; col++) {
-      if (!RH.indoor(col, r)) continue;   // the forecourt
-      const X = col * T, Y = r * T, lob = RH.inLobby(col, r), v = (hs(col, r) - 0.5) * 0.04;
-      const base = shade(lob ? '#b2b8bd' : '#bcbbb5', v), inset = lob ? '#c9d0d6' : '#d3d2cc';
-      g(X, Y, 16, 16, base);
-      g(X, Y, 16, q, shade(base, 0.22)); g(X, Y, q, 16, shade(base, 0.16)); g(X, Y + 16 - q, 16, q, shade(base, -0.16)); g(X + 16 - q, Y, q, 16, shade(base, -0.12));
-      g(X + 4, Y + 4, 8, 8, inset);
-      g(X + 4, Y + 4, 8, q, shade(inset, 0.3)); g(X + 4, Y + 4, q, 8, shade(inset, 0.22)); g(X + 4, Y + 12 - q, 8, q, shade(inset, -0.14)); g(X + 12 - q, Y + 4, q, 8, shade(inset, -0.1));
-      g(X + 5, Y + 5, 2, q, shade(inset, 0.4));
-      for (let i = 0; i < 6; i++) g(X + Math.floor(hs(i + X, Y) * 30) / 2, Y + Math.floor(hs(Y + i, X) * 30) / 2, q, q, shade(base, i % 2 ? -0.08 : 0.08));
-    }
-    // a bristly doormat inside the front doors
-    { const D = RH.DOOR, X0 = D.x0 * T + 2, X1 = (D.x1 + 1) * T - 2, Y0 = D.y * T - 12, Y1 = D.y * T - 1;
-      g(X0, Y0, X1 - X0, Y1 - Y0, '#5a5650'); g(X0, Y0, X1 - X0, q, '#77726a'); g(X0, Y1 - q, X1 - X0, q, '#3e3b36');
-      for (let j = Y0 + 1; j < Y1 - 1; j += 1) for (let i = X0 + 1; i < X1 - 1; i += 1) if (hs(i, j) < 0.5) g(i + (j % 2) * q, j, q, q, '#6e6a62'); }
+  }
+  // one tile of hospital floor: Theme Hospital's grey tiles, bevelled, with a raised pale square on each
+  function floorTile(g, col, r) {
+    const X = col * T, Y = r * T, lob = RH.inLobby(col, r), v = (hs(col, r) - 0.5) * 0.04;
+    const base = shade(lob ? '#b2b8bd' : '#bcbbb5', v), inset = lob ? '#c9d0d6' : '#d3d2cc';
+    g(X, Y, 16, 16, base);
+    g(X, Y, 16, q, shade(base, 0.22)); g(X, Y, q, 16, shade(base, 0.16)); g(X, Y + 16 - q, 16, q, shade(base, -0.16)); g(X + 16 - q, Y, q, 16, shade(base, -0.12));
+    g(X + 4, Y + 4, 8, 8, inset);
+    g(X + 4, Y + 4, 8, q, shade(inset, 0.3)); g(X + 4, Y + 4, q, 8, shade(inset, 0.22)); g(X + 4, Y + 12 - q, 8, q, shade(inset, -0.14)); g(X + 12 - q, Y + 4, q, 8, shade(inset, -0.1));
+    g(X + 5, Y + 5, 2, q, shade(inset, 0.4));
+    for (let i = 0; i < 6; i++) g(X + Math.floor(hs(i + X, Y) * 30) / 2, Y + Math.floor(hs(Y + i, X) * 30) / 2, q, q, shade(base, i % 2 ? -0.08 : 0.08));
+  }
+  // a bristly doormat inside a plot's front doors: three tiles along the door's wall, just inside it
+  function doormat(g, x, y, d) {
+    const along = d % 2 === 0, [dx, dy] = RH.DIRS[d];
+    const cx = x * T + 8 + dx * 1.5, cy = y * T + 8 + dy * 1.5;   // nudged towards the doors
+    const X0 = along ? cx - 22 : cx - 5.5, Y0 = along ? cy - 5.5 : cy - 22, w = along ? 44 : 11, hh = along ? 11 : 44;
+    g(X0, Y0, w, hh, '#5a5650'); g(X0, Y0, w, q, '#77726a'); g(X0, Y0 + hh - q, w, q, '#3e3b36');
+    for (let j = Y0 + 1; j < Y0 + hh - 1; j += 1) for (let i = X0 + 1; i < X0 + w - 1; i += 1) if (hs(i, j) < 0.5) g(i + (j % 2) * q, j, q, q, '#6e6a62');
+  }
+  // the grounds (lawn, road, paths) and the open hospital floor in one image whose top-left is world (-GM, -GM)
+  function ground() {
+    if (groundC) return groundC;
+    const GW = W * T + 2 * GM, GH = H * T + 2 * GM;
+    const [c, x] = A.hcanvas(GW, GH);
+    const g = (X, Y, w, h, col) => R(x, X + GM, Y + GM, w, h, col);
+    // mown lawn: broad stripes in two greens, then thousands of blades and the odd daisy
+    for (let X = -GM; X < W * T + GM; X += 24) g(X, -GM, 24, GH, ((X + GM) / 24) % 2 ? '#4aab3c' : '#3f9c33');
+    for (let i = 0; i < 16000; i++) { const X = hs(i, 7) * GW - GM, Y = hs(i, 11) * GH - GM; g(Math.floor(X * 2) / 2, Math.floor(Y * 2) / 2, q, i % 4 ? 1 : 1.5, ['#358a2b', '#5cbd4c', '#2f7d27', '#66c656'][i % 4]); }
+    for (let i = 0; i < 160; i++) { const X = Math.floor(hs(i, 91) * GW) - GM, Y = Math.floor(hs(i, 93) * GH) - GM; g(X, Y, q, q, '#ffffff'); g(X + q, Y, q, q, '#ffe36b'); }
+    const pave = makePave(g);
+    // the road along the west side: speckled asphalt, white edge lines, a dashed centre line, a bevelled kerb
+    g(-GM, -GM, 42, GH, '#66686d');
+    for (let i = 0; i < 9000; i++) g(-GM + Math.floor(hs(i, 51) * 84) / 2, Math.floor(hs(i, 53) * GH * 2) / 2 - GM, q, q, ['#5a5c61', '#74767b', '#5f6166'][i % 3]);
+    g(-GM + 2, -GM, 1, GH, '#e8e6de'); g(-GM + 39, -GM, 1, GH, '#e8e6de');
+    for (let Y = -GM; Y < H * T + GM; Y += 18) { g(-GM + 20, Y, 2, 10, '#efe3a2'); g(-GM + 20, Y, q, 10, '#fff4c0'); }
+    g(-GM + 42, -GM, 3, GH, '#dcd8cc'); g(-GM + 42, -GM, 3, q, '#ece9e0'); g(-GM + 42, -GM, q, GH, '#f0ede4'); g(-GM + 44.5, -GM, q, GH, '#9a978e');
+    for (let Y = -GM + 40; Y < H * T + GM; Y += 90) { g(-GM + 37, Y, 4, 3, '#3e4045'); for (let k = 0; k < 4; k++) g(-GM + 37.5 + k, Y + q, q, 2, '#2a2c30'); }
+    // a pavement round the building and a path from the road to the front doors
+    classicGrounds(g, pave);
+    // the open hospital floor
+    for (let r = 0; r < H; r++) for (let col = 2; col < W; col++) if (RH.indoor(col, r)) floorTile(g, col, r);   // not the forecourt
+    doormat(g, RH.DOOR.mid, RH.DOOR.y - 1, 2);
     return (groundC = c);
+  }
+
+  // ---------- the town's grounds, in chunks ----------
+  // A town-sized image would be thousands of pixels square (past what phones allow), so the town's grounds are
+  // painted in 32 x 32 tile chunks as they come into view: the lawn, the streets and pavements, the park's pond, the
+  // two-player map's own grounds round the first building, and the floor of every plot you own.
+  const CHUNK = 512, chunkCache = new Map(), CHUNK_KEEP = 24;
+  function roadTile(g, x, y) {
+    const M = RH.TM, X = x * T, Y = y * T, at = (a, b) => RH.inMap(a, b) && M.kind[RH.idx(a, b)] === M.ROAD;
+    const bits = M.road[RH.idx(x, y)];
+    g(X, Y, 16, 16, '#66686d');
+    for (let i = 0; i < 26; i++) g(X + Math.floor(hs(i + X, Y + 51) * 32) / 2, Y + Math.floor(hs(Y + i, X + 53) * 32) / 2, q, q, ['#5a5c61', '#74767b', '#5f6166'][i % 3]);
+    if (bits === 3) return;   // a junction: plain tarmac
+    const v = bits === 1, a = v ? at(x - 1, y) : at(x, y - 1), b = v ? at(x + 1, y) : at(x, y + 1);
+    if (a && b) {   // the middle lane: a dashed yellow centre line
+      if (((v ? y : x) & 1) === 0) { if (v) { g(X + 7, Y + 3, 2, 10, '#efe3a2'); g(X + 7, Y + 3, q, 10, '#fff4c0'); } else { g(X + 3, Y + 7, 10, 2, '#efe3a2'); g(X + 3, Y + 7, 10, q, '#fff4c0'); } }
+      return;
+    }
+    // an outer lane: a white edge line, and the kerb where the pavement starts
+    if (v) { const sx = a ? X + 13 : X + 2; g(sx, Y, 1, 16, '#e8e6de'); const kx = a ? X + 15 : X; g(kx, Y, 1, 16, '#dcd8cc'); g(a ? X + 15.5 : X, Y, q, 16, a ? '#9a978e' : '#f0ede4'); }
+    else { const sy = a ? Y + 13 : Y + 2; g(X, sy, 16, 1, '#e8e6de'); const ky = a ? Y + 15 : Y; g(X, ky, 16, 1, '#dcd8cc'); g(X, a ? Y + 15.5 : Y, 16, q, a ? '#9a978e' : '#f0ede4'); }
+    if (((v ? y : x) % 6) === 3) { const [gx, gy] = v ? [a ? X + 10 : X + 2, Y + 6] : [X + 6, a ? Y + 10 : Y + 2]; g(gx, gy, v ? 4 : 3, v ? 3 : 4, '#3e4045'); }   // a drain
+  }
+  function waterTile(g, x, y) {
+    const M = RH.TM, X = x * T, Y = y * T, wet = (a, b) => RH.inMap(a, b) && M.kind[RH.idx(a, b)] === M.WATER;
+    g(X, Y, 16, 16, '#3f86b8');
+    for (let i = 0; i < 5; i++) { const u = Math.floor(hs(i + X, Y) * 24) / 2, v = Math.floor(hs(Y, i + X) * 28) / 2; g(X + u, Y + v, 3, q, '#7cc0e6'); g(X + u + 1, Y + v + q, 2, q, '#5aa2d0'); }
+    if (hs(X, Y + 9) < 0.12) { g(X + 5, Y + 6, 5, 3, '#4aab3c'); g(X + 6, Y + 6.5, 3, 2, '#5cbd4c'); g(X + 7.5, Y + 6, q, 1, '#f4f0e6'); }   // a lily pad
+    // a muddy bank with reeds where the pond meets the grass
+    const bank = (bx, by, bw, bh) => { g(bx, by, bw, bh, '#6b5a3a'); for (let i = 0; i < 4; i++) g(bx + Math.floor(hs(i, bx + by) * Math.max(1, bw - 1)), by + Math.floor(hs(by, i + bx) * Math.max(1, bh - 1)), q, 2, '#2f7d27'); };
+    if (!wet(x, y - 1)) bank(X, Y, 16, 2); if (!wet(x, y + 1)) bank(X, Y + 14, 16, 2); if (!wet(x - 1, y)) bank(X, Y, 2, 16); if (!wet(x + 1, y)) bank(X + 14, Y, 2, 16);
+  }
+  // mine: the plot ids you own
+  function groundChunk(cx, cy, mine) {
+    const key = cx + ',' + cy + ':' + mine.join('.');
+    const hit = chunkCache.get(key); if (hit) { chunkCache.delete(key); chunkCache.set(key, hit); return hit; }
+    const M = RH.TM, X0 = cx * CHUNK, Y0 = cy * CHUNK, own = new Set(mine);
+    const [c, x] = A.hcanvas(CHUNK, CHUNK);
+    const g = (X, Y, w, h, col) => { if (X >= X0 + CHUNK || Y >= Y0 + CHUNK || X + w <= X0 || Y + h <= Y0) return; R(x, X - X0, Y - Y0, w, h, col); };
+    // the lawn, mown in stripes across the whole town
+    for (let X = Math.floor((X0 - MXP) / 24) * 24 + MXP; X < X0 + CHUNK; X += 24) g(X, Y0, 24, CHUNK, (((X - MXP) / 24) & 1) ? '#4aab3c' : '#3f9c33');
+    for (let i = 0; i < 9600; i++) { const X = X0 + hs(i + cx * 7919, 7 + cy * 31) * CHUNK, Y = Y0 + hs(i + cy * 104729, 11 + cx * 17) * CHUNK; g(Math.floor(X * 2) / 2, Math.floor(Y * 2) / 2, q, i % 4 ? 1 : 1.5, ['#358a2b', '#5cbd4c', '#2f7d27', '#66c656'][i % 4]); }
+    for (let i = 0; i < 90; i++) { const X = X0 + Math.floor(hs(i + cx * 13, 91 + cy) * CHUNK), Y = Y0 + Math.floor(hs(i + cy * 29, 93 + cx) * CHUNK); g(X, Y, q, q, '#ffffff'); g(X + q, Y, q, q, '#ffe36b'); }
+    const pave = makePave(g);
+    const tx0 = Math.floor(X0 / T), ty0 = Math.floor(Y0 / T);
+    for (let y = ty0; y < ty0 + CHUNK / T; y++) for (let x2 = tx0; x2 < tx0 + CHUNK / T; x2++) {
+      if (!RH.inMap(x2, y)) continue;
+      const k = M.kind[RH.idx(x2, y)];
+      if (k === M.PAVE) pave(x2 * T, y * T, 16, 16); else if (k === M.ROAD) roadTile(g, x2, y); else if (k === M.WATER) waterTile(g, x2, y);
+      else if (k === M.HOUSE) { g(x2 * T, y * T, 16, 16, '#3f9c33'); }
+    }
+    if (X0 < CW * T + GM && X0 + CHUNK > -GM && Y0 < CH * T + GM && Y0 + CHUNK > -GM) classicGrounds(g, pave);
+    // the floor of the land you own, and a doormat inside each set of front doors
+    for (let y = ty0; y < ty0 + CHUNK / T; y++) for (let x2 = tx0; x2 < tx0 + CHUNK / T; x2++) {
+      if (!RH.inMap(x2, y)) continue;
+      const i = RH.idx(x2, y); if (M.kind[i] === M.FLOOR && own.has(M.plot[i])) floorTile(g, x2, y);
+    }
+    for (const p of M.plots) if (own.has(p.id)) doormat(g, p.door[0], p.door[1], p.door[2]);
+    chunkCache.set(key, c);
+    while (chunkCache.size > CHUNK_KEEP) chunkCache.delete(chunkCache.keys().next().value);
+    return c;
+  }
+  // the world chunks a rectangle of world px touches (for the town's floor layer)
+  function chunksIn(x0, y0, x1, y1) {
+    const out = [], lo = v => Math.floor(v / CHUNK);
+    const ax = Math.max(lo(MXP - GM), lo(x0)), bx = Math.min(lo(MXP + W * T + GM - 1), lo(x1)), ay = Math.max(lo(MYP - GM), lo(y0)), by = Math.min(lo(MYP + H * T + GM - 1), lo(y1));
+    for (let cy = ay; cy <= by; cy++) for (let cx = ax; cx <= bx; cx++) out.push([cx, cy]);
+    return out;
   }
   const floorCache = {};
   function roomFloor(kind, w, h) {
@@ -715,7 +797,13 @@
     const key = h.lv + ':' + rot + ':' + flat;
     const hit = edgeCache.get(h); if (hit && hit.key === key) return hit.items;
     const Lr = RH.layout(h), items = [];
-    const roomOf = (x, y) => (RH.indoor(x, y) ? Lr.room[RH.idx(x, y)] : y === RH.DOOR.y && x >= RH.DOOR.x0 && x <= RH.DOOR.x1 ? 0 : -1);
+    // outside the front doors there's no wall (the doors are drawn on their own): the two-player map's, or in the
+    // town, those of every plot you own
+    const doorOutside = new Set();
+    if (TOWN) { const mine = new Set(RH.owned(h)); for (const [, , ox, oy, pid] of RH.TM.doors) if (mine.has(pid)) doorOutside.add(ox + ',' + oy); }
+    else for (let x = RH.DOOR.x0; x <= RH.DOOR.x1; x++) doorOutside.add(x + ',' + RH.DOOR.y);
+    const indoor = (x, y) => (TOWN ? RH.inside(h, x, y) : RH.indoor(x, y));
+    const roomOf = (x, y) => (indoor(x, y) ? Lr.room[RH.idx(x, y)] : doorOutside.has(x + ',' + y) ? 0 : -1);
     const farN = (nx, ny) => { const o = rw(0, 0), n = rw(nx, ny), n1 = n[0] - o[0], n2 = n[1] - o[1]; return Math.abs(n2) > Math.abs(n1) ? n2 > 0 : n1 > 0; };
     const posterEdges = new Set();
     for (const k in h.rooms) {
@@ -730,7 +818,7 @@
       const ra = roomOf(x, y), rb = roomOf(nx, ny);
       if (ra === rb) return;
       if (ra === -1 && rb === -1) return;
-      if (!RH.indoor(x, y) && !RH.indoor(nx, ny)) return;   // the path outside has no walls
+      if (!indoor(x, y) && !indoor(nx, ny)) return;   // the path outside has no walls
       if (RH.inMap(x, y) && RH.inMap(nx, ny) && Lr.doors.has(RH.idx(x, y) < RH.idx(nx, ny) ? RH.idx(x, y) + ',' + RH.idx(nx, ny) : RH.idx(nx, ny) + ',' + RH.idx(x, y))) { doorFrame(x, y, d, ra > 0 ? h.rooms[ra] : h.rooms[rb], ra > 0 ? [-dx, -dy] : [dx, dy]); return; }
       // the two faces: one looking into (x, y), one looking into the neighbour
       const faceA = { room: ra, n: [-dx, -dy], tile: [x, y], d }, faceB = { room: rb, n: [dx, dy], tile: [nx, ny], d: (d + 2) & 3 };
@@ -753,7 +841,8 @@
       const front = near.room > 0 ? near.room : 0;
       for (const it of wallPiece(ax, ay, bx, by, face.n[0], face.n[1], k2 + (ext && !tall ? 'b' : ''), col, style, deco, tall, ext && !tall ? EXT_LOW : LOW_H)) { it.front = front; items.push(it); }
     };
-    for (let y = -1; y <= H; y++) for (let x = 0; x <= W; x++) { edge(x, y, 1); edge(x, y, 2); }
+    const bb = Lr.bb;   // only round the land you own
+    for (let y = bb.y0 - 1; y <= bb.y1; y++) for (let x = bb.x0 - 2; x <= bb.x1; x++) { edge(x, y, 1); edge(x, y, 2); }
     edgeCache.set(h, { key, items });
     return items;
     // a door stays a door: the room's wall with a panelled door set in it (taller than a cut-down front wall)
@@ -937,7 +1026,6 @@
     ctx.strokeStyle = 'rgba(27,23,32,.6)'; ctx.lineWidth = 1; ctx.stroke();
   }
   // the front doors: a green frame with fixed side panes, and two glass leaves that slide apart when anyone comes near
-  let doorsC = null, slideOpen = 0, slideDrawn = -1;
   // Three tiles (48 px) of sliding glass doors, H tall: fixed glass panes at the ends, two glass leaves that slide
   // apart (open 0-1), and a header with the red-cross sign. The front doors are framed in green, the ward's in blue.
   const GLASS_DOORS = { front: { G: '#2f8a3e', GL: '#5cc06a', track: '#24703a' }, ward: { G: '#2f62b8', GL: '#6a9fe6', track: '#1f4a8a' } };
@@ -954,31 +1042,134 @@
     R(x, 0, 0, 48, 7, G); R(x, 0, 0, 48, 1, GL); R(x, 3, 2, 42, 3, '#f4f4f0'); R(x, 22, 2, 4, 3, '#e8533f'); R(x, 23, 1, 2, 5, '#e8533f');
     R(x, 0, 6.5, 48, 1, pal.track);   // the track the leaves run in
   }
-  function doorsImg() {
-    const want = near((RH.DOOR.mid + 0.5) * T, RH.DOOR.y * T, 30, 30) ? 1 : 0;
-    slideOpen += (want - slideOpen) * Math.min(1, frameDt * (want ? 7 : 3));
-    if (doorsC && Math.abs(slideOpen - slideDrawn) < 0.01) return doorsC;
-    if (!doorsC) doorsC = A.hcanvas(48, WALL_H)[0];
-    slideDrawn = slideOpen; paintGlassDoors(doorsC.getContext('2d'), WALL_H, slideOpen, GLASS_DOORS.front);
-    return doorsC;
+  // each set of front doors slides open as people come near: [canvas, open, drawn] per plot (the two-player map: 1)
+  const doorsC = new Map();
+  function doorsImg(id, cx, cy) {
+    let st = doorsC.get(id); if (!st) doorsC.set(id, st = { c: A.hcanvas(48, WALL_H)[0], open: 0, drawn: -1 });
+    const want = near(cx, cy, 30, 30) ? 1 : 0;
+    st.open += (want - st.open) * Math.min(1, frameDt * (want ? 7 : 3));
+    if (Math.abs(st.open - st.drawn) >= 0.01) { st.drawn = st.open; paintGlassDoors(st.c.getContext('2d'), WALL_H, st.open, GLASS_DOORS.front); }
+    return st.c;
   }
-  function doorItems() {
-    const items = [];
-    const Y = RH.DOOR.y * T;   // the doors stand in the south wall, so they run along x
+  // three tiles of sliding glass doors standing on the wall edge outside door tile (x, y), facing d; mid on the middle one
+  function doorSet(items, id, x, y, d) {
+    const along = d % 2 === 0;
+    const ex = d === 1 ? (x + 1) * T : x * T, ey = d === 2 ? (y + 1) * T : y * T;   // the edge's first corner, middle tile
+    const cx = along ? (x + 0.5) * T : ex, cy = along ? ey : (y + 0.5) * T;
     for (let i = 0; i < 3; i++) {
-      const x0 = RH.DOOR.x0 * T + i * 16, x1 = x0 + 16;
-      items.push({ d: (depth(x0, Y) + depth(x1, Y)) / 2 + 0.2, draw: c => {
-        const img = doorsImg(), h = flat ? 4 : WALL_H, [u1, u2] = px(x0, Y), [v1, v2] = px(x1, Y);
+      const x0 = along ? ex + (i - 1) * 16 : ex, y0 = along ? ey : ey + (i - 1) * 16, x1 = along ? x0 + 16 : x0, y1 = along ? y0 : y0 + 16;
+      items.push({ d: (depth(x0, y0) + depth(x1, y1)) / 2 + 0.2, b: sbox(Math.min(x0, x1) - 2, Math.min(y0, y1) - 2, 20, 20, WALL_H), draw: c => {
+        const img = doorsImg(id, cx, cy), h = flat ? 4 : WALL_H, [u1, u2] = px(x0, y0), [v1, v2] = px(x1, y1);
         ST(c, (v1 - u1) / 16, (v2 - u2) / 16, 0, 1, u1, u2 - h); const k = img.width / 48; c.drawImage(img, i * 16 * k, (flat ? WALL_H - 4 : 0) * k, 16 * k, h * k, 0, 0, 16, h); reset(c);
       } });
     }
+  }
+  function doorItems(h) {
+    const items = [];
+    if (TOWN && h) { const mine = new Set(RH.owned(h)); for (const p of RH.TM.plots) if (mine.has(p.id)) doorSet(items, p.id, p.door[0], p.door[1], p.door[2]); }
+    else doorSet(items, 1, RH.DOOR.mid, RH.DOOR.y - 1, 2);
     return items;
+  }
+  // ---------- the town ----------
+  // a house in its garden: rendered walls with windows and a door, a pitched tile roof, a hedge along the front
+  function houseItem(sc) {
+    const X = sc.x * T + 3, Y = sc.y * T + 3, w = sc.w * T - 6, d = sc.h * T - 6, h0 = 26, hr = 16, wall = sc.wall, roof = sc.roof;
+    const win = (ctx, len, hh, door) => {
+      for (let u = 5; u + 6 <= len - 3; u += 12) {
+        if (door && Math.abs(u + 3 - len / 2) < 7) continue;
+        R(ctx, u - 0.5, 6.5, 7, 9, '#f4f0e6'); R(ctx, u, 7, 6, 8, '#7fb2d6'); R(ctx, u + 2.75, 7, 0.5, 8, '#f4f0e6'); R(ctx, u, 10.75, 6, 0.5, '#f4f0e6'); R(ctx, u + 0.5, 7.5, 2, 2, 'rgba(255,255,255,.55)');
+        R(ctx, u - 1, 15.5, 8, 1, shade(wall, -0.3));
+      }
+      if (door) { R(ctx, len / 2 - 3.5, hh - 15, 7, 15, '#f4f0e6'); R(ctx, len / 2 - 3, hh - 14.5, 6, 14.5, ['#2f62b8', '#c0392b', '#2f8a3e', '#5a3c22'][sc.n % 4]); R(ctx, len / 2 + 1.5, hh - 7, 1, 1, '#ffd23f'); }
+      R(ctx, 0, hh - 2, len, 2, shade(wall, -0.25));
+    };
+    const faces = { south: (c2, len, hh) => win(c2, len, hh, true), north: (c2, len, hh) => win(c2, len, hh), east: (c2, len, hh) => win(c2, len, hh), west: (c2, len, hh) => win(c2, len, hh) };
+    const along = w >= d;   // the ridge runs along the longer side
+    const P = (x, y, z) => { const [a, b] = px(x, y); return [a, b - z]; };
+    const poly = (c, pts, fill, lines) => { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); c.fillStyle = fill; c.fill(); c.strokeStyle = 'rgba(27,23,32,.75)'; c.lineWidth = 0.6; c.stroke(); if (lines) lines(c); };
+    return { d: depthBox(X, Y, w, d), b: sbox(X - 6, Y - 6, w + 12, d + 12, h0 + hr + 14), draw: c => {
+      box(c, X, Y, w, d, flat ? 0 : h0, wall, faces);
+      if (flat) { decal(c, X - 2, Y - 2, ctx => { R(ctx, 0, 0, w + 4, d + 4, roof); R(ctx, along ? 0 : (w + 4) / 2 - 0.5, along ? (d + 4) / 2 - 0.5 : 0, along ? w + 4 : 1, along ? 1 : d + 4, shade(roof, -0.3)); }); return; }
+      // the roof: two slopes and two gable ends, drawn back to front
+      const o = 2, x0 = X - o, x1 = X + w + o, y0 = Y - o, y1 = Y + d + o, zm = h0 + hr;
+      const parts = along
+        ? [[[[x0, y0, h0], [x1, y0, h0], [x1, Y + d / 2, zm], [x0, Y + d / 2, zm]], roof], [[[x0, y1, h0], [x1, y1, h0], [x1, Y + d / 2, zm], [x0, Y + d / 2, zm]], roof],
+           [[[X, Y, h0], [X, Y + d, h0], [X, Y + d / 2, zm]], wall], [[[X + w, Y, h0], [X + w, Y + d, h0], [X + w, Y + d / 2, zm]], wall]]
+        : [[[[x0, y0, h0], [x0, y1, h0], [X + w / 2, y1, zm], [X + w / 2, y0, zm]], roof], [[[x1, y0, h0], [x1, y1, h0], [X + w / 2, y1, zm], [X + w / 2, y0, zm]], roof],
+           [[[X, Y, h0], [X + w, Y, h0], [X + w / 2, Y, zm]], wall], [[[X, Y + d, h0], [X + w, Y + d, h0], [X + w / 2, Y + d, zm]], wall]];
+      const cen = pts => pts.reduce((a, p) => a + depth(p[0], p[1]), 0) / pts.length;
+      parts.sort((a, b) => cen(a[0]) - cen(b[0]));
+      parts.forEach(([pts, col], i) => {
+        const near = i >= 2, isRoof = col === roof, sp = pts.map(p => P(p[0], p[1], p[2]));
+        poly(c, sp, isRoof ? shade(roof, near ? 0.05 : -0.22) : shade(wall, -0.12), isRoof ? ctx => {   // rows of tiles
+          ctx.strokeStyle = shade(roof, -0.35); ctx.lineWidth = 0.5;
+          for (const k of [0.25, 0.5, 0.75]) { const a = [sp[0][0] + (sp[3][0] - sp[0][0]) * k, sp[0][1] + (sp[3][1] - sp[0][1]) * k], b = [sp[1][0] + (sp[2][0] - sp[1][0]) * k, sp[1][1] + (sp[2][1] - sp[1][1]) * k]; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+        } : null);
+      });
+      // a chimney on the ridge
+      const [chx, chy] = along ? [X + w * 0.7, Y + d / 2 - 2] : [X + w / 2 - 2, Y + d * 0.7];
+      box(c, chx, chy, 4, 4, 10, '#a0522d', { top: ctx => R(ctx, 0.5, 0.5, 3, 3, '#3a2a22') }, zm - 6);
+    } };
+  }
+  // a little bench: a slatted seat and back on iron legs. f: the way it faces (0 S, 2 N)
+  function benchItem(x, y, f) {
+    return { d: depth(x, y), b: sbox(x - 9, y - 4, 18, 8, 16), draw: c => withRot(x, y, f === 0 ? 0 : 2, () => {
+      for (const lx of [-6, 5]) box(c, x + lx, y - 2, 1, 4, 4, '#3a3d44');
+      box(c, x - 7, y - 2.5, 14, 4, 1.5, '#a0663a', { top: ctx => { for (let i = 0.8; i < 4; i += 1.3) R(ctx, 0, i, 14, 0.4, '#7a4a2a'); } }, 3.5);
+      box(c, x - 7, y - 2.5, 14, 1, 5, '#a0663a', { south: ctx => { R(ctx, 0, 1.5, 14, 0.4, '#7a4a2a'); R(ctx, 0, 3.2, 14, 0.4, '#7a4a2a'); } }, 5);
+    }) };
+  }
+  // the For Sale board planted by a plot's front doors, with its price
+  function saleSignItem(p) {
+    const [x, y, f] = p.door, [dx, dy] = RH.DIRS[f], a = f % 2 === 0 ? [1, 0] : [0, 1];
+    const sx = (x + dx * 1.5 + a[0] * 2.5 + 0.5) * T, sy = (y + dy * 1.5 + a[1] * 2.5 + 0.5) * T, price = '$' + RH.plotPrice(p.id).toLocaleString('en-US');
+    return { d: depth(sx, sy), b: sbox(sx - 12, sy - 12, 24, 24, 40), plot: p.id, draw: c => {
+      shadow(c, sx, sy, 5);
+      box(c, sx - 0.75, sy - 0.75, 1.5, 1.5, 24, '#6a4a3a');
+      const board = (ctx, len, hh) => { R(ctx, 0, 0, len, hh, '#d63a2e'); R(ctx, 0.5, 0.5, len - 1, hh - 1, '#e8533f'); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 3.6px sans-serif'; ctx.fillText('FOR SALE', len / 2, 4.3); ctx.font = 'bold 3px sans-serif'; ctx.fillStyle = '#ffe36b'; ctx.fillText(price, len / 2, 8.6); };
+      box(c, sx - 9, sy - 0.6, 18, 1.2, 10, '#d63a2e', { south: board, north: board, east: board, west: board }, 14);
+    } };
+  }
+  function townItems(items, h, sale, sprite, bx) {
+    const mine = new Set(RH.owned(h)), forSale = new Set(sale);
+    for (const sc of RH.TM.scen) {
+      if (sc.plot && mine.has(sc.plot)) continue;   // a bought plot's lawn makes way for its building
+      if (sc.k === 'tree') items.push(sprite((sc.x + sc.y) % 3 ? 'bigtree' : 'tree', sc.x, sc.y, 11, true));
+      else if (sc.k === 'bush') items.push(sprite('bush', sc.x, sc.y));
+      else if (sc.k === 'lamp') items.push(sprite('streetlamp', sc.x, sc.y, 3));
+      else if (sc.k === 'bench') items.push(benchItem(sc.x, sc.y, sc.f));
+      else if (sc.k === 'house') items.push(houseItem(sc));
+      else if (sc.k === 'flowers') items.push({ d: depth(sc.x, sc.y) - 2, b: sbox(sc.x - 10, sc.y - 8, 20, 16, 4), draw: c => decal(c, sc.x - 9, sc.y - 6, ctx => {
+        R(ctx, 0, 0, 18, 12, '#6b4a2c'); R(ctx, 0, 0, 18, 0.5, '#8a6440');
+        for (let i = 0; i < 26; i++) { const fx = 1 + Math.floor(hs(i, sc.x) * 32) / 2, fy = 1 + Math.floor(hs(sc.y, i) * 20) / 2; R(ctx, fx, fy, 1, 1, ['#ff5a7a', '#ffd23f', '#f4f0e6', '#c86ad8', '#ff8a3a'][i % 5]); R(ctx, fx + q, fy + q, q, q, '#ffe36b'); }
+      }) });
+    }
+    // plots on the market: a dashed boundary on the lawn and a For Sale board by the doors; tinted on the town map
+    for (const p of RH.TM.plots) {
+      if (!forSale.has(p.id) || mine.has(p.id)) continue;
+      const [x0, y0, w, hh] = p.rect, X = x0 * T, Y = y0 * T, Wd = w * T, Hd = hh * T;
+      items.push({ d: -1e9 + 1, b: sbox(X, Y, Wd, Hd, 4), plot: p.id, draw: c => decal(c, X, Y, ctx => {
+        if (flat) { ctx.fillStyle = 'rgba(214,58,46,.28)'; ctx.fillRect(0, 0, Wd, Hd); }
+        ctx.globalAlpha = 0.65 + Math.sin(now * 2.5) * 0.2; ctx.setLineDash([6, 4]); ctx.strokeStyle = '#d63a2e'; ctx.lineWidth = 1.5; ctx.strokeRect(1, 1, Wd - 2, Hd - 2); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }) });
+      if (flat) items.push({ d: 1e9, b: sbox(X, Y, Wd, Hd, 4), plot: p.id, draw: c => {   // its name and price, upright
+        const [sx, sy] = px(X + Wd / 2, Y + Hd / 2);
+        c.textAlign = 'center'; c.lineJoin = 'round'; c.lineWidth = 3; c.strokeStyle = 'rgba(60,20,16,.85)';
+        c.font = 'bold 13px sans-serif'; c.strokeText(p.nm, sx, sy - 3); c.fillStyle = '#fff'; c.fillText(p.nm, sx, sy - 3);
+        c.font = 'bold 11px sans-serif'; const pr = '$' + RH.plotPrice(p.id).toLocaleString('en-US'); c.strokeText(pr, sx, sy + 11); c.fillStyle = '#ffe36b'; c.fillText(pr, sx, sy + 11);
+      } });
+      if (!flat) items.push(saleSignItem(p));
+    }
   }
   // outside: the road with an ambulance, trees, lamps, hedges, the sign, and the front doors
   let outsideCache = null;
-  function outside() {
-    if (outsideCache && outsideCache.key === rot + ':' + flat) return outsideCache.items.slice();
-    const items = doorItems();
+  // h: the hospital on show (in the town its plots decide the doors and what's still lawn); sale: plot ids for sale now
+  function outside(h, sale) {
+    const key = rot + ':' + flat + (TOWN && h ? ':' + RH.owned(h).join('.') + ':' + (sale || []).join('.') : '');
+    if (outsideCache && outsideCache.key === key) return outsideCache.items.slice();
+    const items = doorItems(h);
+    // in the town, the two-player map's trees and bushes stay off the pavements and off plots that may be built on
+    const lawn = (x, y) => { if (!TOWN) return true; const tx = Math.floor(x / T), ty = Math.floor(y / T); return !RH.inMap(tx, ty) || RH.TM.kind[RH.idx(tx, ty)] === RH.TM.GRASS; };
     const bx = (x, y, w, d, h, col, faces) => ({ d: depthBox(x, y, w, d), b: sbox(x, y, w, d, h + 6), draw: c => box(c, x, y, w, d, h, col, faces) });
     const sprite = (name, x, y, sh, sway) => ({ d: depth(x, y), b: sbox(x - 28, y - 28, 56, 56, 120), draw: c => {
       if (sh) shadow(c, x, y, sh);
@@ -991,29 +1182,32 @@
     items.push(bx(-86, 30, 13, 28, 14, '#f4f4f0', { east: (ctx, d, h) => { R(ctx, 0, 7, d, 3, '#e8533f'); R(ctx, 2, 1, 6, 4, '#9fd8ff'); R(ctx, 12, 1, 5, 4, '#9fd8ff'); R(ctx, 19, 1, 7, 4, '#9fd8ff'); R(ctx, 13, 7, 2, 3, '#f4f4f0'); R(ctx, 12, 8, 4, 1, '#f4f4f0'); R(ctx, 3, h - 2, 4, 2, '#2b2e3a'); R(ctx, 20, h - 2, 4, 2, '#2b2e3a'); }, south: (ctx, w, h) => { R(ctx, 1, 1, w - 2, 5, '#9fd8ff'); R(ctx, 1, 9, 2, 2, '#ffd23f'); R(ctx, w - 3, 9, 2, 2, '#ffd23f'); R(ctx, 0, 7, w, 1, '#e8533f'); }, top: ctx => { const on = Math.floor(now * 3) % 2; R(ctx, 3, 4, 7, 3, on ? '#7fb2ff' : '#2a5aa6'); R(ctx, 3, 20, 7, 3, on ? '#a8202a' : '#ff6a5a'); } }));
     // trees round the grounds (none on the road, the path or the pavement)
     const trees = [[-30, -40], [60, -60], [170, -50], [290, -66], [400, -48], [500, -62], [570, -20], [580, 90], [566, 200], [584, 320], [570, 440], [500, 470], [380, 480], [250, 466], [130, 482], [20, 468], [-30, 120], [-34, 440], [-20, 10], [56, 30], [118, 48]];
-    for (const [x, y] of trees) items.push(sprite('bigtree', x, y, 11));
+    for (const [x, y] of trees) if (lawn(x, y)) items.push(sprite('bigtree', x, y, 11));
     // street lamps along the road and the path
     for (const [x, y] of [[-46, 200], [-46, -20], [-46, 60], [-2, 196], [-2, 290], [-2, 356], [40, 260], [136, 260], [40, 404], [136, 404]]) items.push(sprite('streetlamp', x, y, 3));
     // the forecourt: trees in round planters
     for (const [x, y] of [[88, 290], [88, 370]]) { items.push({ d: depth(x, y) - 1, draw: c => { cyl(c, x, y, 7, 4, '#9a978e'); cyl(c, x, y, 6, 0.5, '#5a3c22', 4); } }); items.push(sprite('bigtree', x, y + 1, 0)); }
     // clipped hedges beside the flower beds
     for (const [x, y] of [[-42, RH.LOT.path - 52]]) items.push(bx(x, y, 48, 4, 7, '#2f7a2a', { top: ctx => { for (let i = 0; i < 48; i += 3) R(ctx, i, 1, 2, 2, '#4aab3c'); }, south: (ctx, w, h) => { for (let i = 1; i < w; i += 4) R(ctx, i, 2, 2, 2, '#3f9c33'); } }));
-    for (const [x, y] of [[-10, 20], [-30, 470], [-10, 450]]) items.push(sprite('bush', x, y));
+    for (const [x, y] of [[-10, 20], [-30, 470], [-10, 450]]) if (lawn(x, y)) items.push(sprite('bush', x, y));
     items.push(sprite('sign', -14, RH.LOT.path - 34));
-    outsideCache = { key: rot + ':' + flat, items };
+    if (TOWN && h) townItems(items, h, sale || [], sprite, bx);
+    outsideCache = { key, items };
     return items.slice();
   }
   // soft cloud shadows drifting across the lawns and the road
-  function clouds(ctx) {
+  // h: in the town, the clouds pass over the lawns and streets but not into the plots you own
+  function clouds(ctx, h) {
     if (flat) return;
     ctx.save();
-    const [a1, a2] = px(-GM, -GM), [b1, b2] = px(W * T + GM, -GM), [c1, c2] = px(W * T + GM, H * T + GM), [d1, d2] = px(-GM, H * T + GM);
-    const [e1, e2] = px(24, -8), [f1, f2] = px(W * T + 8, -8), [g1, g2] = px(W * T + 8, H * T + 8), [h1, h2] = px(24, H * T + 8);
-    ctx.beginPath(); ctx.moveTo(a1, a2); ctx.lineTo(b1, b2); ctx.lineTo(c1, c2); ctx.lineTo(d1, d2); ctx.closePath();
-    ctx.moveTo(e1, e2); ctx.lineTo(h1, h2); ctx.lineTo(g1, g2); ctx.lineTo(f1, f2); ctx.closePath(); ctx.clip('evenodd');
-    const span = W * T + 2 * GM + 240;
-    for (let i = 0; i < 4; i++) {
-      const cx = -GM - 120 + ((now * (6 + i * 1.5) + i * 260) % span), cy = -GM + 60 + ((i * 197) % (H * T + GM));
+    const quad = (x0, y0, x1, y1) => { const [a1, a2] = px(x0, y0), [b1, b2] = px(x1, y0), [c1, c2] = px(x1, y1), [d1, d2] = px(x0, y1); ctx.moveTo(a1, a2); ctx.lineTo(b1, b2); ctx.lineTo(c1, c2); ctx.lineTo(d1, d2); ctx.closePath(); };
+    ctx.beginPath(); quad(MXP - GM, MYP - GM, MXP + W * T + GM, MYP + H * T + GM);
+    if (!TOWN || !h) quad(24, -8, CW * T + 8, CH * T + 8);
+    else for (const p of RH.TM.plots) if (RH.owned(h).includes(p.id)) { if (p.rect) quad(p.rect[0] * T, p.rect[1] * T, (p.rect[0] + p.rect[2]) * T, (p.rect[1] + p.rect[3]) * T); else quad(32, 0, CW * T, CH * T); }
+    ctx.clip('evenodd');
+    const span = W * T + 2 * GM + 240, n = TOWN ? 22 : 4;
+    for (let i = 0; i < n; i++) {
+      const cx = MXP - GM - 120 + ((now * (6 + (i % 4) * 1.5) + i * 260) % span), cy = MYP - GM + 60 + ((i * 197) % (H * T + GM));
       decal(ctx, cx, cy, d => { d.fillStyle = 'rgba(20,40,30,.09)'; for (const [ox, oy, rx, ry] of [[0, 0, 60, 34], [40, 12, 44, 26], [-38, 10, 40, 22]]) { d.beginPath(); d.ellipse(ox, oy, rx, ry, 0, 0, Math.PI * 2); d.fill(); } });
     }
     ctx.restore();
@@ -1094,5 +1288,5 @@
       R(c, sx - 3, sy - 1, 1, 1, '#4a4a50'); R(c, sx + 2, sy - 1, 1, 1, '#4a4a50');
     } };
   }
-  window.HI = { frame, clouds, setOrigin, decorSide, sbox, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
+  window.HI = { frame, clouds, setOrigin, decorSide, sbox, decorItem, benchSeat, carItem, lyingItem, LIE, GM, K, KX, KY, OX, OY, BW, BH, WALL_H, LOW_H, setRot, getRot, setFlat, getFlat, extent, rw, px, depth, unproj, facing, floorAt, wallSeg, bill, shadow, decal, box, ground, groundChunk, chunksIn, CHUNK, MXP, MYP, roomFloor, hospitalWalls, tileQuad, rectOutline, edgeMark, ghostWalls, joinItem, outside, deskItem, messItem, ratItem, objItem, wreckItems, DECOR_DRAW, DECOR_FOOT };
 })();

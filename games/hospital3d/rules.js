@@ -10,8 +10,14 @@
 // walls block movement except through doors. The lobby by the entrance (reception desk, waiting area) stays open.
 (function (root) {
   'use strict';
-  const VERSION = 7;   // 7: the entrance wing is only six tiles deep, as in Theme Hospital (6: doors and desk by the front corner)
-  const T = 16, W = 32, H = 26;
+  const VERSION = 8;   // 8: the single-player town (7: the entrance wing is only six tiles deep, as in Theme Hospital)
+  // The map: the two-player game is played on a 32 x 26 grid holding one building. The single-player campaign is played
+  // in a 128 x 128 town (town.js) laid round that same building, which keeps its coordinates: the town reaches into
+  // negative tile coordinates, from (MX0, MY0). Which map a page uses is fixed when it loads.
+  const TOWN = !!(root.RH_TOWN || (typeof location !== 'undefined' && /[?&]solo=1(&|$)/.test(location.search)));
+  const RT = TOWN ? (root.RT || require('./town.js')) : null;
+  const T = 16, W = TOWN ? RT.W : 32, H = TOWN ? RT.H : 26, MX0 = TOWN ? RT.X0 : 0, MY0 = TOWN ? RT.Y0 : 0;
+  const BW0 = 32, BH0 = 26;   // the two-player map, and the building you start with
   const MONTH = 60;                 // real seconds per in-game month
   const DAY = MONTH / 30;           // the spec's daily happiness effects tick once per in-game day
   const MONTHS = 24;                // two years; targets are checked at every quarter-end
@@ -245,9 +251,11 @@
   const r2 = v => Math.round(v * 100) / 100;
 
   // ============================ the grid ============================
-  const idx = (x, y) => y * W + x;
-  const inMap = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
-  const indoor = (x, y) => x >= 2 && y >= 0 && x < W && y < H && !(x < NOTCH.x1 && y >= NOTCH.y0) && !(x < WING.x1 && y < WING.y0);
+  const idx = (x, y) => (y - MY0) * W + (x - MX0);
+  const xOf = i => (i % W) + MX0, yOf = i => ((i / W) | 0) + MY0;   // back from an index to the tile
+  const inMap = (x, y) => x >= MX0 && y >= MY0 && x < MX0 + W && y < MY0 + H;
+  // the building you start with (the whole two-player map's floor). In the town, inside(h, x, y) is what you own.
+  const indoor = (x, y) => x >= 2 && y >= 0 && x < BW0 && y < BH0 && !(x < NOTCH.x1 && y >= NOTCH.y0) && !(x < WING.x1 && y < WING.y0);
   const outPath = (x, y) => x === DOOR.mid && y === DOOR.y;   // everyone comes and goes through the middle (sliding) pair of the three door panels
   const inLobby = (x, y) => x >= LOBBY.x0 && x <= LOBBY.x1 && y >= LOBBY.y0 && y <= LOBBY.y1;
   const tileOf = v => Math.floor(v / T);
@@ -258,6 +266,10 @@
   const walled = r => WALLED.has(r.phase);
   const isBuilt = r => r.phase === 'built';
   const exitTile = () => [DOOR.mid, DOOR.y];   // the forecourt tile outside the middle of the front doors
+  const TM = TOWN ? RT.build({ indoor, door: [DOOR.mid, DOOR.y - 1, 2], keep: (x, y) => x >= -8 && x <= 36 && y >= -12 && y <= 30 }) : null;
+  const PLOTS = TM ? TM.plots : [];
+  const plotById = id => PLOTS.find(q => q.id === id);
+  const owned = h => h.plots || [1];
   // the door's tiles inside the room (three for a swing door)
   function doorTiles(r) {
     if (!r.door) return [];
@@ -289,15 +301,35 @@
     }
     for (const k in h.decor) if (DECOR[h.decor[k]].block) { const [c, r] = k.split(',').map(Number); block[idx(c, r)] = 1; }
     if (h.desk) for (const [x, y] of DESK_TILES) block[idx(x, y)] = 1;
-    const L = { lv: h.lv, room, bp, block, avoid, near, doors };
+    // what's yours and where people can walk: classic, the building plus the tile outside the front doors; in the town,
+    // the floor of every plot you own, the pavements and (slowly) the roads, through the front doors of your plots
+    const inside = new Uint8Array(N), walk = new Uint8Array(N), slow = new Uint8Array(N), ent = new Set(), inList = [];
+    let bb = { x0: 2, y0: 0, x1: BW0, y1: BH0 };
+    if (!TM) { for (let i = 0; i < N; i++) { const x = xOf(i), y = yOf(i); if (indoor(x, y)) inside[i] = 1; if (inside[i] || outPath(x, y)) walk[i] = 1; } }
+    else {
+      const mine = new Set(owned(h));
+      bb = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
+      for (let i = 0; i < N; i++) {
+        const k = TM.kind[i];
+        if (k === TM.FLOOR && mine.has(TM.plot[i])) { inside[i] = 1; walk[i] = 1; inList.push(i); const x = xOf(i), y = yOf(i); bb.x0 = Math.min(bb.x0, x); bb.y0 = Math.min(bb.y0, y); bb.x1 = Math.max(bb.x1, x + 1); bb.y1 = Math.max(bb.y1, y + 1); }
+        else if (k === TM.PAVE) walk[i] = 1;
+        else if (k === TM.ROAD) { walk[i] = 1; slow[i] = 1; }
+      }
+      for (const [ix, iy, ox, oy, pid] of TM.doors) if (mine.has(pid)) ent.add(edgeKey(idx(ix, iy), idx(ox, oy)));
+    }
+    const L = { lv: h.lv, room, bp, block, avoid, near, doors, inside, walk, slow, ent, inList, bb };
     Object.defineProperty(h, '_L', { value: L, writable: true, configurable: true, enumerable: false });
     return L;
   }
-  const walkable = (x, y) => indoor(x, y) || outPath(x, y);
+  const walkable = (x, y) => indoor(x, y) || outPath(x, y);   // the two-player map (with no hospital to hand)
+  const canWalk = (L, x, y) => inMap(x, y) && L.walk[idx(x, y)] === 1;
+  const inside = (h, x, y) => inMap(x, y) && layout(h).inside[idx(x, y)] === 1;
   function edgeOpen(L, x, y, nx, ny) {
-    if (!walkable(nx, ny) || !walkable(x, y)) return false;
-    const a = L.room[idx(x, y)], b = L.room[idx(nx, ny)];
-    return a === b || L.doors.has(edgeKey(idx(x, y), idx(nx, ny)));
+    if (!canWalk(L, nx, ny) || !canWalk(L, x, y)) return false;
+    const i = idx(x, y), j = idx(nx, ny);
+    if (TM && L.inside[i] !== L.inside[j]) return L.ent.has(edgeKey(i, j));   // in and out only through the front doors
+    const a = L.room[i], b = L.room[j];
+    return a === b || L.doors.has(edgeKey(i, j));
   }
   const roomAtTile = (h, x, y) => (inMap(x, y) ? layout(h).room[idx(x, y)] : 0);
   // shortest walk from tile (sx, sy) to (gx, gy), in 8 directions: a diagonal step costs 7 against 5 straight (about
@@ -307,7 +339,7 @@
   const STEPS = [[0, -1, 5], [1, 0, 5], [0, 1, 5], [-1, 0, 5], [1, -1, 7], [1, 1, 7], [-1, 1, 7], [-1, -1, 7]];
   function findPath(h, sx, sy, gx, gy) {
     const L = layout(h), N = W * H;
-    if (!walkable(sx, sy)) [sx, sy] = exitTile();
+    if (!canWalk(L, sx, sy)) [sx, sy] = exitTile();
     const s = idx(sx, sy), g = inMap(gx, gy) ? idx(gx, gy) : -1;
     const prev = new Int32Array(N).fill(-1), cost = new Int32Array(N).fill(1 << 30), done = new Uint8Array(N);
     const startAvoid = L.avoid[s];
@@ -322,7 +354,7 @@
     while (heap.length) {
       const [c, i] = pop(); if (done[i]) continue; done[i] = 1;
       if (i === g) { best = g; break; }
-      const x = i % W, y = (i / W) | 0;
+      const x = xOf(i), y = yOf(i);
       const dd0 = Math.abs(x - gx) + Math.abs(y - gy); if (dd0 < bd) { bd = dd0; best = i; }
       for (const [dx, dy, k] of STEPS) {
         const nx = x + dx, ny = y + dy;
@@ -333,11 +365,13 @@
           if (!side(x, y, nx, y) || !side(x, y, x, ny) || !edgeOpen(L, nx, y, nx, ny) || !edgeOpen(L, x, ny, nx, ny)) continue;
           if (!enter(j, nx, y, nx, ny)) continue;
         } else if (!enter(j, x, y, nx, ny)) continue;
-        cost[j] = c + k; prev[j] = i; push(c + k, j);
+        const kk = L.slow[j] ? k * 3 : k;   // across a road only when it's the way
+        if (c + kk >= cost[j]) continue;
+        cost[j] = c + kk; prev[j] = i; push(c + kk, j);
       }
     }
     const out = [];
-    for (let i = best; i !== s; i = prev[i]) out.push([i % W, (i / W) | 0]);
+    for (let i = best; i !== s; i = prev[i]) out.push([xOf(i), yOf(i)]);
     out.reverse();
     return { tiles: out, reached: best === g };
   }
@@ -356,10 +390,10 @@
   // a walking path to the world point (gx, gy): tile to tile through doors, then the exact spot
   function route(h, e, gx, gy) {
     let sx = tileOf(e.x), sy = tileOf(e.y);
-    const p = [];
+    const p = [], L = layout(h);
     // outside the building: along the car park's walkway to the entrance path, across the forecourt, in through the doors
     const doorX = DOOR.mid * T + 8;
-    if (!walkable(sx, sy)) { if (e.x < 24) p.push([LOT.walk, e.y], [LOT.walk, LOT.path]); p.push([doorX, LOT.path]); [sx, sy] = exitTile(); }
+    if (!canWalk(L, sx, sy)) { if (e.x < 24) p.push([LOT.walk, e.y], [LOT.walk, LOT.path]); p.push([doorX, LOT.path]); [sx, sy] = exitTile(); }
     const out = gx < 0;
     const [tx, ty] = out ? exitTile() : [tileOf(gx), tileOf(gy)];
     const res = findPath(h, sx, sy, tx, ty);
@@ -503,10 +537,10 @@
   // corridor tiles reachable from the entrance, with the tiles in `extra` treated as walled off
   function corridorReach(h, extra) {
     const L = layout(h), seen = new Uint8Array(W * H), q = [];
-    const ok = (x, y) => walkable(x, y) && !L.room[idx(x, y)] && !L.block[idx(x, y)] && !(L.bp[idx(x, y)] && !extra.self.has(L.bp[idx(x, y)])) && !extra.tiles.has(idx(x, y));
+    const ok = (x, y) => canWalk(L, x, y) && !L.room[idx(x, y)] && !L.block[idx(x, y)] && !(L.bp[idx(x, y)] && !extra.self.has(L.bp[idx(x, y)])) && !extra.tiles.has(idx(x, y));
     const [ex, ey] = exitTile(); seen[idx(ex, ey)] = 1; q.push(idx(ex, ey));
     while (q.length) {
-      const i = q.pop(), x = i % W, y = (i / W) | 0;
+      const i = q.pop(), x = xOf(i), y = yOf(i);
       for (const [dx, dy] of DIRS) { const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue; const j = idx(nx, ny); if (seen[j] || !ok(nx, ny)) continue; seen[j] = 1; q.push(j); }
     }
     return { seen, ok };
@@ -525,7 +559,7 @@
     const L = layout(h), Rm = ROOMS[kind], tiles = [];
     let ok = true, why = '';
     for (let y = rc.y; y < rc.y + rc.h; y++) for (let x = rc.x; x < rc.x + rc.w; x++) {
-      let good = indoor(x, y) && !inLobby(x, y);
+      let good = inside(h, x, y) && !inLobby(x, y);
       if (good) { const i = idx(x, y); good = (!L.bp[i] || L.bp[i] === selfId) && !h.decor[decorKey(x, y)]; }
       tiles.push([x, y, good]); if (!good) { ok = false; why = 'The blueprint is on something (another room, an object or the lobby)'; }
     }
@@ -542,7 +576,7 @@
     const reach = corridorReach(h, { tiles: rectTiles(rc), self: new Set() });
     for (const [tx, ty] of list) {
       const nx = tx + DIRS[d][0], ny = ty + DIRS[d][1];
-      let good = perimeter(rc, tx, ty, d) && indoor(nx, ny);
+      let good = perimeter(rc, tx, ty, d) && inside(h, nx, ny);
       if (good) { const j = idx(nx, ny); good = !L.bp[j] && !h.decor[decorKey(nx, ny)] && !DESK_TILES.some(([a, b]) => a === nx && b === ny) && reach.seen[j]; }
       if (good && r.objs.some(ob => objTiles(ob.o, ob.x, ob.y, ob.r).foot.some(([a, b]) => a === tx && b === ty))) good = false;
       tiles.push([tx, ty, good]);
@@ -553,11 +587,11 @@
   function winCheck(h, r, x, y, d) {
     const L = layout(h), nx = x + DIRS[d][0], ny = y + DIRS[d][1];
     if (!perimeter(r.rect, x, y, d) || isDoorEdge(r, x, y, d)) return false;
-    return indoor(nx, ny) && !L.bp[idx(nx, ny)];
+    return inside(h, nx, ny) && !L.bp[idx(nx, ny)];
   }
   function decorCheck(h, c, r, kind) {
     const L = layout(h);
-    if (!indoor(c, r) || inLobby(c, r) || L.bp[idx(c, r)] || h.decor[decorKey(c, r)] || L.block[idx(c, r)]) return false;
+    if (!inside(h, c, r) || inLobby(c, r) || L.bp[idx(c, r)] || h.decor[decorKey(c, r)] || L.block[idx(c, r)]) return false;
     for (const key in h.rooms) { const rm = h.rooms[key]; if (rm.door && doorOut(rm).some(([a, b]) => a === c && b === r)) return false; }
     if (DECOR[kind] && DECOR[kind].block && cutsOff(h, new Set([idx(c, r)]), -1)) return false;
     return true;
@@ -616,7 +650,7 @@
       if (!L.block[i] && !inLobby(x, y) && !L.near[i] && out.length < 10) out.push([x, y]);
       // benches within reach of the door: [standing tile x, y, bench x, y]
       if (!L.block[i] && qs.length < 3) for (const [dx, dy] of DIRS) { const bx = x + dx, by = y + dy, k = decorKey(bx, by); if (h.decor[k] === 'bench' && !benches.has(k)) { benches.add(k); qs.push([x, y, bx, by]); break; } }
-      for (const [dx, dy] of DIRS) { const nx = x + dx, ny = y + dy; if (!indoor(nx, ny)) continue; const j = idx(nx, ny); if (seen.has(j) || L.room[j] || L.block[j]) continue; seen.add(j); q.push([nx, ny]); }
+      for (const [dx, dy] of DIRS) { const nx = x + dx, ny = y + dy; if (!inside(h, nx, ny)) continue; const j = idx(nx, ny); if (seen.has(j) || L.room[j] || L.block[j]) continue; seen.add(j); q.push([nx, ny]); }
     }
     r.qt = out.length ? out : doorOut(r);
     r.qs = qs;
@@ -757,7 +791,8 @@
   const free = st => !st.gone && st.slot == null && !st.desk && st.mode === 'idle' && !st.train;
   // idle staff and waiting patients gather in the lobby by the entrance
   const LOBBY_TILES = [];
-  const LAND_VALUE = (W - 2) * H * 25 + 20000;
+  const LAND_COST = 25;   // dollars a tile
+  const LAND_VALUE = (TM ? PLOTS[0].tiles * LAND_COST : (BW0 - 2) * BH0 * LAND_COST) + 20000;
   for (let y = LOBBY.y0; y <= LOBBY.y1; y++) for (let x = LOBBY.x0; x <= LOBBY.x1; x++) if (!DESK_TILES.some(([a, b]) => a === x && b === y) && !(y === DOOR.y - 1 && x >= DOOR.x0 && x <= DOOR.x1) && !(x <= 3 && y >= 9 && y <= 10) && !(x === 5 && y >= 9 && y <= 10)) LOBBY_TILES.push([x, y]);
   const idlePos = i => { const [x, y] = LOBBY_TILES[(i * 5) % LOBBY_TILES.length]; return [x * T + 4 + (i % 3) * 4, y * T + 6 + ((i >> 1) % 2) * 4]; };
   const waitPos = i => { const [x, y] = LOBBY_TILES[(i * 3 + 7) % LOBBY_TILES.length]; return [x * T + 5 + (i % 2) * 6, y * T + 9]; };
@@ -1102,8 +1137,10 @@
   function corridorSpot(h) {
     const L = layout(h);
     for (let tries = 0; tries < 40; tries++) {
-      const x = 2 + Math.floor(rnd() * (W - 2)), y = Math.floor(rnd() * H), i = idx(x, y);
-      if (indoor(x, y) && !L.room[i] && !L.block[i] && !L.avoid[i] && !L.bp[i] && !L.near[i]) return [x * T + 4 + rnd() * 8, y * T + 4 + rnd() * 8];
+      let x, y;
+      if (TM) { const k = L.inList[Math.floor(rnd() * L.inList.length)]; x = xOf(k); y = yOf(k); } else { x = 2 + Math.floor(rnd() * (W - 2)); y = Math.floor(rnd() * H); }
+      const i = idx(x, y);
+      if (L.inside[i] && !L.room[i] && !L.block[i] && !L.avoid[i] && !L.bp[i] && !L.near[i]) return [x * T + 4 + rnd() * 8, y * T + 4 + rnd() * 8];
     }
     return [RECEP[0], RECEP[1] + 24];
   }
@@ -1139,7 +1176,7 @@
   }
 
   // ---------- decoration, mess, rats ----------
-  const inCorridor = (h, e) => { const x = tileOf(e.x), y = tileOf(e.y); return indoor(x, y) && !layout(h).room[idx(x, y)] && !inLobby(x, y); };
+  const inCorridor = (h, e) => { const x = tileOf(e.x), y = tileOf(e.y); return inside(h, x, y) && !layout(h).room[idx(x, y)] && !inLobby(x, y); };
   const binCount = h => roomList(h).reduce((a, r) => a + (isBuilt(r) ? countObj(r, 'bin') : 0), 0);
   const messNear = (h, x, y, kind) => h.mess.some(m => (!kind || m.k === kind) && Math.hypot(m.x - x, m.y - y) < 14);
   const decorNear = (h, x, y, kind, dist) => Object.keys(h.decor).some(k => { if (h.decor[k] !== kind) return false; const [c, r] = k.split(',').map(Number); return Math.abs(c * T + 8 - x) + Math.abs(r * T + 8 - y) < dist; });
@@ -1162,7 +1199,7 @@
   // where to stand to use a corridor object or water a plant: a free neighbouring tile
   function standBy(h, tx, ty) {
     const L = layout(h);
-    for (const [dx, dy] of DIRS) { const x = tx + dx, y = ty + dy; if (walkable(x, y) && !L.block[idx(x, y)] && L.room[idx(x, y)] === L.room[idx(tx, ty)]) return center(x, y); }
+    for (const [dx, dy] of DIRS) { const x = tx + dx, y = ty + dy; if (canWalk(L, x, y) && !L.block[idx(x, y)] && L.room[idx(x, y)] === L.room[idx(tx, ty)]) return center(x, y); }
     return center(tx, ty);
   }
   // rot (optional, 0-3 as DIRS): the side the object's back faces; left out, it backs onto the nearest wall
@@ -1187,6 +1224,27 @@
     delete h.decor[key]; delete h.water[key]; if (h.drot) delete h.drot[key]; book(h, 'Building', Math.round(DECOR[kind].cost / 2)); recount(h); changed(h);
     for (const rm of roomList(h)) reQueue(h, rm);
     s.ev.push({ k: 'undecor', p, kind });
+    return null;
+  }
+  // ---------- land (the single-player town) ----------
+  // what your land is worth: $25 a tile for every plot you own, plus the spec's $20,000
+  const landValue = plots => plots.reduce((a, id) => a + (plotById(id) ? plotById(id).tiles * LAND_COST : 0), 20000);
+  const plotPrice = id => (plotById(id) ? plotById(id).tiles * LAND_COST : 0);
+  // 'owned', 'sale' (yours to buy now) or 'later' (a later level puts it on the market)
+  const plotStatus = (s, h, id) => (owned(h).includes(id) ? 'owned' : !s.solo || plotById(id).lvl <= s.solo.lvl ? 'sale' : 'later');
+  const plotAt = (x, y) => (TM && inMap(x, y) && TM.kind[idx(x, y)] === TM.FLOOR ? TM.plot[idx(x, y)] : 0);
+  function buyPlot(s, p, id) {
+    if (s.ph !== 'play') return 'Not now';
+    const h = s.h[p], q = TM && plotById(id);
+    if (!q || id === 1) return 'There\'s no land for sale there';
+    const st = plotStatus(s, h, id);
+    if (st === 'owned') return 'You already own it';
+    if (st === 'later') return `${q.nm} isn't for sale until level ${q.lvl}`;
+    const price = plotPrice(id);
+    if (h.cash < price) return 'Not enough cash';
+    book(h, 'Land', -price); h.land = landValue(owned(h).concat(id)); h.plots = owned(h).concat(id);
+    changed(h); assign(h);
+    s.ev.push({ k: 'plot', p, id, price });
     return null;
   }
   function buyDesk(s, p) {
@@ -1445,7 +1503,7 @@
   // built and they can work there; receptionists stay out of rooms but can be put on or next to an unstaffed desk.
   // Returns { ok, why, room, desk }.
   function staffDrop(h, st, x, y) {
-    if (!indoor(x, y)) return { ok: false, why: 'Staff have to go inside your hospital' };
+    if (!inside(h, x, y)) return { ok: false, why: 'Staff have to go inside your hospital' };
     const L = layout(h), i = idx(x, y), rid = L.room[i];
     const desk = st.k === 'r' && h.desk && !h.staff.some(o => o.desk && !o.gone && o.id !== st.id) && DESK_TILES.some(([a, b]) => Math.abs(a - x) <= 1 && Math.abs(b - y) <= 1);
     if (desk) return { ok: true, desk: true };
@@ -2188,6 +2246,7 @@
     for (let i = 0; i < 3; i++) rivals.push(newRival(names.splice(Math.floor(rnd() * names.length), 1)[0], lvl, L.start));
     s.solo = { lvl, rivals, declined: false, share: [0.25, 0.25, 0.25, 0.25] };
     h.cash = L.start; h.land = LAND_VALUE;
+    if (TM) h.plots = [1];
     h.tg = {}; for (const k of ['rep', 'cash', 'pct', 'cured', 'value']) if (L[k] != null) h.tg[k] = L[k];
     h.lrate = (1 + 8 * (lvl - 1) / 11) / 100 / 12;   // 1% a year on level 1 up to 9% on level 12, charged monthly
     h.ban = Object.keys(LVL_FROM).filter(k => ROOMS[k] && lvl < LVL_FROM[k]);
@@ -2197,7 +2256,7 @@
   // staff, decor, research, policy, prices and the bank balance; patients, rubbish, faxes and the year's counts stay behind.
   function carrySnapshot(s) {
     const h = JSON.parse(JSON.stringify(s.h[0], (k, v) => (k === '_L' ? undefined : v)));
-    const keep = ['rooms', 'staff', 'decor', 'water', 'desk', 'res', 'pol', 'price', 'dprice', 'known', 'cb', 'specStr', 'built', 'cash', 'rep'];
+    const keep = ['rooms', 'staff', 'decor', 'water', 'desk', 'res', 'pol', 'price', 'dprice', 'known', 'cb', 'specStr', 'built', 'cash', 'rep', 'plots'];
     const out = { nextId: s.nextId }; for (const k of keep) if (h[k] !== undefined) out[k] = h[k];
     return out;
   }
@@ -2208,9 +2267,10 @@
     s.nextId = Math.max(s.nextId, c.nextId || 0);
     s.pool = newPool(s, true);           // fresh ids above everything carried in
     h.rooms = {};
+    if (TM) { h.plots = (c.plots || [1]).filter(id => plotById(id)); if (!h.plots.includes(1)) h.plots.unshift(1); h.land = landValue(h.plots); h.lv++; }   // the land you bought comes with you
     for (const k in c.rooms) {
       const r = c.rooms[k]; if (r.phase !== 'built') continue;
-      if (!rectTiles(r.rect).size || [...rectTiles(r.rect)].some(i => !indoor(i % W, Math.floor(i / W)) || inLobby(i % W, Math.floor(i / W)))) continue;   // no longer inside the building, or in the entrance hall
+      if (!rectTiles(r.rect).size || [...rectTiles(r.rect)].some(i => !inside(h, xOf(i), yOf(i)) || inLobby(xOf(i), yOf(i)))) continue;   // no longer inside the building, or in the entrance hall
       Object.assign(r, { sts: [], p: null, prog: 0, n: 0, q: [], qt: [], dis: -1, users: [] });
       h.rooms[r.id] = r;
     }
@@ -2331,7 +2391,8 @@
   // a free rectangle for a room of this kind (smallest legal size), scanning the floor
   function findSite(h, kind, extra) {
     const m = ROOMS[kind].min + (extra || 0);
-    for (let y = 0; y + m <= H; y++) for (let x = 2; x + m <= W; x++) {
+    const bb = layout(h).bb;
+    for (let y = bb.y0; y + m <= bb.y1; y++) for (let x = bb.x0; x + m <= bb.x1; x++) {
       const rc = { x, y, w: m, h: m };
       if (!bpCheck(h, kind, rc, -1).ok) continue;
       for (const d of [2, 3, 1, 0]) {   // a door on a wall facing the camera (south, west) where it can be
@@ -2357,7 +2418,7 @@
     for (const r of roomList(h)) if (r.auto && r.phase === 'furnish') { autoFurnish(h, r); const e = finishBuild(s, p, r.id); if (e) deleteRoom(s, p, r.id); else r.auto = false; }
   }
 
-  const api = { VERSION, T, W, H, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, WING, DOOR, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
+  const api = { VERSION, T, W, H, MX0, MY0, TOWN, TM, PLOTS, plotById, plotPrice, plotStatus, plotAt, buyPlot, inside, canWalk, xOf, yOf, owned, LAND_COST, MONTH, MONTHS, GRACE, EXIT, RECEP, DESK_STAFF, TARGETS, LOSE, START_CASH, START_REP, DESK_COST, LOAN_STEP, LOAN_RATE, LOBBY, NOTCH, WING, DOOR, LOT, bayPos, CAR_IN, CAR_STOP, CAR_OUT, DESK_TILES, DIRS,
     LEVELS, LVL_FROM, LAND_VALUE, stayOn, carrySnapshot, carryOver, MP_RESEARCH,
     OBJ, STD4, ROOMS, ROOM_ORDER, CATS, inCat, DISEASES, DIS_IDX, MONTH_NAMES, DECOR, DECOR_ORDER, decorKey, MAX_COMFORT, RESEARCH, FIELDS, QUAL_PTS, QUAL_NAME,
     idx, inMap, indoor, inLobby, walkable, tileOf, layout, roomAtTile, findPath, objTiles, objDims, objCheck, bpCheck, doorCheck, winCheck, decorCheck, doorTiles, doorOut, perimeter, isDoorEdge,
