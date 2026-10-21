@@ -552,6 +552,7 @@
       <span class="th-btns mgmt">
         <button class="mbtn" id="mgrBtn" title="Staff management (F3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2.5 20c0-3.6 2.4-6 5.5-6s5.5 2.4 5.5 6"/><path d="M13.6 14.4c.8-.3 1.8-.4 2.9-.4 3.1 0 5 2.4 5 6"/></svg><kbd>F3</kbd></button>
         <button class="mbtn" id="mapBtn" title="Town map: the whole hospital from above (F4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5"/><path d="M15 6.5V20"/></svg><kbd>F4</kbd></button>
+        <button class="mbtn" id="landBtn" title="Land for sale (L)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9.5 21v-6h5v6"/><path d="M12 2.5v2.5"/></svg><kbd>L</kbd></button>
         <button class="mbtn" id="caseBtn" title="Drug casebook (F5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 18.5V5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5 2.5 2.5 0 0 0 7.5 23H19"/><path d="M12 6.5v6"/><path d="M9 9.5h6"/></svg><kbd>F5</kbd></button>
         <button class="mbtn" id="resBtn" title="Research (F6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.6A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.4-2.4L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><kbd>F6</kbd></button>
         <button class="mbtn" id="statBtn" title="Status (F7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3v17h17"/><path d="M8.5 16v-4"/><path d="M12.5 16V8"/><path d="M16.5 16v-6"/></svg><kbd>F7</kbd></button>
@@ -836,7 +837,7 @@
     (async () => {
       let v = '';
       try { v = String((await (await fetch('../../shared/version.json', { cache: 'no-store' })).json()).version); } catch (e) {}
-      for (const f of ['rules.js', 'bot.js', 'art.js', 'iso.js', 'game.js']) {
+      for (const f of ['town.js', 'rules.js', 'bot.js', 'art.js', 'iso.js', 'game.js']) {
         await new Promise(done => { const s = document.createElement('script'); s.src = f + (v ? '?v=' + encodeURIComponent(v) : ''); s.onload = s.onerror = done; document.body.appendChild(s); });
       }
     })();

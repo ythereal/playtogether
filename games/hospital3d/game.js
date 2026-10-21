@@ -297,7 +297,7 @@
     for (const e of m.ev || []) onEvent(e);
     onPhase(); refreshSheets();
   }
-  const SAVE_EV = new Set(['month', 'over', 'built', 'bp', 'walls', 'bought', 'cleared', 'hired', 'fired', 'razed', 'start', 'profile', 'decor', 'undecor', 'desk', 'research', 'boom', 'replaced', 'raise', 'resigned', 'open']);
+  const SAVE_EV = new Set(['month', 'over', 'built', 'bp', 'walls', 'bought', 'cleared', 'hired', 'fired', 'razed', 'start', 'profile', 'decor', 'undecor', 'desk', 'plot', 'research', 'boom', 'replaced', 'raise', 'resigned', 'open']);
   // friendOld: the other player is running an older copy of the game than this one
   function versionMismatch(friendOld) {
     const who = friendOld ? 'friend' : 'me';
@@ -350,6 +350,7 @@
       case 'decor': return RH.placeDecor(s, p, n(m.c), n(m.r), String(m.kind), m.rot == null ? null : n(m.rot) & 3);
       case 'undecor': return RH.removeDecor(s, p, n(m.c), n(m.r));
       case 'desk': return RH.buyDesk(s, p);
+      case 'plot': return RH.buyPlot(s, p, n(m.id));
       case 'shoot': return RH.shoot(s, p, n(m.id));
       case 'vax': return RH.vax(s, p, n(m.id));
       case 'fax': return RH.answerFax(s, p, n(m.id), String(m.c));
@@ -481,6 +482,7 @@
       case 'walls': if (mine) toast('The walls are up. Now place the furniture.', 'dim'); break;
       case 'cleared': if (mine) toast(`The wrecked ${rname(e.kind)} has been cleared away`, 'dim'); break;
       case 'desk': if (mine) toast('Reception desk installed. Now hire a receptionist under Staff.', 'good'); break;
+      case 'plot': if (mine) { const q = RH.plotById(e.id); toast(`You bought ${q.nm} for ${money(e.price)}. Its building is yours to fill.`, 'good'); } break;
       case 'open': if (!mine) toast(`${nameOf(e.p)} has opened the doors`, 'dim'); else toast('The doors are open!', 'good'); break;
       case 'profile': hudKey = ''; statusKey = ''; setStatus(); break;
       case 'hired': if (mine) toast(`Hired ${e.nm}`, 'dim'); else toast(`${nameOf(e.p)} hired ${e.nm}`, 'dim'); break;
@@ -672,9 +674,10 @@
     $('hudInfo').replaceChildren(...kids); $('hudInfo').classList.toggle('hasbar', !!bar);
   }
   // the lit buttons: each management button (and the bank's dollar) is lit exactly while its screen is open
+  const landOpen = () => RH.TOWN && $('decorList').dataset.land === '1';
   function litButtons() {
     const open = id => !$(id).hidden;
-    const lit = { bankBtn: open('bankSheet'), buildBtn: open('buildSheet'), decorBtn: open('decorSheet') || open('shopSheet'), editBtn: editPick,
+    const lit = { bankBtn: open('bankSheet'), buildBtn: open('buildSheet'), decorBtn: (open('decorSheet') && !landOpen()) || open('shopSheet'), landBtn: open('decorSheet') && landOpen(), editBtn: editPick,
       staffBtn: open('hireSheet') || !!hiring, mgrBtn: open('staffSheet'), mapBtn: HI.getFlat(), caseBtn: open('caseSheet'), resBtn: open('resSheet'), statBtn: open('statSheet'), polBtn: open('polSheet') };
     for (const id in lit) $(id).classList.toggle('on', !!lit[id]);
   }
@@ -1620,7 +1623,8 @@
         if (edDrag.L) x0 = tx; if (edDrag.R) x1 = tx; if (edDrag.U) y0 = ty; if (edDrag.D) y1 = ty;
         target.rect = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0) + 1, h: Math.abs(y1 - y0) + 1 };
       }
-      const r2 = target.rect; r2.x = clamp(r2.x, 2, RH.W - 1); r2.y = clamp(r2.y, 0, RH.H - 1); r2.w = clamp(r2.w, 1, Math.min(14, RH.W - r2.x)); r2.h = clamp(r2.h, 1, Math.min(14, RH.H - r2.y));
+      const mx0 = RH.TOWN ? RH.MX0 : 2, mx1 = RH.MX0 + RH.W, my0 = RH.MY0, my1 = RH.MY0 + RH.H;
+      const r2 = target.rect; r2.x = clamp(r2.x, mx0, mx1 - 1); r2.y = clamp(r2.y, my0, my1 - 1); r2.w = clamp(r2.w, 1, Math.min(14, mx1 - r2.x)); r2.h = clamp(r2.h, 1, Math.min(14, my1 - r2.y));
       if (kind === 'up') edDrag = null;
       edKey = ''; renderEdit();
       return true;
@@ -1701,10 +1705,65 @@
     const h = view.h[ME], kind = h.decor[RH.decorKey(c, r)]; if (!kind) return;
     $('decorTitle').textContent = RH.DECOR[kind].name;
     $('decorSub').textContent = RH.DECOR[kind].desc + (kind === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ' This one has died: a handyman needs to water it.' : '');
-    $('decorList').replaceChildren();
+    $('decorList').replaceChildren(); $('decorList').dataset.land = '';
     $('decorRemove').hidden = view.ph !== 'play'; $('decorRemove').textContent = `Remove · +${money(RH.DECOR[kind].cost / 2)}`;
     $('decorErr').textContent = ''; $('decorTotal').textContent = '';
     closeSheets(); $('decorSheet').hidden = false;
+  }
+  // ---------- land (the single-player town) ----------
+  const plotsForSale = h => (RH.TOWN && view ? RH.PLOTS.filter(q => q.id !== 1 && RH.plotStatus(view, h, q.id) === 'sale').map(q => q.id) : []);
+  // the plot a tap or the mouse is over: a plot's lawn or its For Sale board, if it isn't yours yet
+  function plotUnder(h, wx, wy) {
+    if (!RH.TOWN) return 0;
+    const c = Math.floor(wx / T), r = Math.floor(wy / T), id = RH.plotAt(c, r);
+    if (id > 1 && !RH.owned(h).includes(id)) return id;
+    for (const q of RH.PLOTS) {   // the board stands just outside the front doors
+      if (!q.door || RH.owned(h).includes(q.id)) continue;
+      const [x, y, f] = q.door, [dx, dy] = RH.DIRS[f], a = f % 2 === 0 ? [1, 0] : [0, 1];
+      const sx = (x + dx * 1.5 + a[0] * 2.5 + 0.5) * T, sy = (y + dy * 1.5 + a[1] * 2.5 + 0.5) * T;
+      if (Math.abs(wx - sx) < 14 && Math.abs(wy - sy) < 14) return q.id;
+    }
+    return 0;
+  }
+  // the Land window: one plot to buy (if picked), then every plot in town with what it costs and when it's on sale
+  function openPlot(id) {
+    const h = view.h[ME], lvl = view.solo ? view.solo.lvl : 12;
+    decorSpotSel = null;
+    const q = id ? RH.plotById(id) : null;
+    $('decorTitle').textContent = q ? q.nm : 'Land';
+    const owned = RH.owned(h), forSale = plotsForSale(h);
+    $('decorSub').textContent = q
+      ? `${q.tiles} tiles of land at ${money(RH.LAND_COST)} a tile. ` + (owned.includes(q.id) ? 'It\'s yours.' : RH.plotStatus(view, h, q.id) === 'sale' ? 'Buy it and its empty building is yours to fill with rooms. Land can\'t be sold back, but it adds to your hospital\'s value.' : `It goes on the market at level ${q.lvl}.`)
+      : (forSale.length ? `${forSale.length} plot${forSale.length > 1 ? 's' : ''} for sale this level. Bought land comes with you to the next level and adds to your hospital's value.` : lvl < 2 ? 'No land is for sale on this level. More of the town goes on the market from level 2.' : 'You own all the land for sale this level.');
+    const list = $('decorList'); list.replaceChildren(); list.dataset.land = '1';
+    if (q && !owned.includes(q.id) && RH.plotStatus(view, h, q.id) === 'sale') {
+      const price = RH.plotPrice(q.id), b = el('button', 'item room'); b.disabled = h.cash < price || view.ph !== 'play';
+      const body = el('div'); body.append(el('b', null, `Buy ${q.nm}`), el('small', null, h.cash < price ? `You need ${money(price - h.cash)} more` : `${q.tiles} tiles`));
+      b.append(body, el('span', 'price', money(price)));
+      b.addEventListener('click', () => { act('plot', { id: q.id }); $('decorSheet').hidden = true; });
+      list.append(b);
+    }
+    for (const p of RH.PLOTS) {
+      if (p.id === 1 || (q && p.id === q.id)) continue;
+      const st = RH.plotStatus(view, h, p.id), b = el('button', 'item' + (st === 'sale' ? '' : ' dim'));
+      const body = el('div'); body.append(el('b', null, p.nm), el('small', null, st === 'owned' ? 'Yours' : st === 'sale' ? `For sale · ${p.tiles} tiles` : `On sale from level ${p.lvl}`));
+      b.append(body, el('span', 'price', st === 'owned' ? '✓' : money(RH.plotPrice(p.id))));
+      b.addEventListener('click', () => { lookAtPlot(p.id); openPlot(p.id); });
+      list.append(b);
+    }
+    $('decorRemove').hidden = true; $('decorTotal').textContent = '';
+    closeSheets(); $('decorSheet').hidden = false;
+  }
+  // the briefing's line about land: what this level puts on the market (L opens the Land window)
+  function landNews(n) {
+    const fresh = RH.PLOTS.filter(q => q.lvl === n && q.id !== 1).map(q => `${q.nm} (${money(RH.plotPrice(q.id))})`);
+    if (!fresh.length) return n < 2 ? ' No land is for sale yet: more of the town goes on the market from level 2.' : '';
+    return ` New land for sale: ${fresh.join(' and ')}. Buy it under Land (L) and its building joins your hospital.`;
+  }
+  // swing the camera round to a plot's front doors
+  function lookAtPlot(id) {
+    const p = RH.plotById(id); if (!p || !p.door) return;
+    const [bx, by] = HI.px((p.door[0] + 0.5) * T, (p.door[1] + 0.5) * T); cam.x = bx; cam.y = by; clampCam();
   }
   function openDesk() {
     const h = view.h[ME];
@@ -1712,7 +1771,7 @@
     $('decorTitle').textContent = 'Reception desk';
     const rc = h.staff.find(s => s.desk && !s.gone);
     $('decorSub').textContent = h.desk ? (rc ? `${rc.nm} is on the desk (ability ${Math.round(rc.sk * 100)}%). Receptionists never tire.` : 'No receptionist! Hire one under Staff.') : 'Every hospital needs a reception desk and a receptionist, or no patients come.';
-    const list = $('decorList'); list.replaceChildren();
+    const list = $('decorList'); list.replaceChildren(); list.dataset.land = '';
     if (!h.desk) {
       const b = el('button', 'item room'); b.disabled = h.cash < RH.DESK_COST || view.ph !== 'play';
       const body = el('div'); body.append(el('b', null, 'Buy the reception desk'), el('small', null, 'One receptionist works it.'));
@@ -2179,6 +2238,7 @@
     const L = lvlInfo(), n = view.solo.lvl, rv = view.solo.rivals.map(r => r.nm);
     $('legendTitle').textContent = `Level ${n}: ${L.nm}`;
     $('legendSub').textContent = `You start with ${money(L.start)}. ${rv[0]}, ${rv[1]} and ${rv[2]} run the town's other hospitals and hire from the same pool of staff; patients go where the reputation is best.` + (L.intro ? ` New here: ${L.intro.toLowerCase()}.` : '')
+      + (RH.TOWN ? landNews(n) : '')
       + (view.solo.carry ? ' You brought your last hospital with you, so the targets are higher: the level\'s cash target on top of the balance you brought, $20,000 more hospital value, and 100 more reputation.' : '');
     const later = Object.entries(RH.LVL_FROM).filter(([, v]) => n < v).map(([k, v]) => `${{ research: 'research', emerg: 'emergencies', op: 'surgery', training: 'training', quake: 'earthquakes', epi: 'epidemics', dna: 'the DNA Fixer' }[k]} (level ${v})`);
     $('legendWin').textContent = `To be promoted, meet every target at a quarter-end check (end of March, June, September or December) with no loan outstanding: ${parts.join(', ')}. At each year end the awards are handed out, then you're removed if your balance is below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. A month lasts ${RH.MONTH} seconds at Normal speed: P pauses and keys 1–5 set the speed.` + (later.length ? ` Not on this level yet: ${later.join(', ')}.` : '');
@@ -2230,6 +2290,7 @@
   $('mgrBtn').addEventListener('click', SCREENS.staff);
   $('mapBtn').addEventListener('click', SCREENS.map);
   $('caseBtn').addEventListener('click', SCREENS.case);
+  if (RH.TOWN) { $('landBtn').hidden = false; $('landBtn').addEventListener('click', () => { if (!mine()) return; if (!$('decorSheet').hidden && $('decorTitle').textContent === 'Land') { $('decorSheet').hidden = true; return; } editPick = false; openPlot(0); }); }
   $('resBtn').addEventListener('click', SCREENS.res);
   $('polBtn').addEventListener('click', SCREENS.pol);
   $('statBtn').addEventListener('click', SCREENS.stat);
@@ -2264,7 +2325,7 @@
     if (k === 'escape' || (k === 'q' && plain && !e.shiftKey)) { editPick = false; pickMode = false; if (!$('legend').hidden && view && view.ph !== 'ready') $('legend').hidden = true; if (ed && (ed.mode === 'new' || ed.mode === 'decor')) { ed = null; renderEdit(); } closeSheets(); closeIW(); closeQW(); cancelCarry(); setStatus(); return; }
     if ((k === 'r' || k === ' ') && plain && myEdit() && myEdit().phase === 'furnish') { e.preventDefault(); edRot = (edRot + 1) & 3; return; }
     if ((k === 'r' || k === ' ') && plain && ed && ed.mode === 'decor' && !edTarget()) { e.preventDefault(); rotDecor(); return; }
-    if (plain && !e.shiftKey) { const B = { f: 'buildBtn', g: 'decorBtn', v: 'editBtn', b: 'staffBtn' }; if (B[k]) { $(B[k]).click(); return; } }
+    if (plain && !e.shiftKey) { const B = { f: 'buildBtn', g: 'decorBtn', v: 'editBtn', b: 'staffBtn', l: RH.TOWN ? 'landBtn' : null }; if (B[k]) { $(B[k]).click(); return; } }
     if (k === 'm' && plain && view && (view.h[ME].fax || []).length) { showFax(view.h[ME].fax[0].id); return; }
     const F = { f1: SCREENS.bankMgr, f2: SCREENS.bankStmt, f3: SCREENS.staff, f4: SCREENS.map, f5: SCREENS.case, f6: SCREENS.res, f7: SCREENS.stat, f9: SCREENS.pol };
     if (F[k]) { e.preventDefault(); if (view) F[k](); return; }
@@ -2287,9 +2348,48 @@
   }
   // the lawns, paths and room floors never move, so they're drawn once into a map-sized layer and copied from
   let floorC = null, floorX = null, floorKey = '';
-  function floorLayer(h) {
+  const floorKeyOf = h => {
     let key = HI.getRot() + ':' + HI.getFlat();
+    if (h && RH.TOWN) key += ':' + RH.owned(h).join('.');
     if (h) for (const k in h.rooms) { const r = h.rooms[k], rc = r.rect; if (RH.walled(r)) key += '|' + r.k + rc.x + ',' + rc.y + ',' + rc.w + ',' + rc.h; }
+    return key;
+  };
+  // The town is far too big for one layer (it would be over 10,000 px wide), so there the floors are cut into squares
+  // of the buffer, each painted the first time it comes into view and kept while it's near the camera.
+  const FCH = 512, FKEEP = 20, fchunks = new Map();
+  let fchunkKey = '';
+  function floorChunk(h, cx, cy) {
+    const k = cx + ',' + cy, hit = fchunks.get(k);
+    if (hit) { fchunks.delete(k); fchunks.set(k, hit); return hit; }
+    const [c, x] = HA.canvas(FCH * SS, FCH * SS);
+    x.imageSmoothingEnabled = false;
+    const X0 = cx * FCH, Y0 = cy * FCH;
+    HI.setOrigin(x, X0, Y0); x.setTransform(SS, 0, 0, SS, -X0 * SS, -Y0 * SS);
+    // the world rectangle this square shows: the four corners taken back through the projection
+    const cs = [HI.unproj(X0, Y0), HI.unproj(X0 + FCH, Y0), HI.unproj(X0, Y0 + FCH), HI.unproj(X0 + FCH, Y0 + FCH)];
+    const wx0 = Math.min(...cs.map(p => p[0])), wx1 = Math.max(...cs.map(p => p[0])), wy0 = Math.min(...cs.map(p => p[1])), wy1 = Math.max(...cs.map(p => p[1]));
+    const mine = h ? RH.owned(h) : [1];
+    for (const [gx, gy] of HI.chunksIn(wx0, wy0, wx1, wy1)) HI.floorAt(x, HI.groundChunk(gx, gy, mine), gx * HI.CHUNK, gy * HI.CHUNK);
+    if (h) for (const key in h.rooms) {
+      const r = h.rooms[key], rc = r.rect; if (!RH.walled(r)) continue;
+      if ((rc.x + rc.w) * T < wx0 || rc.x * T > wx1 || (rc.y + rc.h) * T < wy0 || rc.y * T > wy1) continue;
+      HI.floorAt(x, HI.roomFloor(r.k, rc.w, rc.h), rc.x * T, rc.y * T);
+    }
+    fchunks.set(k, c);
+    while (fchunks.size > FKEEP) fchunks.delete(fchunks.keys().next().value);
+    return c;
+  }
+  // paints the floor under the view (buffer px ox, oy, VW x VH) into the scene
+  function drawFloor(h, ox, oy) {
+    if (!RH.TOWN) { bctx.drawImage(floorLayer(h), ox * SS, oy * SS, VW * SS, VH * SS, 0, 0, VW * SS, VH * SS); return; }
+    const key = floorKeyOf(h); if (key !== fchunkKey) { fchunks.clear(); fchunkKey = key; }
+    for (let cy = Math.floor(oy / FCH); cy * FCH < oy + VH; cy++) for (let cx = Math.floor(ox / FCH); cx * FCH < ox + VW; cx++) {
+      const c = floorChunk(h, cx, cy);
+      bctx.drawImage(c, Math.round((cx * FCH - ox) * SS), Math.round((cy * FCH - oy) * SS));
+    }
+  }
+  function floorLayer(h) {
+    const key = floorKeyOf(h);
     if (key === floorKey) return floorC;
     if (!floorC) [floorC, floorX] = HA.canvas(BW * SS, BH * SS);
     floorKey = key;
@@ -2299,7 +2399,7 @@
     return floorC;
   }
   const pbox = (x, y) => HI.sbox(x - 12, y - 12, 24, 24, 64);   // a person's bounds on screen, generously
-  const groundC = HI.ground(), ghostSpr = HA.ghost(), mopSpr = HA.furniture('mop');
+  const groundC = RH.TOWN ? null : HI.ground(), ghostSpr = HA.ghost(), mopSpr = HA.furniture('mop');
   let cw = 1, ch = 1, DPR = 1;
   const cam = { x: BW / 2, y: BH / 2 - 10, z: 2 };          // centre of the view in buffer px, zoom
   let fitZ = 1;
@@ -2455,6 +2555,7 @@
     const sb = personAt(h.staff, 's', tx, ty);
     if (sb) { openIW('s', sb.id); return; }
     if (bx >= RH.DESK_TILES[0][0] * T - 4 && bx <= RH.DESK_TILES[0][0] * T + 16 && by >= RH.DESK_TILES[0][1] * T - 4 && by <= RH.DESK_TILES[0][1] * T + 32) { if (h.desk) openQW('desk'); else if (tab === ME) openDesk(); return; }
+    if (tab === ME) { const pid = plotUnder(h, bx, by); if (pid) { openPlot(pid); return; } }
     const c = Math.floor(bx / T), r = Math.floor(by / T);
     const mach = machineAt(h, c, r, tx, ty);
     if (mach) { openIW('m', mach.id); return; }
@@ -2514,6 +2615,8 @@
       const atDesk = (h.pats || []).filter(p => p.st === 'recep').length, coming = (h.pats || []).filter(p => p.st === 'enter').length;
       return { lines: ['Reception', `Queue size ${atDesk}`, `Queue expected ${coming}`] };
     }
+    const pid = plotUnder(h, wx, wy);
+    if (pid) { const q = RH.plotById(pid), st = RH.plotStatus(view, h, pid); return { lines: [q.nm, `${q.tiles} tiles · ${money(RH.plotPrice(pid))}`, st === 'sale' ? 'For sale: click to buy' : `On sale from level ${q.lvl}`] }; }
     const d = h.decor[RH.decorKey(c, r)];
     if (d) return { lines: [RH.DECOR[d].name].concat(d === 'plant' && h.dry && h.dry.includes(RH.decorKey(c, r)) ? ['Dead: needs watering'] : []) };
     return null;
@@ -2675,7 +2778,7 @@
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.clearRect(0, 0, VW * SS, VH * SS);
     const h = view ? view.h[tab] : null;
-    bctx.drawImage(floorLayer(h), ox * SS, oy * SS, VW * SS, VH * SS, 0, 0, VW * SS, VH * SS);
+    drawFloor(h, ox, oy);
     bctx.setTransform(SS, 0, 0, SS, -ox * SS, -oy * SS); HI.setOrigin(bctx, ox, oy);
     const mine = tab === ME;
     // floors
@@ -2683,10 +2786,10 @@
     const people = [];
     if (h) { for (const e of h.pats || []) people.push(posOf('p', e)); for (const e of h.staff) if (!e.gone) people.push(posOf('s', e)); for (const e of h.vis || []) people.push(posOf('v', e)); }
     HI.frame(t, dt, people);
-    HI.clouds(bctx);
+    HI.clouds(bctx, h);
     ghosts3d.length = 0;
     if (h) drawBuildOverlays(h, t, mine);
-    const objs = HI.outside().concat(ghosts3d);
+    const objs = HI.outside(h, h ? plotsForSale(h) : []).concat(ghosts3d);
     if (h) {
       objs.push(...HI.hospitalWalls(h));
       for (const key in h.rooms) {
