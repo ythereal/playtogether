@@ -905,13 +905,21 @@
     pt.st = 'leave'; pt.why = why;
     const [gx, gy] = exitSpot(h); route(h, pt, gx, gy);
   }
-  function kill(s, p, pt, where) {
+  // A patient dies. cause: 'treat' a failed cure of a fatal disease (or of an emergency) · 'time' their health ran out
+  // · 'boom' a machine exploded · 'emtime' an emergency's time ran out. The event says why, for the message, and
+  // h.dcause counts deaths by cause for the Status window.
+  function kill(s, p, pt, where, cause) {
     const h = s.h[p];
+    const qr = roomList(h).find(r => r.q && r.q.includes(pt.id)), at = where >= 0 && h.rooms[where] ? h.rooms[where] : null;
+    const inRoom = at || (pt.st === 'in' ? h.rooms[roomAtTile(h, tileOf(pt.x), tileOf(pt.y))] : null);
+    const why = { cause: cause || 'time', dg: Math.round((pt.em ? 1 : pt.dg) * 100), room: inRoom ? inRoom.k : null, q: qr ? qr.k : null, st: pt.st };
+    if (!h.dcause) h.dcause = {};
+    h.dcause[why.cause] = (h.dcause[why.cause] || 0) + 1;
     unqueue(h, pt);
     dropFax(h, f => f.pid === pt.id);
     leaveFacility(h, pt);
     h.died++; h.monthDeaths++; h.seen++; addRep(h, -DEATH_REP); h.cb[pt.dis][1]++;
-    s.ev.push({ k: 'died', p, id: pt.id, nm: pt.nm, dis: pt.dis, x: pt.x, y: pt.y, where, em: pt.em });
+    s.ev.push({ k: 'died', p, id: pt.id, nm: pt.nm, dis: pt.dis, x: pt.x, y: pt.y, where, em: pt.em, why });
     h.pats.splice(h.pats.indexOf(pt), 1);
   }
   function sendHome(s, p, pt, why) {
@@ -1002,7 +1010,7 @@
       if (pt.em && h.em) h.em.saved++;
       leave(s, p, pt, 'cured');
     } else if (d.fatal || pt.em) {
-      kill(s, p, pt, r.id);
+      kill(s, p, pt, r.id, 'treat');
     } else {
       s.ev.push({ k: 'uncured', p, nm: pt.nm, dis: pt.dis });
       pt.cure = 0; pt.dg *= 0.5; pt.been = []; pt.gp2 = 0;
@@ -1025,8 +1033,8 @@
     s.ev.push({ k: 'boom', p, room: r.id, kind: r.k, x: roomCenter(r)[0], y: roomCenter(r)[1] });
     for (const st of h.staff.slice()) if (tileIn(r, st)) { st.gone = true; st.dead = true; unslot(h, st); h.staff.splice(h.staff.indexOf(st), 1); }
     r.sts = [];
-    if (pt && h.pats.includes(pt)) kill(s, p, pt, r.id);
-    for (const o of h.pats.slice()) if (tileIn(r, o) && o.st !== 'leave') kill(s, p, o, r.id);
+    if (pt && h.pats.includes(pt)) kill(s, p, pt, r.id, 'boom');
+    for (const o of h.pats.slice()) if (tileIn(r, o) && o.st !== 'leave') kill(s, p, o, r.id, 'boom');
     changed(h); assign(h);
   }
   const tileIn = (r, e) => inRect(r.rect, tileOf(e.x), tileOf(e.y));
@@ -1084,7 +1092,7 @@
   }
   function endEmergency(s, p) {
     const h = s.h[p], e = h.em; if (!e) return;
-    for (const pt of h.pats.slice()) if (pt.em && pt.st !== 'leave') kill(s, p, pt, -1);
+    for (const pt of h.pats.slice()) if (pt.em && pt.st !== 'leave') kill(s, p, pt, -1, 'emtime');
     const pay = e.saved >= e.n / 2 ? Math.round(e.bonus * e.saved / e.n) : 0;
     if (pay) { book(h, 'Emergencies', pay); addRep(h, 10); } else addRep(h, -10);
     s.ev.push({ k: 'emEnd', p, saved: e.saved, n: e.n, pay });
@@ -2065,7 +2073,7 @@
       const arrived = walk(pt, d.id === 'sleep' ? PSPEED * 0.6 : pt.em ? PSPEED * 1.3 : PSPEED, dt);
       if (pt.st === 'leave') { if (arrived && !pt.waitCar) { if (pt.inf && !pt.vax && h.epi && h.epi.phase === 'cover') h.epi.t = s.t; /* an infected patient got outside: the inspector comes at once */ callCar(s, h, pt); } continue; }
       pt.hp -= dt / (d.fatal ? 300 : 520) * (pt.em ? 2.5 : 1);
-      if (pt.hp <= 0) { kill(s, p, pt, -1); continue; }
+      if (pt.hp <= 0) { kill(s, p, pt, -1, 'time'); continue; }
       pt.th = clamp(pt.th + dt / 120 * (h.warm > 1.6 ? 2 : 1), 0, 1);
       pt.bl = clamp(pt.bl + dt / 140 * (hasTag(d, 'loo') ? 2.5 : 1), 0, 1.2);
       if (pt.st === 'enter') { if (arrived) { pt.st = 'recep'; pt.t = 1.4; } continue; }

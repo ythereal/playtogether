@@ -181,7 +181,7 @@
     const dry = []; for (const k in h.decor) if (h.decor[k] === 'plant' && (h.water[k] || 0) <= 0) dry.push(k);
     const ps = patStat(h.pats);
     const o = { lv: h.lv, cash: h.cash, loan: h.loan, rep: h.rep, cured: h.cured, died: h.died, angry: h.angry, home: h.home, seen: h.seen, visits: h.visits, open: h.open, desk: h.desk,
-      comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, drot: h.drot || {}, dry, mess: h.mess,
+      comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, drot: h.drot || {}, dcause: h.dcause || {}, dry, mess: h.mess,
       em: h.em ? { dis: h.em.dis, n: h.em.n, saved: h.em.saved, end: r1(h.em.end) } : null, epi: h.epi ? { phase: h.epi.phase, t: r1(h.epi.t), dis: h.epi.dis } : null, pstat: ps,
       staff: h.staff.map(s => ({ id: s.id, k: s.k, nm: s.nm, sk: s.sk, q: s.q, sal: s.sal, slot: s.slot, desk: s.desk, room: s.room, x: r1(s.x), y: r1(s.y), f: s.f, mv: s.mv, gone: s.gone ? 1 : 0, look: s.look,
         cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, pw: s.pw || null, quit: s.quit, incar: s.incar ? 1 : 0 })), res: undefined,
@@ -435,7 +435,7 @@
         floaters.push({ p: e.p, x: e.x, y: e.y, txt: e.refuse ? 'no pay!' : '+' + money(e.fee), col: e.refuse ? '#ff6b57' : '#ffe36b', life: 1.6, big: true });
         burst(e.p, e.x, e.y, '#ffe36b', 8); break;
       case 'died':
-        if (mine) toast(`${e.nm} died of ${dname(e.dis)} · reputation −12`, 'bad');
+        if (mine) toast(deathText(e) + ' · reputation −12', 'bad');
         ghosts.push({ p: e.p, x: e.x, y: e.y, life: 2.2 }); break;
       case 'uncured': if (mine) toast(`${e.nm}'s treatment for ${dname(e.dis)} didn't work: back to the GP`, 'dim'); break;
       case 'angry':
@@ -517,6 +517,23 @@
     const id = +key.slice(1);
     for (const h of state.h) { const e = key[0] === 'p' ? RH.patById(h, id) : RH.staffById(h, id); if (e) return [e.x, e.y]; }
     return null;
+  }
+
+  // why a patient died, in a sentence: which treatment failed and how sure the diagnosis was, what they were waiting
+  // for when their health ran out, which room exploded
+  const CURE_WORD = { pharm: 'the drug', psych: 'psychiatric treatment', op: 'surgery', clinic: 'the clinic treatment' };
+  function deathText(e) {
+    const w = e.why || {}, dis = dname(e.dis), room = k => (k ? rname(k) : 'a room');
+    if (w.cause === 'boom') return `${e.nm} was killed when the ${room(w.room)} exploded`;
+    if (w.cause === 'emtime') return `${e.nm} (emergency, ${dis}) wasn't treated in time`;
+    if (w.cause === 'treat') {
+      const D = RH.DISEASES[e.dis] || {};
+      return e.em ? `${e.nm} died: emergency treatment for ${dis} failed in the ${room(w.room)}`
+        : `${e.nm} died: ${CURE_WORD[D.grp] || 'treatment'} for ${dis} failed (diagnosis only ${w.dg}% sure)`;
+    }
+    const where = w.st === 'queue' && w.q ? `queueing for the ${room(w.q)}` : w.st === 'recep' ? 'waiting at reception' : w.st === 'wait' ? 'waiting for you to decide on them'
+      : w.st === 'in' && w.room ? `in the ${room(w.room)}` : w.st === 'wc' ? 'in the toilet' : w.st === 'trip' ? 'getting a drink' : 'in the hospital';
+    return `${e.nm} (${dis}) ran out of time ${where}`;
   }
 
   // ============================ HUD, advisor, phases ============================
@@ -2019,7 +2036,7 @@
   function refreshStatus() {
     if ($('statSheet').hidden || !view) return;
     const h = view.h[ME], r = view.h[FRIEND];
-    const key = [view.month, h.cash, h.rep, h.cured, h.seen, r.cured, r.rep, h.awards.length, r.awards.length].join('|');
+    const key = [view.month, h.cash, h.rep, h.cured, h.seen, h.died, r.cured, r.rep, h.awards.length, r.awards.length].join('|');
     if ($('statBody').dataset.key === key) return;
     $('statBody').dataset.key = key;
     const step = SOLO && view.solo.declined ? 6 : 3, nextQ = (Math.floor(view.month / step) + 1) * step;
@@ -2048,6 +2065,23 @@
     pbar('Warmth', clamp(h.warm / 1.6, 0, 1), warmWord(h.warm));
     pbar('Health', ps.hp || 0, Math.round((ps.hp || 0) * 100) + '%');
     body.append(pb);
+    // how patients have died, so the fix is clear: fuller diagnoses, better drugs, shorter queues, machine upkeep
+    const dc = h.dcause || {}, dTotal = Object.values(dc).reduce((a, b) => a + b, 0);
+    body.append(el('h4', null, `Deaths (${h.died})`));
+    if (!h.died) body.append(el('p', 'sub', 'No one has died yet.'));
+    else {
+      const dl = el('div', 'bars');
+      for (const [k, label, tip] of [['treat', 'Treatment failed', 'Fatal diseases and emergencies: a failed cure kills. Raise "Guess cure" in Policy, build diagnosis rooms, research drugs.'],
+        ['time', 'Ran out of time', 'Their health ran out while waiting: shorten queues with more rooms and staff.'],
+        ['emtime', 'Emergency not treated in time', 'Accept emergencies only when the cure room is ready and staffed.'],
+        ['boom', 'Machine exploded', 'Keep handymen repairing machines; replace worn ones.']]) {
+        const n = dc[k] || 0; if (!n) continue;
+        const w = el('div', 'tbar lose'), tr = el('span', 'track'), i = el('i'); i.style.width = (n / Math.max(1, dTotal)) * 100 + '%'; tr.append(i); w.title = tip;
+        w.append(el('span', null, label), tr, el('b', null, String(n))); dl.append(w);
+      }
+      if (dTotal < h.died) dl.append(el('small', 'sub', `${h.died - dTotal} earlier death${h.died - dTotal === 1 ? '' : 's'} from before causes were recorded.`));
+      body.append(dl);
+    }
     // market share and the league table against the rival
     body.append(el('h4', null, 'League table'));
     if (SOLO) { soloLeague(body, h); return; }
