@@ -102,12 +102,22 @@
         return;
       }
       const err = RH.quickBuild(s, p, k);
-      if (err === 'No room on the floor') { brain.skip[k] = 1; continue; }
+      if (err === 'No room on the floor') {
+        if (buyLand(s, p, h, L)) { brain.skip = {}; brain.next = s.t + L.pace; return; }   // the building is full: buy the next plot
+        brain.skip[k] = 1; continue;
+      }
       if (!err) brain.next = s.t + L.pace * (0.75 + rnd() * 0.5) * (i < 3 ? 0.6 : 1);   // the first few rooms come a little quicker
       return;
     }
   }
 
+  // the cheapest way to more floor: the next plot in town (the wings beside the building come first), if it can spare the cash
+  function buyLand(s, p, h, L) {
+    if (!RH.TOWN) return false;
+    const q = RH.PLOTS.find(q2 => q2.id > 1 && RH.plotStatus(s, h, q2.id) === 'sale');
+    if (!q || h.cash - RH.plotPrice(q.id) < L.reserve + 3000) return false;
+    return !RH.buyPlot(s, p, q.id);
+  }
   function chores(s, p, h, L) {
     // rats get shot, worn machines replaced before they blow
     for (const rt of h.rats.slice()) if (rnd() < 0.6) RH.shoot(s, p, rt.id);
@@ -126,9 +136,9 @@
   }
   // a corridor tile beside a room wall, nearest the entrance first
   function placeNear(s, p, h, kind) {
-    const Lr = RH.layout(h), spots = [];
-    for (let y = 0; y < RH.H; y++) for (let x = 2; x < RH.W; x++) {
-      if (!RH.indoor(x, y) || Lr.room[RH.idx(x, y)]) continue;
+    const Lr = RH.layout(h), spots = [], bb = Lr.bb;
+    for (let y = bb.y0; y < bb.y1; y++) for (let x = bb.x0; x < bb.x1; x++) {
+      if (!Lr.inside[RH.idx(x, y)] || Lr.room[RH.idx(x, y)]) continue;
       const byWall = RH.DIRS.some(([dx, dy]) => RH.inMap(x + dx, y + dy) && Lr.room[RH.idx(x + dx, y + dy)] > 0);
       if (byWall) spots.push([x, y, Math.abs(x - RH.DOOR.mid) + Math.abs(y - RH.DOOR.y) + rnd() * 6]);
     }

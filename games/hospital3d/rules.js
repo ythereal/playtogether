@@ -11,10 +11,10 @@
 (function (root) {
   'use strict';
   const VERSION = 8;   // 8: the single-player town (7: the entrance wing is only six tiles deep, as in Theme Hospital)
-  // The map: the two-player game is played on a 32 x 26 grid holding one building. The single-player campaign is played
-  // in a 128 x 128 town (town.js) laid round that same building, which keeps its coordinates: the town reaches into
-  // negative tile coordinates, from (MX0, MY0). Which map a page uses is fixed when it loads.
-  const TOWN = !!(root.RH_TOWN || (typeof location !== 'undefined' && /[?&]solo=1(&|$)/.test(location.search)));
+  // The map: both modes are played in a 128 x 128 town (town.js), each hospital in its own copy of it, laid round the
+  // original 32 x 26 map's building, which keeps its coordinates: the town reaches into negative tile coordinates, from
+  // (MX0, MY0). Setting RH_TOWN = false before this loads (Node tests) brings back the old 32 x 26 map.
+  const TOWN = root.RH_TOWN !== false;
   const RT = TOWN ? (root.RT || require('./town.js')) : null;
   const T = 16, W = TOWN ? RT.W : 32, H = TOWN ? RT.H : 26, MX0 = TOWN ? RT.X0 : 0, MY0 = TOWN ? RT.Y0 : 0;
   const BW0 = 32, BH0 = 26;   // the two-player map, and the building you start with
@@ -1226,7 +1226,8 @@
     s.ev.push({ k: 'undecor', p, kind });
     return null;
   }
-  // ---------- land (the single-player town) ----------
+  // ---------- land (the town) ----------
+  // In the campaign a level puts plots on the market; in a two-player match every plot is for sale from the start.
   // what your land is worth: $25 a tile for every plot you own, plus the spec's $20,000
   const landValue = plots => plots.reduce((a, id) => a + (plotById(id) ? plotById(id).tiles * LAND_COST : 0), 20000);
   const plotPrice = id => (plotById(id) ? plotById(id).tiles * LAND_COST : 0);
@@ -1242,7 +1243,7 @@
     if (st === 'later') return `${q.nm} isn't for sale until level ${q.lvl}`;
     const price = plotPrice(id);
     if (h.cash < price) return 'Not enough cash';
-    book(h, 'Land', -price); h.land = landValue(owned(h).concat(id)); h.plots = owned(h).concat(id);
+    book(h, 'Land', -price); h.land = (h.land || 0) + price; h.plots = owned(h).concat(id);   // two-player value counts only land bought
     changed(h); assign(h);
     s.ev.push({ k: 'plot', p, id, price });
     return null;

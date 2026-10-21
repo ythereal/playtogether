@@ -7,7 +7,7 @@
   const { T } = HA;
   const DIRS = ['down', 'up', 'left', 'right'];
   const TICK = 1 / 60, SNAP_HZ = 10;
-  const PROTO = 5;   // snapshot format: bump whenever host and guest stop understanding each other
+  const PROTO = 6;   // snapshot format: bump whenever host and guest stop understanding each other
   let mismatch = '';   // who has the out-of-date copy: 'me' or 'friend'
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -181,7 +181,7 @@
     const dry = []; for (const k in h.decor) if (h.decor[k] === 'plant' && (h.water[k] || 0) <= 0) dry.push(k);
     const ps = patStat(h.pats);
     const o = { lv: h.lv, cash: h.cash, loan: h.loan, rep: h.rep, cured: h.cured, died: h.died, angry: h.angry, home: h.home, seen: h.seen, visits: h.visits, open: h.open, desk: h.desk,
-      comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, rooms: rm, decor: h.decor, drot: h.drot || {}, dcause: h.dcause || {}, dry, mess: h.mess,
+      comfort: h.comfort, warm: r2(h.warm), rads: h.rads, drinks: h.drinks, booms: h.booms, vipScore: h.vipScore, awards: h.awards, plots: RH.owned(h), land: h.land || 0, rooms: rm, decor: h.decor, drot: h.drot || {}, dcause: h.dcause || {}, dry, mess: h.mess,
       em: h.em ? { dis: h.em.dis, n: h.em.n, saved: h.em.saved, end: r1(h.em.end) } : null, epi: h.epi ? { phase: h.epi.phase, t: r1(h.epi.t), dis: h.epi.dis } : null, pstat: ps,
       staff: h.staff.map(s => ({ id: s.id, k: s.k, nm: s.nm, sk: s.sk, q: s.q, sal: s.sal, slot: s.slot, desk: s.desk, room: s.room, x: r1(s.x), y: r1(s.y), f: s.f, mv: s.mv, gone: s.gone ? 1 : 0, look: s.look,
         cl: s.work > 0 ? 1 : 0, job: s.job ? s.job[0] : '', hap: r2(s.hap), tired: r2(s.tired), mode: s.mode, train: s.train, pri: s.pri, pw: s.pw || null, quit: s.quit, incar: s.incar ? 1 : 0 })), res: undefined,
@@ -2266,7 +2266,7 @@
     if (tg.rep != null) parts.push(`reputation ${tg.rep}`); if (tg.cash != null) parts.push(`a bank balance of ${money(tg.cash)}`);
     if (tg.pct != null) parts.push(`a ${tg.pct}% cure rate`); if (tg.cured != null) parts.push(`${tg.cured} patients cured`); if (tg.value != null) parts.push(`a hospital value of ${money(tg.value)}`);
     if (!SOLO) {
-      $('legendWin').textContent = `Be the first to meet every target at a quarter-end check: ${parts.join(', ')}. Lose if your balance falls below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. If nobody gets there in ${RH.MONTHS} months (a month lasts ${RH.MONTH} seconds), the hospital closest to its targets wins. Year-end awards bring cash and reputation.`;
+      $('legendWin').textContent = `Be the first to meet every target at a quarter-end check: ${parts.join(', ')}. Lose if your balance falls below ${money(RH.LOSE.cash)} or your reputation below ${RH.LOSE.rep}. If nobody gets there in ${RH.MONTHS} months (a month lasts ${RH.MONTH} seconds), the hospital closest to its targets wins. Year-end awards bring cash and reputation. Every plot in town is for sale from the start: more land means more room to build, and it adds to your hospital's value (Land, L).`;
       return;
     }
     const L = lvlInfo(), n = view.solo.lvl, rv = view.solo.rivals.map(r => r.nm);
